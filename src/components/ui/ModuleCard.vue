@@ -8,19 +8,21 @@
     @click="handleClick"
   >
     <!-- Icon -->
-    <div 
-      :class="[
-        'w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-colors',
-        'group-hover:scale-110 group-hover:bg-slate-200 dark:group-hover:bg-slate-600/50',
-        iconClasses
-      ]"
-    >
-      <slot name="icon">
-        <component 
-          :is="icon" 
-          class="w-8 h-8 text-slate-600 dark:text-slate-300"
-        />
-      </slot>
+    <div class="flex justify-center mb-6">
+      <div 
+        :class="[
+          'w-16 h-16 rounded-2xl flex items-center justify-center transition-colors',
+          'group-hover:scale-110 group-hover:bg-slate-200 dark:group-hover:bg-slate-600/50',
+          iconClasses
+        ]"
+      >
+        <slot name="icon">
+          <component 
+            :is="icon" 
+            class="w-8 h-8 text-slate-600 dark:text-slate-300"
+          />
+        </slot>
+      </div>
     </div>
     
     <!-- Content -->
