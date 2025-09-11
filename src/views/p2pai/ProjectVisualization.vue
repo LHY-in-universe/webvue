@@ -253,24 +253,14 @@
           <!-- Network Visualization (for federated and MPC) - 完全按照EdgeAI设计 -->
           <div v-else class="bg-white dark:bg-gray-900 m-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-[900px]">
             <div class="h-full relative">
-              <!-- Debug Info -->
-              <div class="absolute top-4 left-4 z-10 p-3 bg-black/70 text-white text-sm rounded-lg">
-                <div><strong>Debug Info:</strong></div>
-                <div>Project Type: {{ projectType }}</div>
-                <div>Visible Nodes: {{ visibleNodes.length }}</div>
-                <div>Nodes Data: {{ JSON.stringify(visibleNodes, null, 2) }}</div>
-                <div>Connections: {{ visibleConnections.length }}</div>
-              </div>
-              
-              <FederatedNetworkVisualization
+              <NetworkVisualization
                 ref="networkViz"
                 :nodes="visibleNodes"
                 :connections="visibleConnections"
-                :training-round="trainingState.currentRound"
-                :training-status="trainingState.status"
-                :node-animation-states="nodeAnimationStates"
+                :training-active="isTraining"
+                :project-type="projectType"
                 @node-click="handleNodeClick"
-                @connection-click="handleConnectionClick"
+                @node-hover="handleNodeHover"
               />
             </div>
           </div>
@@ -662,7 +652,7 @@ import {
 
 import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
 import Button from '@/components/ui/Button.vue'
-import FederatedNetworkVisualization from '@/components/edgeai/FederatedNetworkVisualization.vue'
+import NetworkVisualization from '@/components/p2pai/NetworkVisualization.vue'
 import LocalTrainingChart from '@/components/p2pai/LocalTrainingChart.vue'
 
 const router = useRouter()
@@ -849,9 +839,13 @@ const visibleNodes = computed(() => {
       { 
         id: 'local-001', 
         name: 'Your Device', 
-        type: 'training', 
+        type: 'edge',
         status: isTraining.value ? 'training' : 'idle',
-        resources: { cpu: 75, memory: 60, gpu: 80 }
+        resources: { cpu: 75, memory: 60, gpu: 80 },
+        color: '#3b82f6',
+        strokeColor: '#1d4ed8',
+        isOwn: true,
+        progress: isTraining.value ? overallProgress.value : 0
       }
     ]
   } else if (projectType.value === 'federated') {
@@ -859,16 +853,24 @@ const visibleNodes = computed(() => {
       { 
         id: 'local-001', 
         name: 'Your Device', 
-        type: 'training', 
+        type: 'edge',
         status: isTraining.value ? 'training' : 'idle',
-        resources: { cpu: 75, memory: 60, gpu: 80 }
+        resources: { cpu: 75, memory: 60, gpu: 80 },
+        color: '#3b82f6',
+        strokeColor: '#1d4ed8',
+        isOwn: true,
+        progress: isTraining.value ? overallProgress.value : 0
       },
       { 
         id: 'server-001', 
         name: 'Central Server', 
-        type: 'control', 
+        type: 'control',
+        subType: 'master',
         status: 'active',
-        resources: { cpu: 45, memory: 70 }
+        resources: { cpu: 45, memory: 70 },
+        color: '#ef4444',
+        strokeColor: '#dc2626',
+        isOwn: false
       }
     ]
   } else { // MPC
@@ -876,9 +878,13 @@ const visibleNodes = computed(() => {
       { 
         id: 'local-001', 
         name: 'Your Device', 
-        type: 'training', 
+        type: 'edge',
         status: 'computing',
-        resources: { cpu: 85 } // Limited info for MPC
+        resources: { cpu: 85 },
+        color: '#8b5cf6',
+        strokeColor: '#7c3aed',
+        isOwn: true,
+        progress: isTraining.value ? overallProgress.value : 0
       }
     ]
   }
@@ -887,7 +893,12 @@ const visibleNodes = computed(() => {
 const visibleConnections = computed(() => {
   if (projectType.value === 'federated') {
     return [
-      { source: 'local-001', target: 'server-001', type: 'federated' }
+      { 
+        from: 'local-001', 
+        to: 'server-001', 
+        type: 'federated',
+        active: isTraining.value
+      }
     ]
   }
   return []
@@ -972,6 +983,10 @@ const handleNodeClick = (node) => {
 
 const handleConnectionClick = (connection) => {
   console.log('Connection clicked:', connection)
+}
+
+const handleNodeHover = (node) => {
+  console.log('Node hovered:', node)
 }
 
 const closeNodeDetails = () => {

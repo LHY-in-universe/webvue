@@ -166,8 +166,8 @@
         >
           <!-- 主节点圆形 -->
           <circle
-            :cx="node.x"
-            :cy="node.y"
+            :cx="getNodePosition(node.id).x"
+            :cy="getNodePosition(node.id).y"
             :r="getNodeRadius(node)"
             :fill="node.color || '#6b7280'"
             :stroke="node.strokeColor || '#4b5563'"
@@ -181,8 +181,8 @@
           
           <!-- 节点渐变覆盖层 -->
           <circle
-            :cx="node.x"
-            :cy="node.y"
+            :cx="getNodePosition(node.id).x"
+            :cy="getNodePosition(node.id).y"
             :r="getNodeRadius(node)"
             :fill="node.type === 'control' ? 'url(#controlNodeGradient)' : 'url(#nodeGradient)'"
             style="pointer-events: none;"
@@ -191,8 +191,8 @@
           <!-- 训练进度环（仅边缘节点） -->
           <circle
             v-if="node.type === 'edge' && node.status === 'training' && node.progress"
-            :cx="node.x"
-            :cy="node.y"
+            :cx="getNodePosition(node.id).x"
+            :cy="getNodePosition(node.id).y"
             :r="getNodeRadius(node) + 8"
             fill="none"
             :stroke="node.strokeColor"
@@ -208,8 +208,8 @@
           <circle
             v-if="node.status === 'training'"
             :r="4"
-            :cx="node.x + getNodeRadius(node) - 8"
-            :cy="node.y - getNodeRadius(node) + 8"
+            :cx="getNodePosition(node.id).x + getNodeRadius(node) - 8"
+            :cy="getNodePosition(node.id).y - getNodeRadius(node) + 8"
             fill="#10b981"
             class="status-indicator"
           >
@@ -225,8 +225,8 @@
           <circle
             v-if="node.status === 'offline'"
             :r="4"
-            :cx="node.x + getNodeRadius(node) - 8"
-            :cy="node.y - getNodeRadius(node) + 8"
+            :cx="getNodePosition(node.id).x + getNodeRadius(node) - 8"
+            :cy="getNodePosition(node.id).y - getNodeRadius(node) + 8"
             fill="#ef4444"
             opacity="0.7"
           />
@@ -236,15 +236,15 @@
             <!-- 控制节点内部标识 -->
             <circle
               v-if="node.type === 'control'"
-              :cx="node.x"
-              :cy="node.y"
+              :cx="getNodePosition(node.id).x"
+              :cy="getNodePosition(node.id).y"
               r="8"
               fill="rgba(255, 255, 255, 0.9)"
             />
             <circle
               v-if="node.type === 'control'"
-              :cx="node.x"
-              :cy="node.y"
+              :cx="getNodePosition(node.id).x"
+              :cy="getNodePosition(node.id).y"
               r="4"
               :fill="node.subType === 'master' ? '#1f2937' : '#4b5563'"
             />
@@ -252,15 +252,15 @@
             <!-- 边缘节点内部标识 -->
             <circle
               v-if="node.type === 'edge'"
-              :cx="node.x"
-              :cy="node.y"
+              :cx="getNodePosition(node.id).x"
+              :cy="getNodePosition(node.id).y"
               r="6"
               fill="rgba(255, 255, 255, 0.9)"
             />
             <circle
               v-if="node.type === 'edge'"
-              :cx="node.x"
-              :cy="node.y"
+              :cx="getNodePosition(node.id).x"
+              :cy="getNodePosition(node.id).y"
               r="3"
               :fill="node.isOwn ? '#dc2626' : '#059669'"
             />
@@ -277,8 +277,8 @@
         >
           <!-- 标签背景 -->
           <rect
-            :x="node.x - getTextWidth(node.name) / 2 - 8"
-            :y="node.y + getNodeRadius(node) + 15"
+            :x="getNodePosition(node.id).x - getTextWidth(node.name) / 2 - 8"
+            :y="getNodePosition(node.id).y + getNodeRadius(node) + 15"
             :width="getTextWidth(node.name) + 16"
             height="24"
             rx="12"
@@ -288,8 +288,8 @@
           
           <!-- 节点名称标签 -->
           <text
-            :x="node.x"
-            :y="node.y + getNodeRadius(node) + 30"
+            :x="getNodePosition(node.id).x"
+            :y="getNodePosition(node.id).y + getNodeRadius(node) + 30"
             text-anchor="middle"
             :class="labelTextClasses"
             font-size="12"
@@ -301,8 +301,8 @@
           <!-- 训练进度文本（边缘节点） -->
           <text
             v-if="node.type === 'edge' && node.status === 'training' && node.progress"
-            :x="node.x"
-            :y="node.y + getNodeRadius(node) + 45"
+            :x="getNodePosition(node.id).x"
+            :y="getNodePosition(node.id).y + getNodeRadius(node) + 45"
             text-anchor="middle"
             :class="progressTextClasses"
             font-size="10"
@@ -505,6 +505,11 @@ const props = defineProps({
   enableVirtualization: {
     type: Boolean,
     default: false // 启用虚拟化渲染
+  },
+  projectType: {
+    type: String,
+    default: 'federated', // federated 或 mpc
+    validator: value => ['federated', 'mpc'].includes(value)
   }
 })
 
@@ -529,6 +534,39 @@ const isDragging = ref(false)
 const lastMousePosition = ref({ x: 0, y: 0 })
 const minZoom = 0.3
 const maxZoom = 3
+
+// 智能布局配置 - 借鉴EdgeAI的布局系统
+const LAYOUT_CONFIGS = {
+  federated: {
+    // 联邦学习：星形拓扑，中央服务器在上方，边缘设备围绕分布
+    control: [
+      { x: 400, y: 120 }  // 中央服务器位置
+    ],
+    edge: [
+      { x: 200, y: 300 },  // 左侧边缘设备
+      { x: 400, y: 380 },  // 中央边缘设备
+      { x: 600, y: 300 },  // 右侧边缘设备
+      { x: 150, y: 200 },  // 左上边缘设备
+      { x: 650, y: 200 }   // 右上边缘设备
+    ]
+  },
+  mpc: {
+    // MPC：紧凑布局，体现隐私保护
+    edge: [
+      { x: 400, y: 250 }   // 本地设备居中
+    ],
+    hidden: [
+      // 隐藏参与方的占位符位置
+      { x: 300, y: 180 },
+      { x: 500, y: 180 },
+      { x: 350, y: 320 },
+      { x: 450, y: 320 }
+    ]
+  }
+}
+
+// 节点位置追踪
+const nodePositions = ref(new Map())
 
 // SVG 尺寸
 const svgWidth = ref(800)
@@ -688,10 +726,89 @@ const handleWheel = (event) => {
   }
 }
 
-// 方法
+// 智能位置分配函数 - 借鉴EdgeAI系统
+const getStablePositionIndex = (nodeId, nodeType) => {
+  if (nodeType === 'control') {
+    // 控制节点稳定分配
+    if (nodeId.includes('server')) return 0
+    if (nodeId.includes('control')) return 1
+    return 0
+  } else if (nodeType === 'edge') {
+    // 边缘节点基于ID稳定分配位置
+    const match = nodeId.match(/(\d+)/)
+    if (match) {
+      const nodeNumber = parseInt(match[1])
+      const layoutConfig = LAYOUT_CONFIGS[props.projectType]
+      const edgePositions = layoutConfig?.edge || []
+      return (nodeNumber - 1) % edgePositions.length
+    }
+  }
+  return 0
+}
+
+// 初始化节点位置
+const initializeNodePositions = () => {
+  const layoutConfig = LAYOUT_CONFIGS[props.projectType]
+  if (!layoutConfig) return
+  
+  props.nodes.forEach((node, index) => {
+    // 跳过已有位置的节点
+    if (nodePositions.value.has(node.id)) return
+    
+    let position = null
+    
+    if (node.type === 'control' && layoutConfig.control) {
+      const positionIndex = getStablePositionIndex(node.id, node.type)
+      position = layoutConfig.control[positionIndex] || layoutConfig.control[0]
+    } else if (node.type === 'edge' && layoutConfig.edge) {
+      const positionIndex = getStablePositionIndex(node.id, node.type)
+      position = layoutConfig.edge[positionIndex] || layoutConfig.edge[0]
+    }
+    
+    if (position) {
+      nodePositions.value.set(node.id, { ...position })
+    }
+  })
+}
+
+// 获取节点位置 - 优先使用智能布局，回退到原坐标
 const getNodePosition = (nodeId) => {
   const node = props.nodes.find(n => n.id === nodeId)
-  return node ? { x: node.x, y: node.y } : { x: 0, y: 0 }
+  if (!node) return { x: 0, y: 0 }
+  
+  // 优先从位置缓存获取
+  const cachedPosition = nodePositions.value.get(nodeId)
+  if (cachedPosition) {
+    return { ...cachedPosition }
+  }
+  
+  // 如果节点有原始坐标，使用原始坐标
+  if (node.x !== undefined && node.y !== undefined) {
+    return { x: node.x, y: node.y }
+  }
+  
+  // 否则使用布局系统分配位置
+  const layoutConfig = LAYOUT_CONFIGS[props.projectType]
+  if (layoutConfig) {
+    let position = null
+    
+    if (node.type === 'control' && layoutConfig.control) {
+      const positionIndex = getStablePositionIndex(nodeId, node.type)
+      position = layoutConfig.control[positionIndex] || layoutConfig.control[0]
+    } else if (node.type === 'edge' && layoutConfig.edge) {
+      const positionIndex = getStablePositionIndex(nodeId, node.type)
+      position = layoutConfig.edge[positionIndex] || layoutConfig.edge[0]
+    }
+    
+    if (position) {
+      // 缓存位置
+      nodePositions.value.set(nodeId, { ...position })
+      return { ...position }
+    }
+  }
+  
+  // 最后回退到默认位置
+  return { x: 400, y: 250 }
 }
 
 const getNodeRadius = (node) => {
@@ -757,9 +874,10 @@ const handleNodeHover = async (node) => {
   
   if (networkSvg.value) {
     const rect = networkSvg.value.getBoundingClientRect()
+    const nodePos = getNodePosition(node.id)
     tooltipPosition.value = {
-      x: rect.left + node.x,
-      y: rect.top + node.y - getNodeRadius(node) - 10
+      x: rect.left + nodePos.x,
+      y: rect.top + nodePos.y - getNodeRadius(node) - 10
     }
   }
   
@@ -874,10 +992,31 @@ watch(
   }
 )
 
+// 监听节点变化，重新初始化位置
+watch(
+  () => props.nodes.length,
+  () => {
+    initializeNodePositions()
+  },
+  { immediate: true }
+)
+
+// 监听项目类型变化，清除缓存并重新布局
+watch(
+  () => props.projectType,
+  () => {
+    nodePositions.value.clear()
+    initializeNodePositions()
+  }
+)
+
 // 添加全局鼠标事件监听器
 onMounted(() => {
   document.addEventListener('mousemove', handleMouseMove)
   document.addEventListener('mouseup', handleMouseUp)
+  
+  // 初始化节点位置
+  initializeNodePositions()
   
   // 添加快捷键事件监听器
   const container = networkSvg.value?.closest('.network-visualization-container')
