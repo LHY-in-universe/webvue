@@ -753,8 +753,8 @@ const trainingConfig = computed(() => {
 const visibleNodesCount = computed(() => {
   const counts = {
     local: '1 (Local Only)',
-    federated: '2 (Local + Server)',
-    mpc: '1 (Hidden)'
+    federated: `${visibleNodes.value.length} (${visibleNodes.value.filter(n => n.type === 'edge').length} Edge + ${visibleNodes.value.filter(n => n.type === 'control').length} Server)`,
+    mpc: '1 (Others Hidden)'
   }
   return counts[projectType.value] || '1'
 })
@@ -856,8 +856,6 @@ const visibleNodes = computed(() => {
         type: 'edge',
         status: isTraining.value ? 'training' : 'idle',
         resources: { cpu: 75, memory: 60, gpu: 80 },
-        color: '#3b82f6',
-        strokeColor: '#1d4ed8',
         isOwn: true,
         progress: isTraining.value ? overallProgress.value : 0
       },
@@ -868,9 +866,43 @@ const visibleNodes = computed(() => {
         subType: 'master',
         status: 'active',
         resources: { cpu: 45, memory: 70 },
-        color: '#ef4444',
-        strokeColor: '#dc2626',
         isOwn: false
+      },
+      { 
+        id: 'edge-002', 
+        name: 'Mobile Device A', 
+        type: 'edge',
+        status: 'training',
+        resources: { cpu: 65, memory: 45 },
+        isOwn: false,
+        progress: 67
+      },
+      { 
+        id: 'edge-003', 
+        name: 'Laptop B', 
+        type: 'edge',
+        status: 'idle',
+        resources: { cpu: 85, memory: 70 },
+        isOwn: false,
+        progress: 0
+      },
+      { 
+        id: 'edge-004', 
+        name: 'IoT Device C', 
+        type: 'edge',
+        status: 'training',
+        resources: { cpu: 45, memory: 30 },
+        isOwn: false,
+        progress: 23
+      },
+      { 
+        id: 'edge-005', 
+        name: 'Workstation D', 
+        type: 'edge',
+        status: 'offline',
+        resources: { cpu: 0, memory: 0 },
+        isOwn: false,
+        progress: 0
       }
     ]
   } else { // MPC
@@ -881,12 +913,11 @@ const visibleNodes = computed(() => {
         type: 'edge',
         status: 'computing',
         resources: { cpu: 85 },
-        color: '#8b5cf6',
-        strokeColor: '#7c3aed',
         isOwn: true,
         progress: isTraining.value ? overallProgress.value : 0
       }
     ]
+    // 注意：MPC模式下其他参与方是隐藏的，由隐藏占位符显示
   }
 })
 
@@ -898,6 +929,30 @@ const visibleConnections = computed(() => {
         to: 'server-001', 
         type: 'federated',
         active: isTraining.value
+      },
+      { 
+        from: 'edge-002', 
+        to: 'server-001', 
+        type: 'federated',
+        active: true
+      },
+      { 
+        from: 'edge-003', 
+        to: 'server-001', 
+        type: 'federated',
+        active: false
+      },
+      { 
+        from: 'edge-004', 
+        to: 'server-001', 
+        type: 'federated',
+        active: true
+      },
+      { 
+        from: 'edge-005', 
+        to: 'server-001', 
+        type: 'federated',
+        active: false
       }
     ]
   }
@@ -907,9 +962,9 @@ const visibleConnections = computed(() => {
 // 新增的底部面板所需的计算属性
 const totalNodes = computed(() => {
   if (projectType.value === 'mpc') {
-    return 1 // MPC只显示本地节点
+    return 5 // MPC：1个可见节点 + 4个隐藏参与方
   } else if (projectType.value === 'federated') {
-    return 2 // 联邦学习显示本地+服务器
+    return visibleNodes.value.length // 联邦学习显示所有可见节点
   }
   return 1 // 本地训练
 })

@@ -7,7 +7,6 @@
       :height="svgHeight"
       viewBox="0 0 800 500"
       @mousedown="handleMouseDown"
-      @mousemove="handleMouseMove"
       @mouseup="handleMouseUp"
       @mouseleave="handleMouseLeave"
       @wheel="handleWheel"
@@ -156,6 +155,35 @@
         </g>
       </g>
       
+      <!-- MPC隐私保护：隐藏参与方占位符（仅显示虚影圆圈，不显示图标） -->
+      <g v-if="projectType === 'mpc'" id="hiddenParties">
+        <g 
+          v-for="(position, index) in LAYOUT_CONFIGS.mpc.hidden" 
+          :key="`hidden-${index}`"
+          class="hidden-party-group"
+        >
+          <!-- 隐藏节点的虚影 -->
+          <circle
+            :cx="position.x"
+            :cy="position.y"
+            :r="18"
+            fill="none"
+            :stroke="themeStore.isDark ? '#374151' : '#d1d5db'"
+            stroke-width="2"
+            stroke-dasharray="5,5"
+            opacity="0.5"
+          >
+            <!-- 虚化动画 -->
+            <animate
+              attributeName="opacity"
+              values="0.3;0.6;0.3"
+              dur="3s"
+              repeatCount="indefinite"
+            />
+          </circle>
+        </g>
+      </g>
+
       <!-- 节点层 -->
       <g id="nodes">
         <g 
@@ -169,8 +197,8 @@
             :cx="getNodePosition(node.id).x"
             :cy="getNodePosition(node.id).y"
             :r="getNodeRadius(node)"
-            :fill="node.color || '#6b7280'"
-            :stroke="node.strokeColor || '#4b5563'"
+            :fill="getNodeFillColor(node)"
+            :stroke="getNodeStrokeColor(node)"
             :stroke-width="getNodeStrokeWidth(node)"
             :class="getNodeClasses(node)"
             style="cursor: pointer; opacity: 1;"
@@ -204,9 +232,35 @@
             transform="rotate(-90)"
           />
           
-          <!-- 节点状态指示器 -->
+          <!-- 自己设备的脉搏外环 - 只有自己的设备才有 -->
           <circle
-            v-if="node.status === 'training'"
+            v-if="node.isOwn"
+            :cx="getNodePosition(node.id).x"
+            :cy="getNodePosition(node.id).y"
+            :r="getNodeRadius(node) + 5"
+            fill="none"
+            :stroke="getNodeStrokeColor(node)"
+            stroke-width="2"
+            opacity="0.6"
+            class="own-device-pulse"
+          >
+            <animate
+              attributeName="r"
+              :values="`${getNodeRadius(node) + 3};${getNodeRadius(node) + 8};${getNodeRadius(node) + 3}`"
+              dur="2s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.6;0.2;0.6"
+              dur="2s"
+              repeatCount="indefinite"
+            />
+          </circle>
+
+          <!-- 节点状态指示器 - 只有训练中的其他节点才显示 -->
+          <circle
+            v-if="node.status === 'training' && !node.isOwn"
             :r="4"
             :cx="getNodePosition(node.id).x + getNodeRadius(node) - 8"
             :cy="getNodePosition(node.id).y - getNodeRadius(node) + 8"
@@ -221,9 +275,9 @@
             />
           </circle>
           
-          <!-- 离线状态指示器 -->
+          <!-- 离线状态指示器 - 只有其他节点离线时才显示 -->
           <circle
-            v-if="node.status === 'offline'"
+            v-if="node.status === 'offline' && !node.isOwn"
             :r="4"
             :cx="getNodePosition(node.id).x + getNodeRadius(node) - 8"
             :cy="getNodePosition(node.id).y - getNodeRadius(node) + 8"
@@ -231,39 +285,42 @@
             opacity="0.7"
           />
           
-          <!-- 节点内部图标 - 所有节点统一使用圆形设计 -->
-          <g>
-            <!-- 控制节点内部标识 -->
-            <circle
+          <!-- 节点内部图标 - 使用专业的HeroIcons -->
+          <g :transform="`translate(${getNodePosition(node.id).x}, ${getNodePosition(node.id).y})`">
+            <!-- 控制节点/服务器图标 -->
+            <foreignObject
               v-if="node.type === 'control'"
-              :cx="getNodePosition(node.id).x"
-              :cy="getNodePosition(node.id).y"
-              r="8"
-              fill="rgba(255, 255, 255, 0.9)"
-            />
-            <circle
-              v-if="node.type === 'control'"
-              :cx="getNodePosition(node.id).x"
-              :cy="getNodePosition(node.id).y"
-              r="4"
-              :fill="node.subType === 'master' ? '#1f2937' : '#4b5563'"
-            />
+              x="-12"
+              y="-12"
+              width="24"
+              height="24"
+              style="pointer-events: none;"
+            >
+              <ServerIcon 
+                class="w-6 h-6 text-white drop-shadow-sm"
+                :class="themeStore.isDark ? 'text-white' : 'text-white'"
+              />
+            </foreignObject>
             
-            <!-- 边缘节点内部标识 -->
-            <circle
+            <!-- 边缘节点图标 -->
+            <foreignObject
               v-if="node.type === 'edge'"
-              :cx="getNodePosition(node.id).x"
-              :cy="getNodePosition(node.id).y"
-              r="6"
-              fill="rgba(255, 255, 255, 0.9)"
-            />
-            <circle
-              v-if="node.type === 'edge'"
-              :cx="getNodePosition(node.id).x"
-              :cy="getNodePosition(node.id).y"
-              r="3"
-              :fill="node.isOwn ? '#dc2626' : '#059669'"
-            />
+              x="-10"
+              y="-10"
+              width="20"
+              height="20"
+              style="pointer-events: none;"
+            >
+              <CpuChipIcon 
+                v-if="node.isOwn"
+                class="w-5 h-5 text-white drop-shadow-sm font-bold"
+                stroke-width="2.5"
+              />
+              <ComputerDesktopIcon 
+                v-else
+                class="w-5 h-5 text-white drop-shadow-sm"
+              />
+            </foreignObject>
           </g>
         </g>
       </g>
@@ -364,39 +421,6 @@
       </g>
     </svg>
     
-    <!-- 缩放控制面板 -->
-    <div class="zoom-controls">
-      <button 
-        @click="zoomIn" 
-        class="zoom-btn zoom-in"
-        title="Zoom In"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-      </button>
-      <button 
-        @click="zoomOut" 
-        class="zoom-btn zoom-out"
-        title="Zoom Out"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
-        </svg>
-      </button>
-      <button 
-        @click="resetView" 
-        class="zoom-btn reset-view"
-        title="Reset View"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-        </svg>
-      </button>
-      <div class="zoom-level">
-        {{ Math.round(zoomLevel * 100) }}%
-      </div>
-    </div>
     
     <!-- 性能优化提示 -->
     <div 
@@ -422,17 +446,23 @@
       :style="tooltipStyle"
     >
       <div class="tooltip-content">
-        <div class="font-semibold text-gray-900 dark:text-white">
+        <div class="font-semibold text-gray-900 dark:text-white flex items-center">
+          <span class="mr-2">
+            {{ hoveredNode.type === 'control' ? '🖥️' : (hoveredNode.isOwn ? '💻' : '📱') }}
+          </span>
           {{ hoveredNode.name }}
         </div>
         <div class="text-sm text-gray-600 dark:text-gray-400">
-          {{ hoveredNode.type === 'control' ? 'Control Node' : 'Edge Node' }}
+          {{ getNodeTypeLabel(hoveredNode) }}
+        </div>
+        <div v-if="hoveredNode.isOwn" class="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+          🔒 Your Device
         </div>
         <div class="text-xs text-gray-500 dark:text-gray-500 mt-1">
-          IP: {{ hoveredNode.ip }}
+          Status: {{ hoveredNode.status || 'Online' }}
         </div>
-        <div v-if="hoveredNode.accuracy" class="text-xs text-gray-500 dark:text-gray-500">
-          Accuracy: {{ hoveredNode.accuracy.toFixed(1) }}%
+        <div v-if="hoveredNode.progress" class="text-xs text-gray-500 dark:text-gray-500">
+          Training Progress: {{ Math.round(hoveredNode.progress) }}%
         </div>
       </div>
     </div>
@@ -480,6 +510,11 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import {
+  ServerIcon,
+  ComputerDesktopIcon,
+  CpuChipIcon
+} from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   nodes: {
@@ -813,13 +848,44 @@ const getNodePosition = (nodeId) => {
 
 const getNodeRadius = (node) => {
   if (node.type === 'control') {
-    return node.subType === 'master' ? 28 : 24
+    return 30 // 服务器节点更大
   }
-  return node.isOwn ? 18 : 16
+  return node.isOwn ? 22 : 20 // 自己的设备稍大
+}
+
+const getNodeFillColor = (node) => {
+  if (node.type === 'control') {
+    // 控制节点/服务器 - 红色系
+    return themeStore.isDark ? '#ef4444' : '#dc2626'
+  } else if (node.type === 'edge') {
+    if (node.isOwn) {
+      // 自己的设备 - 蓝色系，更鲜艳
+      return themeStore.isDark ? '#3b82f6' : '#2563eb'
+    } else {
+      // 其他边缘设备 - 绿色系
+      return themeStore.isDark ? '#10b981' : '#059669'
+    }
+  }
+  return '#6b7280' // 默认灰色
+}
+
+const getNodeStrokeColor = (node) => {
+  if (node.type === 'control') {
+    return themeStore.isDark ? '#fca5a5' : '#b91c1c'
+  } else if (node.type === 'edge') {
+    if (node.isOwn) {
+      // 自己的设备有特殊边框
+      return themeStore.isDark ? '#60a5fa' : '#1d4ed8'
+    } else {
+      return themeStore.isDark ? '#34d399' : '#047857'
+    }
+  }
+  return '#4b5563'
 }
 
 const getNodeStrokeWidth = (node) => {
-  if (node.isOwn) return 3
+  if (node.isOwn) return 3 // 自己的设备边框更粗
+  if (node.type === 'control') return 2.5 // 控制节点稍粗
   if (node.status === 'offline') return 2
   return 2
 }
@@ -861,6 +927,19 @@ const getTextWidth = (text) => {
   return text.length * 7
 }
 
+const getNodeTypeLabel = (node) => {
+  if (node.type === 'control') {
+    return 'Central Server'
+  } else if (node.type === 'edge') {
+    if (node.isOwn) {
+      return 'Your Training Device'
+    } else {
+      return 'Remote Edge Device'
+    }
+  }
+  return 'Network Node'
+}
+
 const handleNodeClick = (node) => {
   emit('node-click', node)
 }
@@ -885,6 +964,7 @@ const handleNodeHover = async (node) => {
 }
 
 const handleMouseLeave = () => {
+  isDragging.value = false // 停止拖拽
   showTooltip.value = false
   hoveredNode.value = null
   showConnectionTooltip.value = false
@@ -1185,69 +1265,6 @@ onUnmounted(() => {
   border-color: rgba(245, 158, 11, 0.4);
 }
 
-/* 缩放控制样式 */
-.zoom-controls {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  display: flex;
-  flex-direction: column;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(229, 231, 235, 0.8);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(8px);
-  z-index: 10;
-}
-
-:root.dark .zoom-controls {
-  background: rgba(31, 41, 55, 0.95);
-  border-color: rgba(75, 85, 99, 0.8);
-}
-
-.zoom-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6b7280;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.zoom-btn:hover {
-  background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
-}
-
-:root.dark .zoom-btn {
-  color: #9ca3af;
-}
-
-:root.dark .zoom-btn:hover {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-}
-
-.zoom-level {
-  padding: 6px 8px;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 500;
-  color: #6b7280;
-  background: rgba(243, 244, 246, 0.5);
-  border-top: 1px solid rgba(229, 231, 235, 0.5);
-}
-
-:root.dark .zoom-level {
-  color: #9ca3af;
-  background: rgba(55, 65, 81, 0.5);
-  border-top-color: rgba(75, 85, 99, 0.5);
-}
 
 /* 响应式设计 */
 @media (max-width: 768px) {

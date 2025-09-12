@@ -1,29 +1,60 @@
-# fed-mpc-clean
+# OpenTMP LLM Engine
 
-This template should help get you started developing with Vue 3 in Vite.
+A comprehensive distributed machine learning platform featuring P2P AI Intelligence and Edge AI capabilities.
 
-## Recommended IDE Setup
+## Project Structure
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
+```
+webvue/
+├── frontend/           # Vue.js Frontend Application
+│   ├── src/           # Source code
+│   ├── public/        # Static assets
+│   ├── package.json   # Frontend dependencies
+│   └── vite.config.js # Vite configuration
+├── backend/           # Empty folder for future backend development
+└── README.md         # This file
 ```
 
-### Compile and Hot-Reload for Development
+## Features
+
+- **P2P AI Intelligence**: Peer-to-peer distributed machine learning
+- **Edge AI Intelligence**: Edge computing and federated learning
+- **Network Visualization**: Interactive network topology visualization
+- **Real-time Monitoring**: Live training progress and metrics
+- **Dark/Light Theme**: Modern responsive UI
+
+## Getting Started
+
+### Frontend Development
 
 ```sh
+cd frontend
+npm install
 npm run dev
 ```
 
-### Compile and Minify for Production
+The frontend will be available at `http://localhost:5173`
 
-```sh
-npm run build
-```
+### Backend Development
+
+The `backend/` folder is currently empty and ready for future backend implementation.
+
+### IDE Setup
+
+Recommended: [VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
+
+## Technologies
+
+### Frontend
+- Vue.js 3 + Composition API
+- Vite
+- Tailwind CSS
+- Vue Router
+- Pinia State Management
+
+### Backend
+- Empty folder ready for implementation
+
+## Contributing
+
+Please read our contributing guidelines before submitting pull requests.
