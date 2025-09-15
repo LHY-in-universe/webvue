@@ -20,6 +20,14 @@
           </div>
           
           <div class="flex items-center space-x-4">
+            <Button 
+              @click="refreshLogs" 
+              variant="outline" 
+              size="sm" 
+              :loading="loading"
+            >
+              刷新日志
+            </Button>
             <SimpleThemeToggle size="sm" />
           </div>
         </div>
@@ -32,7 +40,7 @@
         <template #header>
           <div class="flex items-center justify-between">
             <h2 class="text-lg font-semibold">日志筛选</h2>
-            <Button @click="exportLogs" variant="primary" size="sm">
+            <Button @click="exportLogs" variant="primary" size="sm" :loading="loading">
               <ArrowDownTrayIcon class="w-4 h-4 mr-2" />
               导出日志
             </Button>
@@ -153,7 +161,25 @@
           </div>
         </template>
 
-        <div class="space-y-2">
+        <div v-if="loading" class="flex items-center justify-center py-12">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <span class="ml-3 text-gray-600 dark:text-gray-400">加载日志中...</span>
+        </div>
+        
+        <div v-else-if="error" class="text-center py-12">
+          <ExclamationTriangleIcon class="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <p class="text-red-500 dark:text-red-400 mb-4">{{ error }}</p>
+          <Button @click="refreshLogs" variant="ghost" size="sm">
+            重试
+          </Button>
+        </div>
+        
+        <div v-else-if="filteredLogs.length === 0" class="text-center py-12">
+          <DocumentTextIcon class="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p class="text-gray-500 dark:text-gray-400">暂无日志数据</p>
+        </div>
+        
+        <div v-else class="space-y-2">
           <div 
             v-for="log in filteredLogs" 
             :key="log.id"
@@ -182,6 +208,12 @@
                 </div>
               </div>
             </div>
+          </div>
+          
+          <div v-if="lastUpdate" class="text-center py-4">
+            <p class="text-xs text-gray-400">
+              最后更新: {{ new Date(lastUpdate).toLocaleTimeString() }}
+            </p>
           </div>
         </div>
 
@@ -215,7 +247,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -229,6 +264,10 @@ import {
   ArrowPathIcon
 } from '@heroicons/vue/24/outline'
 
+// API setup
+const { cachedApiCall } = useApiOptimization()
+
+// Filter states
 const selectedLevel = ref('all')
 const selectedTimeRange = ref('24h')
 const selectedSource = ref('all')
@@ -237,89 +276,90 @@ const autoRefresh = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 
+// Data states
+const loading = ref(false)
+const error = ref(null)
+const systemLogs = ref([])
+const totalCount = ref(0)
+const lastUpdate = ref(null)
+
+// Auto-refresh interval
 let refreshInterval = null
 
-const systemLogs = ref([
-  {
-    id: 1,
-    level: 'info',
-    source: 'system',
-    message: 'Edge node edge-01 connected successfully',
-    timestamp: '2024-01-10 10:30:15',
-    details: 'Connection established from IP: 192.168.1.100'
-  },
-  {
-    id: 2,
-    level: 'warning',
-    source: 'application',
-    message: 'High CPU usage detected on node edge-02',
-    timestamp: '2024-01-10 10:28:42',
-    details: 'CPU usage: 87%, Memory usage: 65%'
-  },
-  {
-    id: 3,
-    level: 'error',
-    source: 'network',
-    message: 'Failed to connect to edge-03',
-    timestamp: '2024-01-10 10:25:18',
-    details: 'Connection timeout after 30 seconds, retrying...'
-  },
-  {
-    id: 4,
-    level: 'info',
-    source: 'application',
-    message: 'Training task completed successfully',
-    timestamp: '2024-01-10 10:22:03',
-    details: 'Task ID: task-12345, Duration: 2h 15m'
-  },
-  {
-    id: 5,
-    level: 'debug',
-    source: 'storage',
-    message: 'Cache cleanup completed',
-    timestamp: '2024-01-10 10:20:30',
-    details: 'Freed 1.2GB of cache space'
-  },
-  {
-    id: 6,
-    level: 'error',
-    source: 'system',
-    message: 'Disk space running low',
-    timestamp: '2024-01-10 10:15:45',
-    details: 'Available space: 2.1GB, Usage: 89%'
-  }
-])
-
-const filteredLogs = computed(() => {
-  let logs = systemLogs.value
-
-  // Filter by level
-  if (selectedLevel.value !== 'all') {
-    logs = logs.filter(log => log.level === selectedLevel.value)
-  }
-
-  // Filter by source
-  if (selectedSource.value !== 'all') {
-    logs = logs.filter(log => log.source === selectedSource.value)
-  }
-
-  // Filter by search query
-  if (searchQuery.value) {
-    logs = logs.filter(log => 
-      log.message.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      log.details?.toLowerCase().includes(searchQuery.value.toLowerCase())
+// Load system logs from API
+const loadSystemLogs = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('SystemLogs')
+  loading.value = true
+  error.value = null
+  
+  try {
+    const params = {
+      level: selectedLevel.value === 'all' ? undefined : selectedLevel.value,
+      time_range: selectedTimeRange.value,
+      source: selectedSource.value === 'all' ? undefined : selectedSource.value,
+      query: searchQuery.value || undefined,
+      page: currentPage.value,
+      page_size: pageSize.value
+    }
+    
+    const cacheKey = `edgeai-logs-${JSON.stringify(params)}`
+    const result = await cachedApiCall(cacheKey, 
+      () => edgeaiService.logs.getLogs(params), 
+      30 * 1000 // Cache for 30 seconds
     )
+    
+    if (result && result.data) {
+      systemLogs.value = result.data.map(log => ({
+        id: log.id,
+        level: log.level,
+        source: log.source || 'system',
+        message: log.message,
+        timestamp: formatTimestamp(log.timestamp),
+        details: log.details || log.context
+      }))
+      totalCount.value = result.total || result.data.length
+    }
+    
+    lastUpdate.value = new Date().toISOString()
+    pageMonitor.end()
+    
+  } catch (err) {
+    console.error('Failed to load system logs:', err)
+    error.value = err.message || 'Failed to load system logs'
+    pageMonitor.end()
+  } finally {
+    loading.value = false
   }
+}
 
-  // Pagination
-  const startIndex = (currentPage.value - 1) * pageSize.value
-  return logs.slice(startIndex, startIndex + pageSize.value)
+// Format timestamp
+const formatTimestamp = (timestamp) => {
+  if (!timestamp) return ''
+  
+  const date = new Date(timestamp)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
+// Computed properties
+const filteredLogs = computed(() => systemLogs.value)
+
+const totalLogs = computed(() => totalCount.value)
+const errorLogs = computed(() => {
+  return systemLogs.value.filter(log => log.level === 'error').length
 })
-
-const totalLogs = computed(() => systemLogs.value.length)
-const errorLogs = computed(() => systemLogs.value.filter(log => log.level === 'error').length)
-const warningLogs = computed(() => systemLogs.value.filter(log => log.level === 'warning').length)
-const infoLogs = computed(() => systemLogs.value.filter(log => log.level === 'info').length)
+const warningLogs = computed(() => {
+  return systemLogs.value.filter(log => log.level === 'warning').length
+})
+const infoLogs = computed(() => {
+  return systemLogs.value.filter(log => log.level === 'info').length
+})
 
 const getLogColor = (level) => {
   const colors = {
@@ -341,9 +381,8 @@ const getLogIcon = (level) => {
   return icons[level] || DocumentTextIcon
 }
 
-const refreshLogs = () => {
-  console.log('刷新日志...')
-  // 实际实现中会从服务器获取最新日志
+const refreshLogs = async () => {
+  await loadSystemLogs()
 }
 
 const toggleAutoRefresh = () => {
@@ -361,9 +400,26 @@ const toggleAutoRefresh = () => {
   }
 }
 
-const exportLogs = () => {
-  console.log('导出日志...')
-  // 实际实现中会导出筛选后的日志
+const exportLogs = async () => {
+  try {
+    loading.value = true
+    
+    const params = {
+      level: selectedLevel.value === 'all' ? undefined : selectedLevel.value,
+      time_range: selectedTimeRange.value,
+      source: selectedSource.value === 'all' ? undefined : selectedSource.value,
+      query: searchQuery.value || undefined,
+      format: 'txt'
+    }
+    
+    await edgeaiService.logs.exportLogs(params, `system_logs_${new Date().toISOString().split('T')[0]}.txt`)
+    
+  } catch (err) {
+    console.error('Failed to export logs:', err)
+    error.value = err.message || 'Failed to export logs'
+  } finally {
+    loading.value = false
+  }
 }
 
 const previousPage = () => {
@@ -378,8 +434,30 @@ const nextPage = () => {
   }
 }
 
-onMounted(() => {
-  refreshLogs()
+// Watch for filter changes
+watch([selectedLevel, selectedTimeRange, selectedSource], () => {
+  currentPage.value = 1 // Reset to first page when filters change
+  loadSystemLogs()
+}, { deep: true })
+
+watch(currentPage, () => {
+  loadSystemLogs()
+})
+
+// Debounced search
+let searchTimeout = null
+watch(searchQuery, (newQuery) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1
+    loadSystemLogs()
+  }, 500)
+})
+
+// Lifecycle
+onMounted(async () => {
+  await loadSystemLogs()
 })
 
 onUnmounted(() => {

@@ -71,12 +71,46 @@
       </div>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="loading" class="flex-1 flex justify-center items-center">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <span class="text-gray-600 dark:text-gray-400">Loading project visualization...</span>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="flex-1 flex justify-center items-center">
+      <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-md mx-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
+              Failed to load project visualization
+            </h3>
+            <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+              {{ error }}
+            </div>
+            <div class="mt-3">
+              <Button @click="loadProjectVisualizationData" variant="ghost" size="sm" class="text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800/30">
+                Try again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main Content Area -->
-    <div class="flex-1 relative">
+    <div v-else class="flex-1 relative">
       <!-- Node Details Panel (Left Side) - Only visible when node selected -->
       <div 
         v-if="selectedNode && showNodeDetails"
-        class="absolute left-0 top-0 z-10 w-64 bg-white dark:bg-gray-900 m-6 mr-0 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transform overflow-y-auto transition-all duration-700 h-[600px]"
+        class="absolute left-0 top-0 z-10 w-64 bg-white dark:bg-gray-900 m-6 mr-0 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transform overflow-y-auto custom-scrollbar transition-all duration-700 h-[600px]"
         :class="isClosing ? 'animate-slide-out' : 'animate-slide-in'"
       >
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Node Details</h3>
@@ -145,6 +179,81 @@
                   class="h-1.5 bg-purple-500 rounded-full transition-all duration-300"
                   :style="{ width: `${selectedNode.resources.gpu}%` }"
                 ></div>
+              </div>
+            </div>
+
+            <!-- Training Information (for control nodes) -->
+            <div v-if="selectedNode.type === 'control'" class="space-y-4">
+              <h5 class="text-sm font-medium text-gray-900 dark:text-white">Training Information</h5>
+              
+              <!-- Training Progress -->
+              <div>
+                <div class="flex justify-between mb-2">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Training Progress</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.trainingProgress || '---' }}%</span>
+                </div>
+                <div v-if="selectedNode.trainingProgress" class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full">
+                  <div 
+                    class="h-1.5 bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-300"
+                    :style="{ width: `${selectedNode.trainingProgress}%` }"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- Training Rounds -->
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Current Round</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.currentRound || '---' }}/{{ selectedNode.totalRounds || '---' }}</span>
+                </div>
+              </div>
+
+              <!-- Model Accuracy -->
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Model Accuracy</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.modelAccuracy || '---' }}%</span>
+                </div>
+              </div>
+
+              <!-- Connected Nodes -->
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Connected Nodes</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.connectedNodes || '---' }}</span>
+                </div>
+              </div>
+
+              <!-- Network Latency -->
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Network Latency</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.networkLatency || '---' }}ms</span>
+                </div>
+              </div>
+
+              <!-- Data Processed -->
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Data Processed</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.dataProcessed || '---' }}</span>
+                </div>
+              </div>
+
+              <!-- Model Size -->
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Model Size</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.modelSize || '---' }}</span>
+                </div>
+              </div>
+
+              <!-- Last Update -->
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Last Update</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.lastUpdate || '---' }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -251,7 +360,7 @@
           </div>
 
           <!-- Network Visualization (for federated and MPC) - 完全按照EdgeAI设计 -->
-          <div v-else class="bg-white dark:bg-gray-900 m-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-[900px]">
+          <div v-else class="bg-white dark:bg-gray-900 m-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-[700px]">
             <div class="h-full relative">
               <NetworkVisualization
                 ref="networkViz"
@@ -267,7 +376,7 @@
         </div>
         
         <!-- Control Panel (Right Side) -->
-        <div class="w-64 flex-shrink-0 bg-white dark:bg-gray-900 m-6 ml-0 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-[900px] overflow-y-auto">
+        <div class="w-64 flex-shrink-0 bg-white dark:bg-gray-900 m-6 ml-0 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-[700px] overflow-y-auto custom-scrollbar">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">Control Panel</h3>
         
         <!-- Training Progress -->
@@ -635,6 +744,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
+import { useP2PAIStore } from '@/stores/p2pai'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import p2paiService from '@/services/p2paiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import {
   ArrowLeftIcon,
   CpuChipIcon,
@@ -658,6 +771,13 @@ import LocalTrainingChart from '@/components/p2pai/LocalTrainingChart.vue'
 const router = useRouter()
 const route = useRoute()
 const themeStore = useThemeStore()
+const p2paiStore = useP2PAIStore()
+const { cachedApiCall, clearCache } = useApiOptimization()
+
+// Loading and error states
+const loading = ref(false)
+const error = ref(null)
+const refreshInterval = ref(null)
 
 // Project state
 const projectId = ref(route.params.projectId || 'default')
@@ -675,14 +795,14 @@ const trainingState = ref({
 
 const nodeAnimationStates = ref({})
 
-// Local training data with initial mock data
+// Local training data (will be loaded from API)
 const localTrainingData = ref({
-  rounds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-  accuracy: [65.2, 68.5, 71.3, 74.1, 76.8, 79.2, 81.5, 83.7, 85.1, 86.4],
-  loss: [2.1, 1.9, 1.7, 1.5, 1.3, 1.1, 0.9, 0.8, 0.7, 0.6],
-  cpu: [72, 75, 78, 74, 76, 79, 77, 73, 75, 78],
-  gpu: [85, 82, 87, 84, 86, 88, 85, 83, 86, 89],
-  memory: [68, 71, 69, 72, 70, 74, 73, 71, 75, 72]
+  rounds: [],
+  accuracy: [],
+  loss: [],
+  cpu: [],
+  gpu: [],
+  memory: []
 })
 
 // Computed properties
@@ -865,8 +985,17 @@ const visibleNodes = computed(() => {
         type: 'control',
         subType: 'master',
         status: 'active',
-        resources: { cpu: 45, memory: 70 },
-        isOwn: false
+        resources: { cpu: 45, memory: 70, gpu: 65 },
+        isOwn: false,
+        trainingProgress: overallProgress.value,
+        currentRound: trainingState.value.currentRound,
+        totalRounds: trainingState.value.totalRounds,
+        modelAccuracy: 87.5,
+        lastUpdate: 'Just now',
+        networkLatency: 12,
+        connectedNodes: 9,
+        dataProcessed: '2.3GB',
+        modelSize: '45.2MB'
       },
       { 
         id: 'edge-002', 
@@ -899,10 +1028,55 @@ const visibleNodes = computed(() => {
         id: 'edge-005', 
         name: 'Workstation D', 
         type: 'edge',
-        status: 'offline',
-        resources: { cpu: 0, memory: 0 },
+        status: 'idle',
+        resources: { cpu: 90, memory: 85 },
         isOwn: false,
         progress: 0
+      },
+      { 
+        id: 'edge-006', 
+        name: 'Tablet E', 
+        type: 'edge',
+        status: 'training',
+        resources: { cpu: 55, memory: 40 },
+        isOwn: false,
+        progress: 45
+      },
+      { 
+        id: 'edge-007', 
+        name: 'Smart Phone F', 
+        type: 'edge',
+        status: 'training',
+        resources: { cpu: 40, memory: 25 },
+        isOwn: false,
+        progress: 78
+      },
+      { 
+        id: 'edge-008', 
+        name: 'Server Node G', 
+        type: 'edge',
+        status: 'training',
+        resources: { cpu: 95, memory: 90 },
+        isOwn: false,
+        progress: 92
+      },
+      { 
+        id: 'edge-009', 
+        name: 'Edge Box H', 
+        type: 'edge',
+        status: 'idle',
+        resources: { cpu: 60, memory: 50 },
+        isOwn: false,
+        progress: 0
+      },
+      { 
+        id: 'edge-010', 
+        name: 'Mini PC I', 
+        type: 'edge',
+        status: 'training',
+        resources: { cpu: 70, memory: 65 },
+        isOwn: false,
+        progress: 34
       }
     ]
   } else { // MPC
@@ -995,6 +1169,100 @@ const privacyLevel = computed(() => {
   return levels[projectType.value] || 'Standard'
 })
 
+// Load project visualization data from API
+const loadProjectVisualizationData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('P2PAIProjectVisualization')
+  loading.value = true
+  error.value = null
+  
+  try {
+    const projectIdValue = projectId.value
+    
+    // Load project details, training metrics, and network data in parallel
+    const [projectResult, trainingResult, networkResult] = await Promise.all([
+      cachedApiCall(`p2pai-project-${projectIdValue}`, 
+        () => p2paiService.projects.getProject(projectIdValue), 
+        2 * 60 * 1000
+      ),
+      cachedApiCall(`p2pai-training-${projectIdValue}`, 
+        () => p2paiService.training.getTrainingMetrics(projectIdValue), 
+        30 * 1000 // Cache for 30 seconds for real-time updates
+      ),
+      cachedApiCall(`p2pai-network-${projectIdValue}`, 
+        () => p2paiService.nodes.getNetworkVisualization(projectIdValue), 
+        30 * 1000
+      )
+    ])
+
+    // Update training data with real API results
+    if (trainingResult) {
+      localTrainingData.value = {
+        rounds: trainingResult.rounds || [],
+        accuracy: trainingResult.accuracy || [],
+        loss: trainingResult.loss || [],
+        cpu: trainingResult.cpu_usage || [],
+        gpu: trainingResult.gpu_usage || [],
+        memory: trainingResult.memory_usage || []
+      }
+    }
+
+    // Update training state
+    if (trainingResult && trainingResult.current_state) {
+      trainingState.value = {
+        status: trainingResult.current_state.status || 'idle',
+        currentRound: trainingResult.current_state.current_round || 0,
+        totalRounds: trainingResult.current_state.total_rounds || 100,
+        startTime: trainingResult.current_state.start_time || null,
+        endTime: trainingResult.current_state.end_time || null
+      }
+      isTraining.value = trainingState.value.status === 'training'
+    }
+
+    pageMonitor.end({ success: true, projectType: projectType.value })
+  } catch (err) {
+    console.error('Failed to load project visualization data:', err)
+    error.value = err.message || 'Failed to load project visualization data'
+    pageMonitor.end({ success: false, error: err.message })
+  } finally {
+    loading.value = false
+  }
+}
+
+// Setup auto-refresh for real-time training updates
+const setupAutoRefresh = () => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  
+  refreshInterval.value = setInterval(() => {
+    if (!loading.value && isTraining.value) {
+      // Only refresh training data during training
+      loadTrainingData()
+    }
+  }, 10 * 1000) // Refresh every 10 seconds during training
+}
+
+// Load only training data for real-time updates
+const loadTrainingData = async () => {
+  try {
+    const projectIdValue = projectId.value
+    const trainingResult = await p2paiService.training.getTrainingMetrics(projectIdValue)
+    
+    if (trainingResult) {
+      localTrainingData.value = {
+        rounds: trainingResult.rounds || localTrainingData.value.rounds,
+        accuracy: trainingResult.accuracy || localTrainingData.value.accuracy,
+        loss: trainingResult.loss || localTrainingData.value.loss,
+        cpu: trainingResult.cpu_usage || localTrainingData.value.cpu,
+        gpu: trainingResult.gpu_usage || localTrainingData.value.gpu,
+        memory: trainingResult.memory_usage || localTrainingData.value.memory
+      }
+    }
+  } catch (err) {
+    console.error('Failed to refresh training data:', err)
+  }
+}
+
 // Methods
 const goBack = () => {
   router.push('/p2pai/dashboard')
@@ -1021,7 +1289,7 @@ const getNodeStatusBadgeClass = (status) => {
 
 const canShowNodeMetrics = (node) => {
   if (projectType.value === 'local') return true
-  if (projectType.value === 'federated' && node.id === 'local-001') return true
+  if (projectType.value === 'federated' && (node.id === 'local-001' || node.type === 'control')) return true
   if (projectType.value === 'mpc') return false // Very limited for MPC
   return false
 }
@@ -1161,9 +1429,28 @@ const startDistributedTrainingSimulation = () => {
 }
 
 // Lifecycle
-onMounted(() => {
-  // Initialize based on project type
+onMounted(async () => {
+  // Initialize P2P AI project visualization with real data
   console.log('Loading project visualization for:', projectId.value, 'Type:', projectType.value)
+  
+  // Load initial data
+  await loadProjectVisualizationData()
+  
+  // Setup auto-refresh for real-time updates
+  setupAutoRefresh()
+  
+  // Connect to P2P AI store WebSocket for real-time updates
+  p2paiStore.connectWebSocket()
+})
+
+onUnmounted(() => {
+  // Clean up resources
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  
+  // Clear API cache
+  clearCache()
 })
 </script>
 
@@ -1201,5 +1488,45 @@ onMounted(() => {
     transform: translateX(-100%);
     opacity: 0;
   }
+}
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9; /* Light mode track background */
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937; /* Dark mode track background */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* Light mode thumb */
+  border-radius: 3px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #374151; /* Dark mode thumb */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* Light mode thumb hover */
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4b5563; /* Dark mode thumb hover */
+}
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9; /* Light mode: thumb track */
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: #374151 #1f2937; /* Dark mode: thumb track */
 }
 </style>

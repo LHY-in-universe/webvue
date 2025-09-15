@@ -337,11 +337,14 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useUIStore } from '@/stores/ui'
 import { useEdgeAIStore } from '@/stores/edgeai'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import FileUpload from '@/components/ui/FileUpload.vue'
@@ -378,11 +381,14 @@ const router = useRouter()
 const themeStore = useThemeStore()
 const uiStore = useUIStore()
 const edgeaiStore = useEdgeAIStore()
+const { cachedApiCall } = useApiOptimization()
 
 // Component state
 const importMethod = ref('file')
 const importing = ref(false)
 const loadingUrl = ref(false)
+const loading = ref(false)
+const error = ref(null)
 
 // File import
 const uploadedFile = ref(null)
@@ -400,121 +406,10 @@ const urlConfig = ref(null)
 const selectedTemplate = ref(null)
 
 // Import history
-const importHistory = ref([
-  {
-    id: 1,
-    name: 'Manufacturing Project Template',
-    method: 'Template',
-    status: 'success',
-    timestamp: '2024-01-15 10:30:00',
-    size: '2.1 KB'
-  },
-  {
-    id: 2,
-    name: 'config-backup-20240114.json',
-    method: 'File Upload',
-    status: 'success',
-    timestamp: '2024-01-14 16:45:00',
-    size: '5.3 KB'
-  },
-  {
-    id: 3,
-    name: 'Remote Configuration',
-    method: 'URL',
-    status: 'error',
-    timestamp: '2024-01-13 09:15:00',
-    size: null
-  }
-])
+const importHistory = ref([])
 
 // Templates
-const templates = ref([
-  {
-    id: 'manufacturing',
-    name: 'Smart Manufacturing',
-    description: 'Industrial IoT and predictive maintenance setup',
-    type: 'Industrial',
-    nodes: 8,
-    icon: BuildingOfficeIcon,
-    color: 'bg-blue-600',
-    config: {
-      name: 'Smart Manufacturing Project',
-      type: 'manufacturing',
-      modelType: 'cnn',
-      strategy: 'fedavg',
-      nodes: { min: 3, max: 8, target: 5 },
-      security: { encryption: true, auth: true }
-    }
-  },
-  {
-    id: 'traffic',
-    name: 'Traffic Optimization',
-    description: 'Smart city traffic flow management',
-    type: 'Transportation',
-    nodes: 15,
-    icon: TruckIcon,
-    color: 'bg-green-600',
-    config: {
-      name: 'Urban Traffic Control',
-      type: 'traffic',
-      modelType: 'rnn',
-      strategy: 'fedprox',
-      nodes: { min: 5, max: 15, target: 10 },
-      security: { encryption: true, auth: true }
-    }
-  },
-  {
-    id: 'healthcare',
-    name: 'Healthcare Analytics',
-    description: 'Medical imaging and diagnostic AI',
-    type: 'Healthcare',
-    nodes: 5,
-    icon: HeartIcon,
-    color: 'bg-red-600',
-    config: {
-      name: 'Medical Imaging Analysis',
-      type: 'healthcare',
-      modelType: 'transformer',
-      strategy: 'scaffold',
-      nodes: { min: 3, max: 8, target: 5 },
-      security: { encryption: true, auth: true }
-    }
-  },
-  {
-    id: 'retail',
-    name: 'Retail Analytics',
-    description: 'Customer behavior and inventory optimization',
-    type: 'Retail',
-    nodes: 12,
-    icon: ShoppingBagIcon,
-    color: 'bg-purple-600',
-    config: {
-      name: 'Retail Intelligence',
-      type: 'retail',
-      modelType: 'cnn',
-      strategy: 'fedavg',
-      nodes: { min: 5, max: 12, target: 8 },
-      security: { encryption: true, auth: false }
-    }
-  },
-  {
-    id: 'research',
-    name: 'Research Project',
-    description: 'General purpose research and experimentation',
-    type: 'Research',
-    nodes: 10,
-    icon: BeakerIcon,
-    color: 'bg-indigo-600',
-    config: {
-      name: 'Research Project',
-      type: 'research',
-      modelType: 'custom',
-      strategy: 'fedopt',
-      nodes: { min: 2, max: 20, target: 10 },
-      security: { encryption: false, auth: false }
-    }
-  }
-])
+const templates = ref([])
 
 // Computed properties
 const canImport = computed(() => {
@@ -695,36 +590,135 @@ const removeFile = () => {
   validationResults.value = []
 }
 
+const loadTemplates = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('ImportProjectTemplates')
+  loading.value = true
+  error.value = null
+  
+  try {
+    const result = await cachedApiCall('edgeai-import-templates', 
+      () => edgeaiService.projects.getTemplates(), 
+      300 * 1000 // Cache for 5 minutes
+    )
+    
+    if (result && result.data) {
+      templates.value = result.data.map(template => ({
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        type: template.category || 'General',
+        nodes: template.estimated_nodes || 5,
+        icon: getTemplateIcon(template.category),
+        color: getTemplateColor(template.category),
+        config: template.config || {
+          name: template.name,
+          type: template.template_type || 'custom',
+          modelType: template.model_type || 'cnn',
+          strategy: template.strategy || 'fedavg',
+          nodes: { min: 2, max: 10, target: 5 },
+          security: { encryption: true, auth: true }
+        }
+      }))
+    }
+    
+    pageMonitor.end()
+    
+  } catch (err) {
+    console.error('Failed to load templates:', err)
+    error.value = err.message || 'Failed to load templates'
+    pageMonitor.end()
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadImportHistory = async () => {
+  try {
+    const result = await cachedApiCall('edgeai-import-history', 
+      () => edgeaiService.projects.getImportHistory(), 
+      60 * 1000 // Cache for 1 minute
+    )
+    
+    if (result && result.data) {
+      importHistory.value = result.data.map(item => ({
+        id: item.id,
+        name: item.project_name || item.name,
+        method: item.import_method || 'Unknown',
+        status: item.status,
+        timestamp: formatTimestamp(item.created_at),
+        size: item.file_size ? formatFileSize(item.file_size) : null
+      }))
+    }
+    
+  } catch (err) {
+    console.error('Failed to load import history:', err)
+  }
+}
+
+const formatTimestamp = (timestamp) => {
+  if (!timestamp) return ''
+  
+  const date = new Date(timestamp)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
+const getTemplateIcon = (category) => {
+  const icons = {
+    'Industrial': BuildingOfficeIcon,
+    'Transportation': TruckIcon,
+    'Healthcare': HeartIcon,
+    'Retail': ShoppingBagIcon,
+    'Research': BeakerIcon
+  }
+  return icons[category] || CpuChipIcon
+}
+
+const getTemplateColor = (category) => {
+  const colors = {
+    'Industrial': 'bg-blue-600',
+    'Transportation': 'bg-green-600',
+    'Healthcare': 'bg-red-600',
+    'Retail': 'bg-purple-600',
+    'Research': 'bg-indigo-600'
+  }
+  return colors[category] || 'bg-gray-600'
+}
+
 const loadFromUrl = async () => {
   loadingUrl.value = true
   urlError.value = ''
   
   try {
-    // Simulate URL loading
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Mock successful load
-    urlConfig.value = {
-      name: 'Remote Configuration',
-      type: 'manufacturing',
-      modelType: 'cnn',
-      strategy: 'fedavg',
-      nodes: { min: 3, max: 10, target: 5 },
-      security: { encryption: true, auth: true }
-    }
-    
-    uiStore.addNotification({
-      type: 'success',
-      title: 'Configuration Loaded',
-      message: 'Successfully loaded configuration from URL'
+    const result = await edgeaiService.projects.loadFromUrl({
+      url: configUrl.value,
+      auth: urlRequireAuth.value ? urlAuth.value : null
     })
     
+    if (result && result.config) {
+      urlConfig.value = result.config
+      
+      uiStore.addNotification({
+        type: 'success',
+        title: 'Configuration Loaded',
+        message: 'Successfully loaded configuration from URL'
+      })
+    } else {
+      throw new Error('Invalid configuration received from URL')
+    }
+    
   } catch (error) {
-    urlError.value = 'Failed to load configuration from URL'
+    urlError.value = error.message || 'Failed to load configuration from URL'
     uiStore.addNotification({
       type: 'error',
       title: 'Load Failed',
-      message: 'Failed to load configuration from URL'
+      message: error.message || 'Failed to load configuration from URL'
     })
   } finally {
     loadingUrl.value = false
@@ -831,4 +825,12 @@ const getStatusColor = (status) => {
   }
   return colors[status] || 'bg-gray-500'
 }
+
+// Lifecycle
+onMounted(async () => {
+  await Promise.all([
+    loadTemplates(),
+    loadImportHistory()
+  ])
+})
 </script>

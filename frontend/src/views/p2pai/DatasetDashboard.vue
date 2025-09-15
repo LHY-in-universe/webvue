@@ -601,9 +601,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
+import { useApiOptimization } from '@/composables/useApiOptimization.js'
+import p2paiService from '@/services/p2paiService.js'
+import performanceMonitor from '@/utils/performanceMonitor.js'
 import {
   ArrowLeftIcon,
   CircleStackIcon,
@@ -635,6 +638,11 @@ import Modal from '@/components/ui/Modal.vue'
 
 const router = useRouter()
 const themeStore = useThemeStore()
+const { cachedApiCall } = useApiOptimization()
+
+// API loading state
+const loading = ref(true)
+const error = ref(null)
 
 // State
 const searchQuery = ref('')
@@ -657,87 +665,69 @@ const newDataset = ref({
   format: 'csv'
 })
 
-// Mock dataset data
-const datasets = ref([
-  {
-    id: 1,
-    name: 'CIFAR-10 Dataset',
-    description: '60,000 32x32 color images in 10 classes',
-    type: 'image',
-    samples: 60000,
-    features: 3072,
-    size: 163000000,
-    status: 'ready',
-    createdAt: new Date('2024-01-15'),
-    lastUsed: new Date('2024-02-20'),
-    progress: 100
-  },
-  {
-    id: 2,
-    name: 'Customer Reviews',
-    description: 'Product review text sentiment dataset',
-    type: 'text',
-    samples: 25000,
-    features: 512,
-    size: 45000000,
-    status: 'processing',
-    createdAt: new Date('2024-02-10'),
-    lastUsed: new Date('2024-02-18'),
-    progress: 75
-  },
-  {
-    id: 3,
-    name: 'Sales Data 2023',
-    description: 'Annual sales transaction records',
-    type: 'tabular',
-    samples: 120000,
-    features: 15,
-    size: 18000000,
-    status: 'ready',
-    createdAt: new Date('2024-01-01'),
-    lastUsed: new Date('2024-02-15'),
-    progress: 100
-  },
-  {
-    id: 4,
-    name: 'Voice Commands',
-    description: 'Audio clips for voice recognition',
-    type: 'audio',
-    samples: 8500,
-    features: 256,
-    size: 125000000,
-    status: 'error',
-    createdAt: new Date('2024-02-05'),
-    lastUsed: new Date('2024-02-12'),
-    progress: 0
-  },
-  {
-    id: 5,
-    name: 'Medical Images',
-    description: 'X-ray and MRI scan dataset',
-    type: 'image',
-    samples: 15000,
-    features: 4096,
-    size: 320000000,
-    status: 'ready',
-    createdAt: new Date('2024-01-20'),
-    lastUsed: new Date('2024-02-22'),
-    progress: 100
-  },
-  {
-    id: 6,
-    name: 'Financial Time Series',
-    description: 'Stock price and market indicators',
-    type: 'tabular',
-    samples: 500000,
-    features: 8,
-    size: 32000000,
-    status: 'processing',
-    createdAt: new Date('2024-02-01'),
-    lastUsed: new Date('2024-02-19'),
-    progress: 42
+// Dataset data - will be loaded from API
+const datasets = ref([])
+const datasetStats = ref({
+  totalDatasets: 0,
+  totalStorage: 0,
+  activeDatasets: 0,
+  processingQueue: 0
+})
+
+// Load datasets from API
+const loadDatasetsData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('DatasetDashboard')
+  loading.value = true
+  error.value = null
+  
+  try {
+    // Load datasets and statistics in parallel
+    const [datasetsResponse, statsResponse] = await Promise.all([
+      cachedApiCall('datasets-list', () => p2paiService.datasets.getDatasets(), 2 * 60 * 1000),
+      cachedApiCall('datasets-stats', () => p2paiService.datasets.getDatasetStats(), 5 * 60 * 1000)
+    ])
+    
+    // Update datasets list
+    if (datasetsResponse.data?.datasets) {
+      datasets.value = datasetsResponse.data.datasets.map(dataset => ({
+        id: dataset.id,
+        name: dataset.name,
+        description: dataset.description,
+        type: dataset.type,
+        samples: dataset.samples || dataset.total_samples || 0,
+        features: dataset.features || dataset.feature_count || 0,
+        size: dataset.size || dataset.size_bytes || 0,
+        status: dataset.status || 'ready',
+        createdAt: new Date(dataset.created_at || Date.now()),
+        lastUsed: new Date(dataset.last_used || dataset.updated_at || Date.now()),
+        progress: dataset.progress || (dataset.status === 'ready' ? 100 : 0)
+      }))
+    }
+    
+    // Update statistics
+    if (statsResponse.data) {
+      datasetStats.value = {
+        totalDatasets: statsResponse.data.total_datasets || datasets.value.length,
+        totalStorage: (statsResponse.data.total_size_bytes || 0) / (1024 * 1024 * 1024), // Convert to GB
+        activeDatasets: statsResponse.data.active_datasets || datasets.value.filter(d => d.status === 'ready').length,
+        processingQueue: statsResponse.data.processing_datasets || datasets.value.filter(d => d.status === 'processing').length
+      }
+    }
+    
+    console.log('📊 Dataset data loaded successfully')
+  } catch (err) {
+    console.error('❌ Failed to load dataset data:', err)
+    error.value = err.message || 'Failed to load dataset data'
+  } finally {
+    loading.value = false
+    pageMonitor.end()
   }
-])
+}
+
+// Refresh datasets data
+const refreshDatasets = async () => {
+  await loadDatasetsData()
+}
 
 // Computed properties
 const filteredDatasets = computed(() => {
@@ -750,13 +740,11 @@ const filteredDatasets = computed(() => {
   })
 })
 
-const totalDatasets = computed(() => datasets.value.length)
-const totalStorage = computed(() => {
-  return datasets.value.reduce((sum, dataset) => sum + dataset.size, 0) / (1024 * 1024 * 1024)
-})
+const totalDatasets = computed(() => datasetStats.value.totalDatasets)
+const totalStorage = computed(() => datasetStats.value.totalStorage)
 const storageUsagePercent = computed(() => (totalStorage.value / 1000) * 100)
-const activeDatasets = computed(() => datasets.value.filter(d => d.status === 'ready').length)
-const processingQueue = computed(() => datasets.value.filter(d => d.status === 'processing').length)
+const activeDatasets = computed(() => datasetStats.value.activeDatasets)
+const processingQueue = computed(() => datasetStats.value.processingQueue)
 
 const canCreateDataset = computed(() => {
   return newDataset.value.name && newDataset.value.description
@@ -839,17 +827,41 @@ const editDataset = (dataset) => {
   console.log('Editing dataset:', dataset.name)
 }
 
-const deleteDataset = (dataset) => {
+const deleteDataset = async (dataset) => {
   if (confirm(`Are you sure you want to delete "${dataset.name}"?`)) {
-    const index = datasets.value.findIndex(d => d.id === dataset.id)
-    if (index > -1) {
-      datasets.value.splice(index, 1)
+    try {
+      const response = await p2paiService.datasets.deleteDataset(dataset.id)
+      
+      if (response.success) {
+        // Remove from local list
+        const index = datasets.value.findIndex(d => d.id === dataset.id)
+        if (index > -1) {
+          datasets.value.splice(index, 1)
+        }
+        console.log('✅ Dataset deleted successfully')
+        
+        // Refresh stats
+        await refreshDatasets()
+      } else {
+        throw new Error(response.error || 'Failed to delete dataset')
+      }
+    } catch (err) {
+      console.error('❌ Failed to delete dataset:', err)
+      alert('Failed to delete dataset: ' + err.message)
     }
   }
 }
 
-const downloadDataset = (dataset) => {
-  console.log('Downloading dataset:', dataset.name)
+const downloadDataset = async (dataset) => {
+  try {
+    console.log('💾 Downloading dataset:', dataset.name)
+    const filename = `${dataset.name.replace(/[^a-zA-Z0-9]/g, '_')}.zip`
+    await p2paiService.datasets.downloadDataset(dataset.id, filename)
+    console.log('✅ Dataset download initiated')
+  } catch (err) {
+    console.error('❌ Failed to download dataset:', err)
+    alert('Failed to download dataset: ' + err.message)
+  }
 }
 
 const bulkDelete = () => {
@@ -863,65 +875,90 @@ const bulkDownload = () => {
   console.log('Bulk downloading datasets:', selectedDatasets.value)
 }
 
-const refreshDatasets = () => {
-  console.log('Refreshing datasets...')
-}
 
 const triggerFileUpload = () => {
   fileInput.value?.click()
 }
 
-const handleFileUpload = (event) => {
+const handleFileUpload = async (event) => {
   const files = event.target.files
   if (files && files.length > 0) {
-    // Simulate upload progress
-    uploadProgress.value = 0
-    const interval = setInterval(() => {
-      uploadProgress.value += 10
-      if (uploadProgress.value >= 100) {
-        clearInterval(interval)
+    try {
+      console.log('📤 Uploading files:', files.length)
+      
+      const formData = new FormData()
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i])
+      }
+      
+      // Add metadata
+      formData.append('name', newDataset.value.name || 'Uploaded Dataset')
+      formData.append('description', newDataset.value.description || 'Uploaded via web interface')
+      formData.append('type', newDataset.value.type)
+      
+      // Upload with progress tracking
+      const response = await p2paiService.datasets.uploadDataset(formData, (progress) => {
+        uploadProgress.value = progress
+      })
+      
+      if (response.success) {
+        console.log('✅ Dataset uploaded successfully:', response.data)
+        
+        // Reset progress after a short delay
         setTimeout(() => {
           uploadProgress.value = 0
-        }, 1000)
+        }, 2000)
+        
+        // Refresh datasets list
+        await refreshDatasets()
+      } else {
+        throw new Error(response.error || 'Upload failed')
       }
-    }, 200)
+    } catch (err) {
+      console.error('❌ Failed to upload dataset:', err)
+      uploadProgress.value = 0
+      alert('Failed to upload dataset: ' + err.message)
+    }
   }
 }
 
 const createDataset = async () => {
   if (!canCreateDataset.value) return
   
-  const dataset = {
-    id: datasets.value.length + 1,
-    name: newDataset.value.name,
-    description: newDataset.value.description,
-    type: newDataset.value.type,
-    samples: Math.floor(Math.random() * 50000) + 1000,
-    features: Math.floor(Math.random() * 1000) + 10,
-    size: Math.floor(Math.random() * 100000000) + 1000000,
-    status: 'processing',
-    createdAt: new Date(),
-    lastUsed: new Date(),
-    progress: 0
+  try {
+    console.log('🎆 Creating dataset:', newDataset.value)
+    
+    const datasetData = {
+      name: newDataset.value.name,
+      description: newDataset.value.description,
+      type: newDataset.value.type,
+      format: newDataset.value.format
+    }
+    
+    const response = await p2paiService.datasets.createDataset(datasetData)
+    
+    if (response.success) {
+      // Reset form
+      newDataset.value = {
+        name: '',
+        description: '',
+        type: 'image',
+        format: 'csv'
+      }
+      
+      showCreateModal.value = false
+      
+      // Refresh datasets list
+      await refreshDatasets()
+      
+      console.log('✅ Dataset created successfully:', response.data)
+    } else {
+      throw new Error(response.error || 'Failed to create dataset')
+    }
+  } catch (err) {
+    console.error('❌ Failed to create dataset:', err)
+    alert('Failed to create dataset: ' + err.message)
   }
-  
-  datasets.value.push(dataset)
-  
-  // Reset form
-  newDataset.value = {
-    name: '',
-    description: '',
-    type: 'image',
-    format: 'csv'
-  }
-  
-  showCreateModal.value = false
-  
-  // Simulate processing
-  setTimeout(() => {
-    dataset.status = 'ready'
-    dataset.progress = 100
-  }, 3000)
 }
 
 const startTrainingWithDataset = () => {
@@ -931,9 +968,37 @@ const startTrainingWithDataset = () => {
   }
 }
 
+// Auto-refresh interval
+let refreshInterval = null
+
 // Lifecycle
-onMounted(() => {
-  // Initialize component
+onMounted(async () => {
+  console.group('📁 Dataset Dashboard mounted')
+  console.log('Loading datasets data...')
+  
+  // Load initial data
+  await loadDatasetsData()
+  
+  // Set up auto-refresh every 2 minutes
+  refreshInterval = setInterval(() => {
+    if (!loading.value) {
+      refreshDatasets()
+    }
+  }, 2 * 60 * 1000)
+  
+  console.log('Dataset dashboard initialized with auto-refresh')
+  console.groupEnd()
+})
+
+onUnmounted(() => {
+  console.log('🧹 Cleaning up Dataset Dashboard')
+  
+  // Clear refresh interval
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
+  
+  console.log('Dataset Dashboard unmounted')
 })
 </script>
 

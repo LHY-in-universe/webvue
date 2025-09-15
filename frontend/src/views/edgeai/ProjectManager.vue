@@ -311,6 +311,9 @@ import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useUIStore } from '@/stores/ui'
 import { useEdgeAIStore } from '@/stores/edgeai'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import Modal from '@/components/ui/Modal.vue'
@@ -333,6 +336,7 @@ const router = useRouter()
 const themeStore = useThemeStore()
 const uiStore = useUIStore()
 const edgeaiStore = useEdgeAIStore()
+const { cachedApiCall, clearCache } = useApiOptimization()
 
 // Component state
 const refreshing = ref(false)
@@ -390,24 +394,53 @@ const createNewProject = () => {
 }
 
 const refreshProjects = async () => {
+  const monitor = performanceMonitor.startTimer('EdgeAIProjectRefresh')
   refreshing.value = true
   
   try {
-    const result = await edgeaiStore.refreshData()
+    // Clear cache to ensure fresh data
+    clearCache()
     
-    if (result.success) {
+    // Fetch fresh projects data
+    const projectsResult = await edgeaiService.projects.getProjects()
+    
+    if (projectsResult && Array.isArray(projectsResult)) {
+      // Transform and update store
+      const transformedProjects = projectsResult.map(project => ({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        type: project.type || 'general',
+        status: project.status || 'idle',
+        progress: project.progress || 0,
+        connectedNodes: project.connected_nodes || 0,
+        currentEpoch: project.current_epoch || 0,
+        totalEpochs: project.total_epochs || 100,
+        created: project.created_at || new Date().toISOString().split('T')[0],
+        lastUpdate: project.last_updated || 'Unknown',
+        metrics: project.metrics || { accuracy: 0, loss: 0, f1Score: 0 }
+      }))
+      
+      edgeaiStore.projects.splice(0, edgeaiStore.projects.length, ...transformedProjects)
+      
       uiStore.addNotification({
         type: 'success',
         title: 'Projects Refreshed',
         message: 'Project data has been updated successfully.'
       })
+      
+      monitor.end({ success: true, count: transformedProjects.length })
     } else {
-      uiStore.addNotification({
-        type: 'error',
-        title: 'Refresh Failed',
-        message: result.error || 'Failed to refresh project data.'
-      })
+      throw new Error('Invalid response format')
     }
+  } catch (error) {
+    console.error('Failed to refresh projects:', error)
+    uiStore.addNotification({
+      type: 'error',
+      title: 'Refresh Failed',
+      message: error.message || 'Failed to refresh project data.'
+    })
+    monitor.end({ success: false, error: error.message })
   } finally {
     refreshing.value = false
   }
@@ -427,25 +460,75 @@ const showProjectMenu = (project) => {
 }
 
 const toggleProjectStatus = async (project) => {
+  const monitor = performanceMonitor.startTimer('EdgeAIProjectStatusToggle')
   const isRunning = project.status === 'active' || project.status === 'training'
+  const newStatus = isRunning ? 'paused' : 'training'
   
   try {
-    // Here we would use store methods to actually change project status
-    // For now, we'll just show a notification
-    uiStore.addNotification({
-      type: 'info',
-      title: `Project ${isRunning ? 'Paused' : 'Started'}`,
-      message: `${project.name} is now ${isRunning ? 'paused' : 'training'}.`
-    })
+    // Call real API to change project status
+    const result = await edgeaiService.projects.updateProjectStatus(project.id, newStatus)
     
-    // Update local state (in real implementation, this would be handled by the store)
-    project.status = isRunning ? 'paused' : 'training'
+    if (result && result.success) {
+      // Update local project state
+      project.status = newStatus
+      
+      uiStore.addNotification({
+        type: 'success',
+        title: `Project ${isRunning ? 'Paused' : 'Started'}`,
+        message: `${project.name} is now ${newStatus}.`
+      })
+      
+      monitor.end({ success: true, newStatus })
+    } else {
+      throw new Error(result?.error || 'Failed to update project status')
+    }
   } catch (error) {
+    console.error('Failed to toggle project status:', error)
     uiStore.addNotification({
       type: 'error',
       title: 'Status Change Failed',
       message: `Failed to change status for ${project.name}`
     })
+    monitor.end({ success: false, error: error.message })
+  }
+}
+
+// Add delete project functionality
+const deleteProject = async (project) => {
+  if (!confirm(`Are you sure you want to delete project "${project.name}"? This action cannot be undone.`)) {
+    return
+  }
+
+  const monitor = performanceMonitor.startTimer('EdgeAIProjectDelete')
+  
+  try {
+    const result = await edgeaiService.projects.deleteProject(project.id)
+    
+    if (result && result.success) {
+      // Remove project from store
+      const index = edgeaiStore.projects.findIndex(p => p.id === project.id)
+      if (index !== -1) {
+        edgeaiStore.projects.splice(index, 1)
+      }
+      
+      uiStore.addNotification({
+        type: 'success',
+        title: 'Project Deleted',
+        message: `Project "${project.name}" has been successfully deleted.`
+      })
+      
+      monitor.end({ success: true })
+    } else {
+      throw new Error(result?.error || 'Failed to delete project')
+    }
+  } catch (error) {
+    console.error('Failed to delete project:', error)
+    uiStore.addNotification({
+      type: 'error',
+      title: 'Delete Failed',
+      message: error.message || `Failed to delete project "${project.name}"`
+    })
+    monitor.end({ success: false, error: error.message })
   }
 }
 
@@ -454,12 +537,43 @@ const viewVisualization = (project) => {
   router.push(`/edgeai/visualization/${project.id}`)
 }
 
-const exportProjects = () => {
-  uiStore.addNotification({
-    type: 'success',
-    title: 'Export Started',
-    message: 'Project data is being exported to CSV format.'
-  })
+const exportProjects = async () => {
+  const monitor = performanceMonitor.startTimer('EdgeAIProjectExport')
+  
+  try {
+    const result = await edgeaiService.projects.exportProjects()
+    
+    if (result && result.success) {
+      // Create and download the export file
+      const blob = new Blob([result.data], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `edgeai-projects-${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      uiStore.addNotification({
+        type: 'success',
+        title: 'Export Complete',
+        message: 'Project data has been successfully exported to CSV format.'
+      })
+      
+      monitor.end({ success: true })
+    } else {
+      throw new Error(result?.error || 'Export failed')
+    }
+  } catch (error) {
+    console.error('Failed to export projects:', error)
+    uiStore.addNotification({
+      type: 'error',
+      title: 'Export Failed',
+      message: error.message || 'Failed to export project data.'
+    })
+    monitor.end({ success: false, error: error.message })
+  }
 }
 
 const resetFilters = () => {

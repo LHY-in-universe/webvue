@@ -20,6 +20,14 @@
           </div>
           
           <div class="flex items-center space-x-4">
+            <Button 
+              @click="refreshData" 
+              variant="outline" 
+              size="sm" 
+              :loading="loading"
+            >
+              刷新数据
+            </Button>
             <SimpleThemeToggle size="sm" />
           </div>
         </div>
@@ -81,11 +89,28 @@
             </div>
           </template>
           
-          <div class="h-64 flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+          <div v-if="loading" class="h-64 flex items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+          
+          <div v-else-if="error" class="h-64 flex items-center justify-center">
+            <div class="text-center">
+              <ExclamationTriangleIcon class="w-12 h-12 text-red-400 mx-auto mb-4" />
+              <p class="text-red-500 dark:text-red-400 mb-2">{{ error }}</p>
+              <Button @click="refreshData" variant="ghost" size="sm">
+                重试
+              </Button>
+            </div>
+          </div>
+          
+          <div v-else class="h-64 flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
             <div class="text-center">
               <ChartBarIcon class="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p class="text-gray-500 dark:text-gray-400">性能图表占位符</p>
               <p class="text-sm text-gray-400">实际部署中将显示实时性能图表</p>
+              <p v-if="lastUpdate" class="text-xs text-gray-400 mt-2">
+                最后更新: {{ new Date(lastUpdate).toLocaleTimeString() }}
+              </p>
             </div>
           </div>
         </Card>
@@ -230,7 +255,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useEdgeAIStore } from '@/stores/edgeai'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -244,71 +273,143 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline'
 
-const avgResponseTime = ref(245)
-const cpuUsage = ref(68)
-const memoryUsage = ref(54)
-const storageUsage = ref(72)
-const networkUsage = ref(35)
-const networkThroughput = ref(125.3)
+// Store and API setup
+const edgeaiStore = useEdgeAIStore()
+const { cachedApiCall } = useApiOptimization()
 
-const nodePerformance = ref([
-  {
-    id: 1,
-    name: 'edge-node-01',
-    status: 'online',
-    cpu: 65,
-    memory: 48,
-    load: 1.2
-  },
-  {
-    id: 2,
-    name: 'edge-node-02',
-    status: 'online',
-    cpu: 72,
-    memory: 61,
-    load: 1.8
-  },
-  {
-    id: 3,
-    name: 'edge-node-03',
-    status: 'warning',
-    cpu: 89,
-    memory: 84,
-    load: 2.3
-  },
-  {
-    id: 4,
-    name: 'edge-node-04',
-    status: 'offline',
-    cpu: 0,
-    memory: 0,
-    load: 0
-  }
-])
+// State
+const loading = ref(false)
+const error = ref(null)
+const performanceData = ref(null)
+const nodePerformance = ref([])
+const performanceAlerts = ref([])
+const lastUpdate = ref(null)
 
-const performanceAlerts = ref([
-  {
-    id: 1,
-    level: 'warning',
-    message: 'CPU 使用率过高',
-    node: 'edge-node-03',
-    time: '5 分钟前'
-  },
-  {
-    id: 2,
-    level: 'info',
-    message: '内存使用率正常',
-    node: '系统整体',
-    time: '10 分钟前'
-  },
-  {
-    id: 3,
-    level: 'error',
-    message: '节点连接丢失',
-    node: 'edge-node-04',
-    time: '15 分钟前'
+// Computed performance metrics
+const avgResponseTime = computed(() => {
+  if (!performanceData.value) return 0
+  return Math.round(performanceData.value.response_time || 0)
+})
+
+const cpuUsage = computed(() => {
+  if (!performanceData.value) return 0
+  return Math.round(performanceData.value.cpu_usage || 0)
+})
+
+const memoryUsage = computed(() => {
+  if (!performanceData.value) return 0
+  return Math.round(performanceData.value.memory_usage || 0)
+})
+
+const storageUsage = computed(() => {
+  if (!performanceData.value) return 0
+  return Math.round(performanceData.value.storage_usage || 0)
+})
+
+const networkUsage = computed(() => {
+  if (!performanceData.value) return 0
+  return Math.round(performanceData.value.network_usage || 0)
+})
+
+const networkThroughput = computed(() => {
+  if (!performanceData.value) return 0
+  return Number((performanceData.value.network_throughput || 0).toFixed(1))
+})
+
+// Auto-refresh
+let refreshInterval = null
+
+// Load performance data
+const loadPerformanceData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('PerformanceMetrics')
+  loading.value = true
+  error.value = null
+  
+  try {
+    const [metricsResult, nodesResult, alertsResult] = await Promise.all([
+      cachedApiCall('edgeai-performance-metrics', 
+        () => edgeaiService.performance.getMetrics(), 
+        30 * 1000
+      ),
+      cachedApiCall('edgeai-node-performance', 
+        () => edgeaiService.nodes.getNodes(), 
+        30 * 1000
+      ),
+      cachedApiCall('edgeai-performance-alerts', 
+        () => edgeaiService.performance.getAlerts(), 
+        60 * 1000
+      )
+    ])
+    
+    if (metricsResult) {
+      performanceData.value = metricsResult
+    }
+    
+    if (nodesResult && nodesResult.data) {
+      nodePerformance.value = nodesResult.data.map(node => ({
+        id: node.id,
+        name: node.name,
+        status: node.status,
+        cpu: Math.round(node.cpuUsage || 0),
+        memory: Math.round(node.memoryUsage || 0),
+        load: Number((node.loadAverage || 0).toFixed(1))
+      }))
+    }
+    
+    if (alertsResult && alertsResult.data) {
+      performanceAlerts.value = alertsResult.data.map(alert => ({
+        id: alert.id,
+        level: alert.severity || 'info',
+        message: alert.message,
+        node: alert.node_name || '系统整体',
+        time: formatRelativeTime(alert.created_at)
+      }))
+    }
+    
+    lastUpdate.value = new Date().toISOString()
+    pageMonitor.end()
+    
+  } catch (err) {
+    console.error('Failed to load performance data:', err)
+    error.value = err.message || 'Failed to load performance data'
+    pageMonitor.end()
+  } finally {
+    loading.value = false
   }
-])
+}
+
+// Format relative time
+const formatRelativeTime = (timestamp) => {
+  if (!timestamp) return '未知时间'
+  
+  const now = new Date()
+  const alertTime = new Date(timestamp)
+  const diffMs = now - alertTime
+  const diffMinutes = Math.floor(diffMs / 60000)
+  
+  if (diffMinutes < 1) return '刚刚'
+  if (diffMinutes < 60) return `${diffMinutes} 分钟前`
+  
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} 小时前`
+  
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays} 天前`
+}
+
+// Setup auto-refresh
+const setupAutoRefresh = () => {
+  if (refreshInterval) clearInterval(refreshInterval)
+  
+  refreshInterval = setInterval(async () => {
+    await loadPerformanceData()
+  }, 30000) // Refresh every 30 seconds
+}
+
+// Manual refresh
+const refreshData = async () => {
+  await loadPerformanceData()
+}
 
 const getStatusColor = (status) => {
   const colors = {

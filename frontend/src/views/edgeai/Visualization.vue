@@ -71,8 +71,42 @@
       </div>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="loading" class="flex-1 flex justify-center items-center">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <span class="text-gray-600 dark:text-gray-400">Loading visualization data...</span>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="flex-1 flex justify-center items-center">
+      <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-md mx-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
+              Failed to load visualization data
+            </h3>
+            <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+              {{ error }}
+            </div>
+            <div class="mt-3">
+              <Button @click="loadVisualizationData" variant="ghost" size="sm" class="text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800/30">
+                Try again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main Content Area -->
-    <div class="flex-1 relative">
+    <div v-else class="flex-1 relative">
       <!-- Node Details Panel (Left Side) - Only visible when node selected -->
       <div 
         v-if="selectedNode"
@@ -712,6 +746,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useEdgeAIStore } from '@/stores/edgeai'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import FederatedNetworkVisualization from '@/components/edgeai/FederatedNetworkVisualization.vue'
 import Button from '@/components/ui/Button.vue'
 import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
@@ -729,17 +767,24 @@ import {
 
 const router = useRouter()
 const route = useRoute()
+const edgeaiStore = useEdgeAIStore()
+const { cachedApiCall, clearCache } = useApiOptimization()
 
 // Component refs
 const networkViz = ref(null)
 
-// Training Configuration
+// Loading and error states
+const loading = ref(false)
+const error = ref(null)
+const refreshInterval = ref(null)
+
+// Training Configuration (will be loaded from API)
 const trainingConfig = ref({
-  aiModel: 'gemma',
-  strategy: 'dpo',
-  protocol: 'fedavg',
-  targetAccuracy: '≥90%',
-  estimatedCompletion: '2 days'
+  aiModel: 'Loading...',
+  strategy: 'Loading...',
+  protocol: 'Loading...',
+  targetAccuracy: 'Loading...',
+  estimatedCompletion: 'Loading...'
 })
 
 // Training State
@@ -751,63 +796,14 @@ const trainingState = ref({
   endTime: null
 })
 
-// Current project
+// Current project (will be loaded from API)
 const currentProject = ref({
-  name: route.params.projectId ? `Federated Project ${route.params.projectId}` : 'FL Training Session',
-  status: 'active'
+  name: 'Loading...',
+  status: 'loading'
 })
 
-// All Available Federated Learning Nodes (30+ total)
-const allFederatedNodes = ref([
-  // Control Layer - Top row
-  {
-    id: 'model-1',
-    name: 'Model Node 1',
-    type: 'model',
-    status: 'online',
-    role: 'Observer',
-    user: 'Administrator',
-    ipAddress: '192.168.1.100',
-    connectedNodes: '10 nodes'
-  },
-  {
-    id: 'model-2',
-    name: 'Model Node 2',
-    type: 'model',
-    status: 'online',
-    role: 'Observer',
-    user: 'Coordinator',
-    ipAddress: '192.168.1.101',
-    connectedNodes: '10 nodes'
-  },
-  {
-    id: 'backup-control',
-    name: 'Backup Control',
-    type: 'control',
-    status: 'online',
-    role: 'Observer',
-    user: 'Observer',
-    ipAddress: '192.168.1.102',
-    connectedNodes: '10 nodes'
-  },
-  
-  // Training Nodes Pool (30 total available) - Fixed status allocation
-  ...Array.from({ length: 30 }, (_, i) => ({
-    id: `training-${String(i + 1).padStart(2, '0')}`,
-    name: `Training Node ${String(i + 1).padStart(2, '0')}`,
-    type: 'training',
-    // Ensure good distribution: 15 training, 10 idle, 5 completed
-    status: i < 15 ? 'training' : (i < 25 ? 'idle' : 'completed'),
-    trainingProgress: i < 15 ? (20 + i * 4) : (i < 25 ? (i - 15) * 3 : 100),
-    resources: {
-      cpu: 40 + i * 2 + (i < 15 ? 20 : 0), // Higher CPU for training nodes
-      memory: (1.0 + i * 0.1).toFixed(1),
-      gpu: 50 + i * 1.5 + (i < 15 ? 15 : 0) // Higher GPU for training nodes
-    },
-    lastHeartbeat: `${(i % 8) + 1} sec ago`,
-    priority: i < 5 ? 10 - i : (i < 15 ? 8 - (i - 5) : (i < 25 ? 3 : 1))
-  }))
-])
+// All Available Federated Learning Nodes (will be loaded from API)
+const allFederatedNodes = ref([])
 
 // Node filtering and pagination state (simplified for dynamic training)
 const currentPage = ref(0)
@@ -890,6 +886,135 @@ const triggerCelebrationAnimation = () => {
   setTimeout(() => {
     alert('🎉 联邦学习训练已全部完成！所有节点已完成训练任务。')
   }, 1000)
+}
+
+// Load visualization data from API
+const loadVisualizationData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('EdgeAIVisualization')
+  loading.value = true
+  error.value = null
+  
+  try {
+    const projectId = route.params.projectId
+    
+    // Load project details, training config, and nodes in parallel
+    const [projectResult, configResult, nodesResult] = await Promise.all([
+      projectId ? cachedApiCall(`edgeai-project-${projectId}`, 
+        () => edgeaiService.projects.getProject(projectId), 
+        2 * 60 * 1000
+      ) : null,
+      cachedApiCall('edgeai-training-config', 
+        () => edgeaiService.training.getTrainingConfig(projectId), 
+        5 * 60 * 1000
+      ),
+      cachedApiCall('edgeai-visualization-nodes', 
+        () => edgeaiService.nodes.getVisualizationNodes(projectId), 
+        30 * 1000 // Cache for 30 seconds for real-time updates
+      )
+    ])
+
+    // Update project details
+    if (projectResult) {
+      currentProject.value = {
+        name: projectResult.name || 'EdgeAI Training Session',
+        status: projectResult.status || 'active'
+      }
+    } else {
+      currentProject.value = {
+        name: 'EdgeAI Training Session',
+        status: 'active'
+      }
+    }
+
+    // Update training configuration
+    if (configResult) {
+      trainingConfig.value = {
+        aiModel: configResult.ai_model || 'Unknown Model',
+        strategy: configResult.strategy || 'Unknown Strategy', 
+        protocol: configResult.protocol || 'fedavg',
+        targetAccuracy: configResult.target_accuracy || '≥90%',
+        estimatedCompletion: configResult.estimated_completion || 'Unknown'
+      }
+    }
+
+    // Update nodes data
+    if (nodesResult && Array.isArray(nodesResult)) {
+      allFederatedNodes.value = nodesResult.map(node => ({
+        id: node.id,
+        name: node.name || `Node ${node.id}`,
+        type: node.type || 'training',
+        status: node.status || 'idle',
+        role: node.role || 'Participant',
+        user: node.user || 'System',
+        ipAddress: node.ip_address || 'Unknown',
+        connectedNodes: node.connected_nodes || '0 nodes',
+        trainingProgress: node.training_progress || 0,
+        resources: {
+          cpu: node.resources?.cpu || 0,
+          memory: node.resources?.memory || '0.0',
+          gpu: node.resources?.gpu || 0
+        },
+        lastHeartbeat: node.last_heartbeat || 'Unknown',
+        priority: node.priority || 1
+      }))
+    }
+
+    pageMonitor.end({ success: true, nodeCount: allFederatedNodes.value.length })
+  } catch (err) {
+    console.error('Failed to load visualization data:', err)
+    error.value = err.message || 'Failed to load visualization data'
+    pageMonitor.end({ success: false, error: err.message })
+  } finally {
+    loading.value = false
+  }
+}
+
+// Setup auto-refresh for real-time updates
+const setupAutoRefresh = () => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  
+  refreshInterval.value = setInterval(() => {
+    if (!loading.value) {
+      // Only refresh nodes data for real-time updates
+      loadNodesData()
+    }
+  }, 15 * 1000) // Refresh every 15 seconds
+}
+
+// Load only nodes data for real-time updates
+const loadNodesData = async () => {
+  try {
+    const projectId = route.params.projectId
+    const nodesResult = await edgeaiService.nodes.getVisualizationNodes(projectId)
+    
+    if (nodesResult && Array.isArray(nodesResult)) {
+      // Update existing nodes or add new ones
+      const updatedNodes = nodesResult.map(node => ({
+        id: node.id,
+        name: node.name || `Node ${node.id}`,
+        type: node.type || 'training',
+        status: node.status || 'idle',
+        role: node.role || 'Participant',
+        user: node.user || 'System',
+        ipAddress: node.ip_address || 'Unknown',
+        connectedNodes: node.connected_nodes || '0 nodes',
+        trainingProgress: node.training_progress || 0,
+        resources: {
+          cpu: node.resources?.cpu || 0,
+          memory: node.resources?.memory || '0.0',
+          gpu: node.resources?.gpu || 0
+        },
+        lastHeartbeat: node.last_heartbeat || 'Unknown',
+        priority: node.priority || 1
+      }))
+      
+      allFederatedNodes.value = updatedNodes
+    }
+  } catch (err) {
+    console.error('Failed to refresh nodes data:', err)
+  }
 }
 
 // Computed property for displayed nodes - 只显示训练中的节点
@@ -1371,18 +1496,29 @@ const sortedTrainingNodes = computed(() => {
   })
 })
 
-onMounted(() => {
-  // Initialize federated learning dashboard
-  console.log('Federated Learning Dashboard mounted')
-  console.log('Total nodes in allFederatedNodes:', allFederatedNodes.value.length)
-  console.log('Control nodes:', allFederatedNodes.value.filter(n => ['model', 'control'].includes(n.type)).length)
-  console.log('Training nodes:', allFederatedNodes.value.filter(n => n.type === 'training').length)
-  console.log('Training status nodes:', allFederatedNodes.value.filter(n => n.type === 'training' && n.status === 'training').length)
-  console.log('Current displayed nodes:', federatedNodes.value.length)
-  console.log('Current filter:', nodeFilter.value)
+onMounted(async () => {
+  // Initialize EdgeAI visualization with real data
+  console.log('EdgeAI Visualization Dashboard mounted')
+  
+  // Load initial data
+  await loadVisualizationData()
+  
+  // Setup auto-refresh for real-time updates
+  setupAutoRefresh()
+  
+  // Connect to EdgeAI store WebSocket for real-time updates
+  edgeaiStore.connectWebSocket()
 })
 
 onUnmounted(() => {
+  // Clean up resources
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  
+  // Clear API cache
+  clearCache()
+  
   // Clean up any running training simulations
   if (trainingState.value.status === 'training') {
     trainingState.value.status = 'idle'

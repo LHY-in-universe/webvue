@@ -61,6 +61,8 @@ export default defineConfig({
   },
   server: {
     // Development server optimizations
+    host: '127.0.0.1',
+    port: 5173,
     hmr: {
       overlay: false // Disable error overlay for better performance
     }

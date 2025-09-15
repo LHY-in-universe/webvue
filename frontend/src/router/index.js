@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // Lazy load views for better performance
 const Home = () => import('@/views/Home.vue')
-const ThemeTransitionDemo = () => import('@/views/ThemeTransitionDemo.vue')
 
 // P2P AI Module Routes
 const P2PAI = {
@@ -53,12 +52,6 @@ const routes = [
     name: 'Home',
     component: Home,
     meta: { title: 'FedMPC - 联邦多方计算平台' }
-  },
-  {
-    path: '/theme-demo',
-    name: 'ThemeTransitionDemo',
-    component: ThemeTransitionDemo,
-    meta: { title: 'Vue Native Theme Transitions Demo' }
   },
   
   

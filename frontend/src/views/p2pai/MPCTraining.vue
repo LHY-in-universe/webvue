@@ -653,6 +653,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
+import { useApiOptimization } from '@/composables/useApiOptimization.js'
+import p2paiService from '@/services/p2paiService.js'
+import performanceMonitor from '@/utils/performanceMonitor.js'
 import {
   ArrowLeftIcon,
   LockClosedIcon,
@@ -673,12 +676,19 @@ import Modal from '@/components/ui/Modal.vue'
 import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
 const router = useRouter()
 const themeStore = useThemeStore()
+const { cachedApiCall } = useApiOptimization()
+
+// API loading state
+const apiLoading = ref(false)
+const apiError = ref(null)
 const isTraining = ref(false)
 const isPaused = ref(false)
 const protocolStatus = ref('Ready')
 const currentRound = ref(0)
 const trainingDuration = ref(0)
 const partyId = ref('Party-A')
+const sessionId = ref(null)
+const mpcWebSocket = ref(null)
 const selectedProtocol = ref('shamir')
 const securityBits = ref(128)
 const threshold = ref(2)
@@ -756,39 +766,96 @@ const onProtocolChange = () => {
 }
 const startMPCTraining = async () => {
   if (!canStartTraining.value) return
-  isTraining.value = true
-  protocolStatus.value = 'Training'
-  currentRound.value = 0
-  communicationRounds.value = 0
-  const trainingInterval = setInterval(() => {
-    if (!isTraining.value || isPaused.value) return
-    trainingDuration.value += 1000
-    if (Math.random() > 0.6) {
-      communicationRounds.value += Math.floor(Math.random() * 5) + 1
-      dataTransferred.value += Math.floor(Math.random() * 1000) + 500
+  
+  apiLoading.value = true
+  apiError.value = null
+  
+  try {
+    // Prepare MPC training configuration
+    const mpcConfig = {
+      protocol: selectedProtocol.value,
+      security_parameters: {
+        security_bits: securityBits.value,
+        threshold: threshold.value,
+        total_parties: totalParties.value,
+        use_homomorphic: useHomomorphic.value,
+        use_differential_privacy: useDifferentialPrivacy.value
+      },
+      model_config: {
+        model_type: selectedModel.value,
+        learning_rate: learningRate.value,
+        batch_size: batchSize.value,
+        max_rounds: maxRounds.value,
+        convergence_threshold: convergenceThreshold.value
+      },
+      privacy_config: useDifferentialPrivacy.value ? {
+        epsilon: epsilon.value,
+        delta: delta.value
+      } : null
     }
-    if (Math.random() > 0.7) {
-      currentRound.value = Math.min(maxRounds.value, currentRound.value + 1)
-      const progress = currentRound.value / maxRounds.value
-      currentAccuracy.value = Math.min(90, 50 + progress * 35 + Math.random() * 5)
-      currentLoss.value = Math.max(0.1, 2.0 * Math.exp(-progress * 3) + Math.random() * 0.1)
-      convergenceRate.value = Math.max(0, 1 - progress + Math.random() * 0.1)
-      computationLoad.value = 60 + Math.random() * 30
-      networkLoad.value = 40 + Math.random() * 40
-      memoryUsage.value = 50 + Math.random() * 30
-      averageLatency.value = 80 + Math.floor(Math.random() * 40)
-      throughput.value = 1000 + Math.floor(Math.random() * 2000)
+    
+    console.log('🔒 Starting MPC training with config:', mpcConfig)
+    
+    // Start MPC training via API
+    const response = await p2paiService.training.startMPCTraining(mpcConfig)
+    
+    if (response.success) {
+      // Update state with real session data
+      sessionId.value = response.data.session_id
+      isTraining.value = true
+      protocolStatus.value = 'Training'
+      currentRound.value = 0
+      communicationRounds.value = 0
+      
+      // Setup WebSocket connection for real-time updates
+      setupMPCWebSocket(sessionId.value)
+      
+      console.log('✅ MPC training started successfully:', response.data)
+    } else {
+      throw new Error(response.error || 'Failed to start MPC training')
     }
-    if (currentRound.value >= maxRounds.value || convergenceRate.value < convergenceThreshold.value) {
-      stopTraining()
-      protocolStatus.value = 'Completed'
-    }
-  }, 1000)
+  } catch (err) {
+    console.error('❌ Failed to start MPC training:', err)
+    apiError.value = err.message || 'Failed to start MPC training'
+    protocolStatus.value = 'Error'
+  } finally {
+    apiLoading.value = false
+  }
 }
-const stopTraining = () => {
-  isTraining.value = false
-  isPaused.value = false
-  protocolStatus.value = 'Ready'
+const stopTraining = async () => {
+  if (!sessionId.value) {
+    // Local stop for simulation mode
+    isTraining.value = false
+    isPaused.value = false
+    protocolStatus.value = 'Ready'
+    return
+  }
+  
+  try {
+    console.log('🛑 Stopping MPC training session:', sessionId.value)
+    
+    const response = await p2paiService.training.stopTraining(sessionId.value)
+    
+    if (response.success) {
+      isTraining.value = false
+      isPaused.value = false
+      protocolStatus.value = 'Stopped'
+      
+      // Close WebSocket connection
+      if (mpcWebSocket.value) {
+        mpcWebSocket.value.close()
+        mpcWebSocket.value = null
+      }
+      
+      console.log('✅ MPC training stopped successfully')
+    }
+  } catch (err) {
+    console.error('❌ Failed to stop MPC training:', err)
+    // Still update local state even if API call fails
+    isTraining.value = false
+    isPaused.value = false
+    protocolStatus.value = 'Error'
+  }
 }
 const pauseTraining = () => {
   isPaused.value = !isPaused.value
@@ -816,12 +883,115 @@ const formatDataSize = (bytes) => {
   }
   return `${size.toFixed(2)} ${units[unitIndex]}`
 }
-onMounted(() => {
+// Setup WebSocket connection for real-time MPC updates
+const setupMPCWebSocket = (sessionId) => {
+  if (mpcWebSocket.value) {
+    mpcWebSocket.value.close()
+  }
+  
+  try {
+    mpcWebSocket.value = p2paiService.training.createTrainingWebSocket(sessionId, {
+      onOpen: () => {
+        console.log('📡 MPC WebSocket connected')
+      },
+      onMessage: (data) => {
+        console.log('📨 MPC update received:', data)
+        updateMPCMetrics(data)
+      },
+      onError: (error) => {
+        console.error('❌ MPC WebSocket error:', error)
+      },
+      onClose: () => {
+        console.log('🔌 MPC WebSocket closed')
+        if (isTraining.value) {
+          // Try to reconnect after 3 seconds
+          setTimeout(() => setupMPCWebSocket(sessionId), 3000)
+        }
+      }
+    })
+  } catch (err) {
+    console.error('Failed to setup MPC WebSocket:', err)
+  }
+}
+
+// Update MPC metrics from WebSocket data
+const updateMPCMetrics = (data) => {
+  if (data.type === 'mpc_round') {
+    currentRound.value = data.round || currentRound.value
+    currentAccuracy.value = data.accuracy || currentAccuracy.value
+    currentLoss.value = data.loss || currentLoss.value
+    convergenceRate.value = data.convergence_rate || convergenceRate.value
+    communicationRounds.value = data.communication_rounds || communicationRounds.value
+    dataTransferred.value = data.data_transferred || dataTransferred.value
+    
+    // Update system resources
+    computationLoad.value = data.computation_load || computationLoad.value
+    networkLoad.value = data.network_load || networkLoad.value
+    memoryUsage.value = data.memory_usage || memoryUsage.value
+    averageLatency.value = data.average_latency || averageLatency.value
+    throughput.value = data.throughput || throughput.value
+    
+    // Update party status
+    if (data.parties) {
+      parties.value = data.parties.map(party => ({
+        id: party.id,
+        name: party.name,
+        connected: party.connected || false
+      }))
+    }
+  } else if (data.type === 'mpc_completed') {
+    protocolStatus.value = 'Completed'
+    isTraining.value = false
+    isPaused.value = false
+  } else if (data.type === 'mpc_error') {
+    protocolStatus.value = 'Error'
+    apiError.value = data.message || 'MPC training error occurred'
+    isTraining.value = false
+    isPaused.value = false
+  }
+}
+
+// Load parties data
+const loadPartiesData = async () => {
+  try {
+    const partiesResponse = await cachedApiCall(
+      'mpc-parties',
+      () => p2paiService.nodes.getNodes({ type: 'mpc' }),
+      30 * 1000 // 30 second cache
+    )
+    
+    if (partiesResponse.data?.nodes) {
+      parties.value = partiesResponse.data.nodes.slice(0, totalParties.value).map(node => ({
+        id: node.id,
+        name: node.name || `Party-${node.id}`,
+        connected: node.status === 'online' || node.status === 'training'
+      }))
+    }
+  } catch (err) {
+    console.warn('Failed to load parties data:', err)
+  }
+}
+
+onMounted(async () => {
+  console.log('🔒 MPC Training component mounted')
+  
   currentAccuracy.value = 0
   currentLoss.value = 2.0
   convergenceRate.value = 1.0
+  
+  // Load initial parties data
+  await loadPartiesData()
 })
 onUnmounted(() => {
+  console.log('🧹 Cleaning up MPC Training component')
+  
+  // Close WebSocket connection
+  if (mpcWebSocket.value) {
+    mpcWebSocket.value.close()
+    mpcWebSocket.value = null
+  }
+  
+  // Stop training if active
   if (isTraining.value) {
     stopTraining()
   }

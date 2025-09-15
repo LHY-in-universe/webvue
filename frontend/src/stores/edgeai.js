@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import edgeaiService from '@/services/edgeaiService'
 
 export const useEdgeAIStore = defineStore('edgeai', () => {
   // State
@@ -73,13 +74,81 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   }))
 
   // Actions
-  const initializeStore = () => {
-    // Initialize with mock data
-    loadMockData()
+  const initializeStore = async () => {
+    // Load real data from API
+    await loadRealData()
     
     // Setup WebSocket connection if enabled
     if (config.value.autoRefresh) {
       connectWebSocket()
+    }
+  }
+  
+  const loadRealData = async () => {
+    loading.value.projects = true
+    loading.value.nodes = true
+    
+    try {
+      // Load projects and nodes from API
+      const [projectsResult, nodesResult] = await Promise.all([
+        edgeaiService.projects.getProjects(),
+        edgeaiService.nodes.getNodes()
+      ])
+      
+      if (projectsResult && projectsResult.data) {
+        projects.value = projectsResult.data.map(project => ({
+          id: project.id,
+          name: project.name,
+          description: project.description,
+          type: project.project_type || 'general',
+          status: project.status,
+          progress: project.progress || 0,
+          connectedNodes: project.connected_nodes || 0,
+          currentEpoch: project.current_epoch || 0,
+          totalEpochs: project.total_epochs || 100,
+          modelType: project.model_type || 'neural_network',
+          batchSize: project.batch_size || 32,
+          learningRate: project.learning_rate || 0.001,
+          created: project.created_at,
+          lastUpdate: project.updated_at,
+          metrics: project.metrics || {
+            accuracy: 0,
+            loss: 0,
+            f1Score: 0
+          }
+        }))
+      }
+      
+      if (nodesResult && nodesResult.data) {
+        nodes.value = nodesResult.data.map(node => ({
+          id: node.id,
+          name: node.name,
+          type: node.node_type || 'edge',
+          status: node.status,
+          project: node.current_project || 'unassigned',
+          location: node.location || 'Unknown',
+          cpuUsage: node.cpu_usage || 0,
+          memoryUsage: node.memory_usage || 0,
+          gpuUsage: node.gpu_usage || 0,
+          progress: node.progress || 0,
+          currentEpoch: node.current_epoch || 0,
+          totalEpochs: node.total_epochs || 0,
+          lastSeen: node.last_seen || 'unknown',
+          connections: node.connections || []
+        }))
+      }
+      
+      lastUpdate.value = new Date().toISOString()
+      
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to load real data:', error)
+      // Fallback to mock data
+      loadMockData()
+      return { success: false, error: error.message }
+    } finally {
+      loading.value.projects = false
+      loading.value.nodes = false
     }
   }
 
@@ -294,12 +363,50 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
       case 'project_update':
         updateProject(data.payload)
         break
+      case 'task_update':
+        // Handle task status updates
+        if (data.payload && data.payload.id) {
+          // Find and update task if it exists in any project
+          console.log('Task update received:', data.payload)
+        }
+        break
+      case 'model_update':
+        // Handle model deployment/status changes
+        if (data.payload && data.payload.id) {
+          console.log('Model update received:', data.payload)
+        }
+        break
       case 'system_stats':
         // Handle system statistics update
         lastUpdate.value = new Date().toISOString()
         break
+      case 'system_log':
+        // Handle new system log entries
+        if (data.payload && data.payload.message) {
+          console.log('New system log:', data.payload)
+        }
+        break
+      case 'training_progress':
+        // Handle training progress updates
+        if (data.payload && data.payload.project_id) {
+          updateProjectProgress(data.payload)
+        }
+        break
       default:
-        console.log('Unknown WebSocket message type:', data.type)
+        console.log('Unknown WebSocket message type:', data.type, data)
+    }
+  }
+  
+  // Enhanced project progress update handler
+  const updateProjectProgress = (progressData) => {
+    const project = projects.value.find(p => p.id === progressData.project_id)
+    if (project) {
+      project.progress = progressData.progress || project.progress
+      project.currentEpoch = progressData.current_epoch || project.currentEpoch
+      if (progressData.metrics) {
+        project.metrics = { ...project.metrics, ...progressData.metrics }
+      }
+      project.lastUpdate = 'just now'
     }
   }
 
@@ -315,28 +422,40 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const createProject = async (projectData) => {
     loading.value.projects = true
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Call real API to create project
+      const result = await edgeaiService.projects.createProject(projectData)
       
-      const newProject = {
-        id: `proj-${Date.now()}`,
-        ...projectData,
-        status: 'created',
-        progress: 0,
-        connectedNodes: 0,
-        created: new Date().toISOString(),
-        lastUpdate: 'just now',
-        metrics: {
-          accuracy: 0,
-          loss: 0,
-          f1Score: 0
+      if (result && result.data) {
+        const newProject = {
+          id: result.data.id,
+          name: result.data.name,
+          description: result.data.description,
+          type: result.data.project_type || 'general',
+          status: result.data.status || 'created',
+          progress: result.data.progress || 0,
+          connectedNodes: result.data.connected_nodes || 0,
+          currentEpoch: result.data.current_epoch || 0,
+          totalEpochs: result.data.total_epochs || 100,
+          modelType: result.data.model_type || 'neural_network',
+          batchSize: result.data.batch_size || 32,
+          learningRate: result.data.learning_rate || 0.001,
+          created: result.data.created_at,
+          lastUpdate: result.data.updated_at,
+          metrics: result.data.metrics || {
+            accuracy: 0,
+            loss: 0,
+            f1Score: 0
+          }
         }
+        
+        projects.value.push(newProject)
+        return { success: true, project: newProject }
+      } else {
+        return { success: false, error: 'Invalid API response' }
       }
-      
-      projects.value.push(newProject)
-      return { success: true, project: newProject }
     } catch (error) {
-      return { success: false, error: error.message }
+      console.error('Failed to create project:', error)
+      return { success: false, error: error.message || 'Failed to create project' }
     } finally {
       loading.value.projects = false
     }
@@ -352,11 +471,18 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const deleteProject = async (projectId) => {
     loading.value.operations = true
     try {
-      await new Promise(resolve => setTimeout(resolve, 500))
-      projects.value = projects.value.filter(p => p.id !== projectId)
-      return { success: true }
+      // Call real API to delete project
+      const result = await edgeaiService.projects.deleteProject(projectId)
+      
+      if (result && result.success !== false) {
+        projects.value = projects.value.filter(p => p.id !== projectId)
+        return { success: true }
+      } else {
+        return { success: false, error: result?.error || 'Failed to delete project' }
+      }
     } catch (error) {
-      return { success: false, error: error.message }
+      console.error('Failed to delete project:', error)
+      return { success: false, error: error.message || 'Failed to delete project' }
     } finally {
       loading.value.operations = false
     }
@@ -447,63 +573,47 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
 
   // Data refresh
   const refreshData = async () => {
-    loading.value.projects = true
-    loading.value.nodes = true
-    
-    try {
-      // Simulate data refresh
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Update node metrics with random values to simulate real-time changes
-      nodes.value.forEach(node => {
-        if (node.status === 'training') {
-          node.progress = Math.min(100, node.progress + Math.random() * 5)
-          node.cpuUsage = Math.max(50, Math.min(95, node.cpuUsage + (Math.random() - 0.5) * 10))
-          node.memoryUsage = Math.max(40, Math.min(90, node.memoryUsage + (Math.random() - 0.5) * 8))
-          if (node.gpuUsage > 0) {
-            node.gpuUsage = Math.max(60, Math.min(95, node.gpuUsage + (Math.random() - 0.5) * 8))
-          }
-        } else if (node.status === 'online' || node.status === 'idle') {
-          node.cpuUsage = Math.max(5, Math.min(40, node.cpuUsage + (Math.random() - 0.5) * 5))
-          node.memoryUsage = Math.max(10, Math.min(50, node.memoryUsage + (Math.random() - 0.5) * 5))
-        }
-      })
-
-      lastUpdate.value = new Date().toISOString()
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: error.message }
-    } finally {
-      loading.value.projects = false
-      loading.value.nodes = false
-    }
+    return await loadRealData()
   }
 
   // Import/Export
   const importProject = async (projectData) => {
     loading.value.projects = true
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      // Call real API to import project
+      const result = await edgeaiService.projects.importProject(projectData)
       
-      const importedProject = {
-        id: `proj-${Date.now()}`,
-        ...projectData,
-        status: 'imported',
-        progress: 0,
-        connectedNodes: 0,
-        created: new Date().toISOString(),
-        lastUpdate: 'just now',
-        metrics: {
-          accuracy: 0,
-          loss: 0,
-          f1Score: 0
+      if (result && result.data) {
+        const importedProject = {
+          id: result.data.id,
+          name: result.data.name,
+          description: result.data.description,
+          type: result.data.project_type || 'general',
+          status: result.data.status || 'imported',
+          progress: result.data.progress || 0,
+          connectedNodes: result.data.connected_nodes || 0,
+          currentEpoch: result.data.current_epoch || 0,
+          totalEpochs: result.data.total_epochs || 100,
+          modelType: result.data.model_type || 'neural_network',
+          batchSize: result.data.batch_size || 32,
+          learningRate: result.data.learning_rate || 0.001,
+          created: result.data.created_at,
+          lastUpdate: result.data.updated_at,
+          metrics: result.data.metrics || {
+            accuracy: 0,
+            loss: 0,
+            f1Score: 0
+          }
         }
+        
+        projects.value.push(importedProject)
+        return { success: true, project: importedProject }
+      } else {
+        return { success: false, error: 'Invalid API response' }
       }
-      
-      projects.value.push(importedProject)
-      return { success: true, project: importedProject }
     } catch (error) {
-      return { success: false, error: error.message }
+      console.error('Failed to import project:', error)
+      return { success: false, error: error.message || 'Failed to import project' }
     } finally {
       loading.value.projects = false
     }
@@ -559,6 +669,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
     disconnectWebSocket,
     createProject,
     updateProject,
+    updateProjectProgress,
     deleteProject,
     setCurrentProject,
     updateNode,

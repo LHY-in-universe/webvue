@@ -1,520 +1,244 @@
 <template>
-  <div class="network-visualization">
+  <div class="p2p-network-visualization w-full h-full relative">
     <svg 
       ref="networkSvg"
-      class="node-svg"
-      :width="svgWidth"
-      :height="svgHeight"
-      viewBox="0 0 800 500"
-      @mousedown="handleMouseDown"
-      @mouseup="handleMouseUp"
-      @mouseleave="handleMouseLeave"
-      @wheel="handleWheel"
+      class="w-full h-full"
+      :viewBox="`0 0 ${svgDimensions.width} ${svgDimensions.height}`"
+      preserveAspectRatio="xMidYMid meet"
     >
-      <!-- 背景网格 -->
+      <!-- Clean background -->
+      <rect width="100%" height="100%" :fill="themeStore.isDark ? '#111827' : '#ffffff'" />
+      
+      <!-- Gradient and Pattern Definitions -->
       <defs>
-        <pattern 
-          id="grid" 
-          width="50" 
-          height="50" 
-          patternUnits="userSpaceOnUse"
-        >
-          <path 
-            d="M 50 0 L 0 0 0 50" 
-            fill="none" 
-            :stroke="gridColor" 
-            stroke-width="0.5" 
-            opacity="0.1"
-          />
-        </pattern>
-        
-        <!-- 数据流动画渐变 - 不同类型 -->
-        <linearGradient id="dataFlowBlue" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0" />
-          <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0" />
+        <!-- Connection colors -->
+        <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" :stop-color="themeStore.isDark ? '#34d399' : '#10b981'" />
+          <stop offset="100%" :stop-color="themeStore.isDark ? '#22c55e' : '#059669'" />
         </linearGradient>
         
-        <linearGradient id="dataFlowGreen" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#10b981;stop-opacity:0" />
-          <stop offset="50%" style="stop-color:#10b981;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#10b981;stop-opacity:0" />
-        </linearGradient>
+        <!-- Edge node gradient (blue) -->
+        <radialGradient id="edgeGradient" cx="50%" cy="50%">
+          <stop offset="0%" :stop-color="themeStore.isDark ? '#93c5fd' : '#dbeafe'" />
+          <stop offset="100%" :stop-color="themeStore.isDark ? '#3b82f6' : '#2563eb'" />
+        </radialGradient>
         
-        <linearGradient id="dataFlowPurple" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:0" />
-          <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:0" />
-        </linearGradient>
+        <!-- Control node gradient (red) -->
+        <radialGradient id="controlGradient" cx="50%" cy="50%">
+          <stop offset="0%" :stop-color="themeStore.isDark ? '#fca5a5' : '#fecaca'" />
+          <stop offset="100%" :stop-color="themeStore.isDark ? '#ef4444' : '#dc2626'" />
+        </radialGradient>
         
-        <!-- 阴影滤镜 -->
-        <filter id="dropshadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="2" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.4)" />
-        </filter>
+        <!-- Connection Arrow Marker -->
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="url(#connectionGradient)" />
+        </marker>
         
-        <!-- 发光滤镜 -->
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+        <!-- Drop Shadow Filter -->
+        <filter id="dropShadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+          <feOffset dx="2" dy="4" result="offset" />
+          <feComponentTransfer>
+            <feFuncA type="linear" slope="0.2"/>
+          </feComponentTransfer>
           <feMerge> 
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
+            <feMergeNode/>
+            <feMergeNode in="SourceGraphic"/> 
           </feMerge>
         </filter>
-        
-        <!-- 节点渐变效果 -->
-        <radialGradient id="nodeGradient" cx="30%" cy="30%">
-          <stop offset="0%" style="stop-color:rgba(255,255,255,0.3);stop-opacity:1" />
-          <stop offset="100%" style="stop-color:rgba(0,0,0,0.1);stop-opacity:1" />
-        </radialGradient>
-        
-        <!-- 控制节点特殊效果 -->
-        <radialGradient id="controlNodeGradient" cx="25%" cy="25%">
-          <stop offset="0%" style="stop-color:rgba(255,255,255,0.4);stop-opacity:1" />
-          <stop offset="70%" style="stop-color:rgba(255,255,255,0.1);stop-opacity:1" />
-          <stop offset="100%" style="stop-color:rgba(0,0,0,0.2);stop-opacity:1" />
-        </radialGradient>
       </defs>
       
-      <!-- 背景网格 -->
-      <rect width="100%" height="100%" fill="url(#grid)" />
-      
-      <!-- 可缩放和平移的主内容组 -->
-      <g :transform="svgTransform">
-      
-      <!-- 连接线层 -->
-      <g id="connections">
-        <g 
-          v-for="connection in visibleConnections" 
-          :key="`${connection.from}-${connection.to}`"
-          class="connection-group"
-        >
-          <!-- 基础连接线 -->
-          <line
-            :x1="getNodePosition(connection.from).x"
-            :y1="getNodePosition(connection.from).y"
-            :x2="getNodePosition(connection.to).x"
-            :y2="getNodePosition(connection.to).y"
-            class="connection-line"
-            :class="{ 'active': connection.active }"
-            stroke="rgba(156, 163, 175, 0.1)"
-            stroke-width="1"
-            stroke-opacity="1"
-          />
-          
-          <!-- 连接线悬停区域（增加悬停响应区域） -->
-          <line
-            :x1="getNodePosition(connection.from).x"
-            :y1="getNodePosition(connection.from).y"
-            :x2="getNodePosition(connection.to).x"
-            :y2="getNodePosition(connection.to).y"
+      <!-- Connections -->
+      <g class="connections">
+        <g v-for="connection in connections" :key="`${connection.from}-${connection.to}`">
+          <!-- Transparent Background Connection Line -->
+          <path
+            :d="getConnectionPath(connection)"
             stroke="transparent"
-            stroke-width="8"
-            style="cursor: pointer;"
-            @mouseenter="handleConnectionHover(connection, $event)"
-            @mouseleave="handleConnectionLeave"
+            stroke-width="2"
+            stroke-linecap="round"
+            fill="none"
+            class="background-connection-line"
           />
           
-          <!-- 数据流动画线段 -->
-          <line
-            v-if="connection.active && trainingActive && shouldShowAnimation"
-            :x1="getNodePosition(connection.from).x"
-            :y1="getNodePosition(connection.from).y"
-            :x2="getNodePosition(connection.to).x"
-            :y2="getNodePosition(connection.to).y"
-            :stroke="getDataFlowColor(connection)"
-            stroke-width="2.5"
+          <!-- Dynamic Data Flow Animation -->
+          <path
+            v-if="connection.active && trainingActive"
+            :d="getConnectionPath(connection)"
+            :stroke="getTransmissionColor(connection.direction)"
+            stroke-width="3"
             stroke-linecap="round"
-            class="data-flow-line"
+            stroke-dasharray="20,100"
+            fill="none"
+            class="data-flow-animation"
+            :class="`data-flow-${connection.direction}`"
           >
-            <animate
-              attributeName="stroke-dasharray"
-              :values="isLargeNetwork ? '0,1000;20,980;0,1000' : '0,1000;40,960;0,1000'"
-              :dur="isLargeNetwork ? '3s' : '1.8s'"
-              repeatCount="indefinite"
-            />
             <animate
               attributeName="stroke-dashoffset"
-              values="1000;0;-1000"
-              :dur="isLargeNetwork ? '3s' : '1.8s'"
+              :values="getAnimationValues(connection.direction)"
+              dur="2s"
               repeatCount="indefinite"
             />
-          </line>
-          
-          <!-- 静态连接线（大型网络时显示） -->
-          <line
-            v-if="connection.active && trainingActive && !shouldShowAnimation"
-            :x1="getNodePosition(connection.from).x"
-            :y1="getNodePosition(connection.from).y"
-            :x2="getNodePosition(connection.to).x"
-            :y2="getNodePosition(connection.to).y"
-            :stroke="getDataFlowColor(connection)"
-            stroke-width="2"
-            stroke-linecap="round"
-            opacity="0.6"
-          />
+          </path>
         </g>
       </g>
       
-      <!-- MPC隐私保护：隐藏参与方占位符（仅显示虚影圆圈，不显示图标） -->
-      <g v-if="projectType === 'mpc'" id="hiddenParties">
-        <g 
-          v-for="(position, index) in LAYOUT_CONFIGS.mpc.hidden" 
-          :key="`hidden-${index}`"
-          class="hidden-party-group"
+      <!-- Nodes -->
+      <g class="nodes">
+        <g v-for="node in visibleNodes" :key="node.id" 
+           class="node-group static-node"
+           :style="{ 
+             opacity: 1,
+             transform: `scale(1)`,
+             transformOrigin: `${getNodePosition(node).x}px ${getNodePosition(node).y}px`,
+             pointerEvents: 'all'
+           }"
         >
-          <!-- 隐藏节点的虚影 -->
+          <!-- Main Node Circle -->
           <circle
-            :cx="position.x"
-            :cy="position.y"
-            :r="18"
-            fill="none"
-            :stroke="themeStore.isDark ? '#374151' : '#d1d5db'"
-            stroke-width="2"
-            stroke-dasharray="5,5"
-            opacity="0.5"
-          >
-            <!-- 虚化动画 -->
-            <animate
-              attributeName="opacity"
-              values="0.3;0.6;0.3"
-              dur="3s"
-              repeatCount="indefinite"
-            />
-          </circle>
-        </g>
-      </g>
-
-      <!-- 节点层 -->
-      <g id="nodes">
-        <g 
-          v-for="node in visibleNodes" 
-          :key="node.id"
-          class="node-group"
-          style="cursor: pointer;"
-        >
-          <!-- 主节点圆形 -->
-          <circle
-            :cx="getNodePosition(node.id).x"
-            :cy="getNodePosition(node.id).y"
+            :cx="getNodePosition(node).x"
+            :cy="getNodePosition(node).y"
             :r="getNodeRadius(node)"
             :fill="getNodeFillColor(node)"
-            :stroke="getNodeStrokeColor(node)"
-            :stroke-width="getNodeStrokeWidth(node)"
-            :class="getNodeClasses(node)"
-            style="cursor: pointer; opacity: 1;"
-            filter="url(#dropshadow)"
-            @click="handleNodeClick(node)"
-            @mouseenter="handleNodeHover(node)"
-          />
-          
-          <!-- 节点渐变覆盖层 -->
-          <circle
-            :cx="getNodePosition(node.id).x"
-            :cy="getNodePosition(node.id).y"
-            :r="getNodeRadius(node)"
-            :fill="node.type === 'control' ? 'url(#controlNodeGradient)' : 'url(#nodeGradient)'"
-            style="pointer-events: none;"
-          />
-          
-          <!-- 训练进度环（仅边缘节点） -->
-          <circle
-            v-if="node.type === 'edge' && node.status === 'training' && node.progress"
-            :cx="getNodePosition(node.id).x"
-            :cy="getNodePosition(node.id).y"
-            :r="getNodeRadius(node) + 8"
-            fill="none"
-            :stroke="node.strokeColor"
-            stroke-width="3"
-            opacity="0.3"
-            :stroke-dasharray="getProgressDashArray(node)"
-            :stroke-dashoffset="getProgressDashOffset(node)"
-            style="transition: all 0.5s ease;"
-            transform="rotate(-90)"
-          />
-          
-          <!-- 自己设备的脉搏外环 - 只有自己的设备才有 -->
-          <circle
-            v-if="node.isOwn"
-            :cx="getNodePosition(node.id).x"
-            :cy="getNodePosition(node.id).y"
-            :r="getNodeRadius(node) + 5"
-            fill="none"
-            :stroke="getNodeStrokeColor(node)"
+            :stroke="themeStore.isDark ? '#ffffff' : '#000000'"
             stroke-width="2"
-            opacity="0.6"
-            class="own-device-pulse"
-          >
-            <animate
-              attributeName="r"
-              :values="`${getNodeRadius(node) + 3};${getNodeRadius(node) + 8};${getNodeRadius(node) + 3}`"
-              dur="2s"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="opacity"
-              values="0.6;0.2;0.6"
-              dur="2s"
-              repeatCount="indefinite"
-            />
-          </circle>
-
-          <!-- 节点状态指示器 - 只有训练中的其他节点才显示 -->
-          <circle
-            v-if="node.status === 'training' && !node.isOwn"
-            :r="4"
-            :cx="getNodePosition(node.id).x + getNodeRadius(node) - 8"
-            :cy="getNodePosition(node.id).y - getNodeRadius(node) + 8"
-            fill="#10b981"
-            class="status-indicator"
-          >
-            <animate
-              attributeName="r"
-              values="3;5;3"
-              dur="1.5s"
-              repeatCount="indefinite"
-            />
-          </circle>
-          
-          <!-- 离线状态指示器 - 只有其他节点离线时才显示 -->
-          <circle
-            v-if="node.status === 'offline' && !node.isOwn"
-            :r="4"
-            :cx="getNodePosition(node.id).x + getNodeRadius(node) - 8"
-            :cy="getNodePosition(node.id).y - getNodeRadius(node) + 8"
-            fill="#ef4444"
-            opacity="0.7"
+            class="node-circle cursor-pointer select-none no-hover clickable-node"
+            style="pointer-events: all; user-select: none;"
+            @click.stop.prevent="handleNodeClick(node)"
           />
           
-          <!-- 节点内部图标 - 使用专业的HeroIcons -->
-          <g :transform="`translate(${getNodePosition(node.id).x}, ${getNodePosition(node.id).y})`">
-            <!-- 控制节点/服务器图标 -->
-            <foreignObject
-              v-if="node.type === 'control'"
-              x="-12"
-              y="-12"
-              width="24"
-              height="24"
-              style="pointer-events: none;"
-            >
-              <ServerIcon 
-                class="w-6 h-6 text-white drop-shadow-sm"
-                :class="themeStore.isDark ? 'text-white' : 'text-white'"
-              />
-            </foreignObject>
-            
-            <!-- 边缘节点图标 -->
-            <foreignObject
-              v-if="node.type === 'edge'"
-              x="-10"
-              y="-10"
-              width="20"
-              height="20"
-              style="pointer-events: none;"
-            >
-              <CpuChipIcon 
-                v-if="node.isOwn"
-                class="w-5 h-5 text-white drop-shadow-sm font-bold"
-                stroke-width="2.5"
-              />
-              <ComputerDesktopIcon 
-                v-else
-                class="w-5 h-5 text-white drop-shadow-sm"
-              />
-            </foreignObject>
-          </g>
-        </g>
-      </g>
-      
-      <!-- 标签层 -->
-      <g id="labels">
-        <g 
-          v-for="node in visibleNodes" 
-          :key="`label-${node.id}`"
-          class="node-label-group"
-        >
-          <!-- 标签背景 -->
-          <rect
-            :x="getNodePosition(node.id).x - getTextWidth(node.name) / 2 - 8"
-            :y="getNodePosition(node.id).y + getNodeRadius(node) + 15"
-            :width="getTextWidth(node.name) + 16"
-            height="24"
-            rx="12"
-            :fill="labelBackgroundColor"
-            opacity="0.9"
-          />
-          
-          <!-- 节点名称标签 -->
+          <!-- Node Label -->
           <text
-            :x="getNodePosition(node.id).x"
-            :y="getNodePosition(node.id).y + getNodeRadius(node) + 30"
+            :x="getNodePosition(node).x"
+            :y="getNodePosition(node).y - getNodeRadius(node) - 10"
             text-anchor="middle"
-            :class="labelTextClasses"
+            :fill="themeStore.isDark ? '#ffffff' : '#000000'"
             font-size="12"
-            font-weight="500"
-          >
-            {{ node.name }}
-          </text>
+            font-weight="600"
+            class="node-label"
+          >{{ node.name || node.id }}</text>
           
-          <!-- 训练进度文本（边缘节点） -->
-          <text
-            v-if="node.type === 'edge' && node.status === 'training' && node.progress"
-            :x="getNodePosition(node.id).x"
-            :y="getNodePosition(node.id).y + getNodeRadius(node) + 45"
-            text-anchor="middle"
-            :class="progressTextClasses"
-            font-size="10"
-          >
-            {{ Math.round(node.progress) }}%
-          </text>
         </g>
-      </g>
-      
-      <!-- 训练完成状态覆盖层 -->
-      <g 
-        v-if="showTrainingComplete"
-        id="trainingComplete"
-        class="training-complete-overlay"
-      >
-        <!-- 背景遮罩 -->
-        <rect 
-          width="100%" 
-          height="100%" 
-          fill="rgba(16, 185, 129, 0.1)" 
-          rx="10"
-        />
-        
-        <!-- 完成状态文字 -->
-        <text 
-          x="50%" 
-          y="40%" 
-          text-anchor="middle" 
-          class="training-complete-title"
-          font-size="24"
-          font-weight="bold"
-          :fill="titleTextColor"
-        >
-          🎉 Training Complete 🎉
-        </text>
-        
-        <text 
-          x="50%" 
-          y="50%" 
-          text-anchor="middle" 
-          class="training-complete-subtitle"
-          font-size="16"
-          :fill="subtitleTextColor"
-        >
-          All edge nodes have completed training tasks
-        </text>
-        
-        <text 
-          x="50%" 
-          y="60%" 
-          text-anchor="middle" 
-          class="training-complete-details"
-          font-size="14"
-          :fill="detailTextColor"
-        >
-          Average Accuracy: {{ averageAccuracy.toFixed(1) }}% | Total Training Time: {{ formatTrainingTime() }}
-        </text>
-      </g>
       </g>
     </svg>
-    
-    
-    <!-- 性能优化提示 -->
-    <div 
-      v-if="isLargeNetwork && hiddenNodesCount > 0"
-      class="performance-notice"
-    >
-      <div class="flex items-center space-x-2 text-sm text-amber-600 dark:text-amber-400">
-        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-        </svg>
-        <span>
-          Large network detected: Showing {{ visibleNodes.length }}/{{ nodes.length }} nodes 
-          ({{ hiddenNodesCount }} hidden for performance)
-        </span>
-      </div>
-    </div>
-    
-    <!-- 节点悬停工具提示 -->
-    <div
-      v-if="hoveredNode && showTooltip"
-      ref="tooltip"
-      class="node-tooltip"
-      :style="tooltipStyle"
-    >
-      <div class="tooltip-content">
-        <div class="font-semibold text-gray-900 dark:text-white flex items-center">
-          <span class="mr-2">
-            {{ hoveredNode.type === 'control' ? '🖥️' : (hoveredNode.isOwn ? '💻' : '📱') }}
-          </span>
-          {{ hoveredNode.name }}
-        </div>
-        <div class="text-sm text-gray-600 dark:text-gray-400">
-          {{ getNodeTypeLabel(hoveredNode) }}
-        </div>
-        <div v-if="hoveredNode.isOwn" class="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-          🔒 Your Device
-        </div>
-        <div class="text-xs text-gray-500 dark:text-gray-500 mt-1">
-          Status: {{ hoveredNode.status || 'Online' }}
-        </div>
-        <div v-if="hoveredNode.progress" class="text-xs text-gray-500 dark:text-gray-500">
-          Training Progress: {{ Math.round(hoveredNode.progress) }}%
-        </div>
-      </div>
-    </div>
-    
-    <!-- 连接线悬停工具提示 -->
-    <div
-      v-if="hoveredConnection && showConnectionTooltip"
-      ref="connectionTooltip"
-      class="connection-tooltip"
-      :style="connectionTooltipStyle"
-    >
-      <div class="tooltip-content">
-        <div class="font-semibold text-gray-900 dark:text-white mb-2">
-          Connection Info
-        </div>
-        <div class="text-sm text-gray-600 dark:text-gray-400">
-          <div class="flex justify-between items-center mb-1">
-            <span>From:</span>
-            <span class="font-medium">{{ getNodeName(hoveredConnection.from) }}</span>
-          </div>
-          <div class="flex justify-between items-center mb-1">
-            <span>To:</span>
-            <span class="font-medium">{{ getNodeName(hoveredConnection.to) }}</span>
-          </div>
-          <div class="flex justify-between items-center mb-1">
-            <span>Status:</span>
-            <span :class="hoveredConnection.active ? 'text-green-500' : 'text-gray-500'">
-              {{ hoveredConnection.active ? 'Active' : 'Inactive' }}
-            </span>
-          </div>
-          <div v-if="hoveredConnection.active" class="flex justify-between items-center mb-1">
-            <span>Bandwidth:</span>
-            <span class="font-medium text-blue-500">{{ getConnectionBandwidth(hoveredConnection) }}</span>
-          </div>
-          <div v-if="hoveredConnection.active" class="flex justify-between items-center">
-            <span>Latency:</span>
-            <span class="font-medium text-purple-500">{{ getConnectionLatency(hoveredConnection) }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
+<style scoped>
+.static-node {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: all;
+}
+
+.static-node * {
+  cursor: pointer !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  pointer-events: all !important;
+}
+
+.node-circle {
+  cursor: pointer !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+.clickable-node {
+  cursor: pointer !important;
+}
+
+.clickable-node:hover {
+  cursor: pointer !important;
+}
+
+.node-group {
+  cursor: pointer;
+}
+
+svg {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.p2p-network-visualization {
+  background: transparent;
+  overflow: hidden;
+}
+
+.node-circle {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Static nodes with no hover effects */
+.no-hover,
+.no-hover:hover,
+.node-group:hover .no-hover,
+.static-node:hover,
+.static-node:hover * {
+  transform: none !important;
+  filter: none !important;
+  transition: none !important;
+  stroke-width: 2 !important;
+  font-weight: inherit !important;
+  font-size: inherit !important;
+}
+
+.node-label,
+.progress-text {
+  pointer-events: none;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.connection-line {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Data flow animation styles */
+.data-flow-animation {
+  filter: drop-shadow(0 0 4px currentColor);
+  opacity: 0.9;
+}
+
+.data-flow-upstream {
+  filter: drop-shadow(0 0 6px #3b82f6);
+}
+
+.data-flow-downstream {
+  filter: drop-shadow(0 0 6px #10b981);
+}
+
+.data-flow-bidirectional {
+  filter: drop-shadow(0 0 6px #8b5cf6);
+}
+
+.background-connection-line {
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .node-label,
+  .progress-text {
+    font-size: 10px;
+  }
+}
+</style>
+
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import {
-  ServerIcon,
-  ComputerDesktopIcon,
-  CpuChipIcon
-} from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   nodes: {
@@ -535,140 +259,63 @@ const props = defineProps({
   },
   maxNodes: {
     type: Number,
-    default: 30 // 最大节点数量限制
-  },
-  enableVirtualization: {
-    type: Boolean,
-    default: false // 启用虚拟化渲染
+    default: 30
   },
   projectType: {
     type: String,
-    default: 'federated', // federated 或 mpc
+    default: 'federated',
     validator: value => ['federated', 'mpc'].includes(value)
   }
 })
 
-const emit = defineEmits(['node-click', 'node-hover'])
+const emit = defineEmits(['node-click', 'connection-click'])
 
 const themeStore = useThemeStore()
-
-// 响应式数据
 const networkSvg = ref(null)
-const tooltip = ref(null)
-const hoveredNode = ref(null)
-const hoveredConnection = ref(null)
-const showTooltip = ref(false)
-const showConnectionTooltip = ref(false)
-const tooltipPosition = ref({ x: 0, y: 0 })
-const connectionTooltipPosition = ref({ x: 0, y: 0 })
 
-// 缩放和平移相关
-const zoomLevel = ref(1)
-const panOffset = ref({ x: 0, y: 0 })
-const isDragging = ref(false)
-const lastMousePosition = ref({ x: 0, y: 0 })
-const minZoom = 0.3
-const maxZoom = 3
-
-// 智能布局配置 - 借鉴EdgeAI的布局系统
-const LAYOUT_CONFIGS = {
-  federated: {
-    // 联邦学习：星形拓扑，中央服务器在上方，边缘设备围绕分布
-    control: [
-      { x: 400, y: 120 }  // 中央服务器位置
-    ],
-    edge: [
-      { x: 200, y: 300 },  // 左侧边缘设备
-      { x: 400, y: 380 },  // 中央边缘设备
-      { x: 600, y: 300 },  // 右侧边缘设备
-      { x: 150, y: 200 },  // 左上边缘设备
-      { x: 650, y: 200 }   // 右上边缘设备
-    ]
-  },
-  mpc: {
-    // MPC：紧凑布局，体现隐私保护
-    edge: [
-      { x: 400, y: 250 }   // 本地设备居中
-    ],
-    hidden: [
-      // 隐藏参与方的占位符位置
-      { x: 300, y: 180 },
-      { x: 500, y: 180 },
-      { x: 350, y: 320 },
-      { x: 450, y: 320 }
-    ]
-  }
-}
-
-// 节点位置追踪
-const nodePositions = ref(new Map())
-
-// SVG 尺寸
-const svgWidth = ref(800)
-const svgHeight = ref(500)
-
-// 计算属性
-const gridColor = computed(() => 
-  themeStore.isDark ? '#374151' : '#e5e7eb'
-)
-
-const labelBackgroundColor = computed(() => 
-  themeStore.isDark ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)'
-)
-
-const labelTextClasses = computed(() => 
-  themeStore.isDark ? 'fill-gray-200' : 'fill-gray-800'
-)
-
-const progressTextClasses = computed(() => 
-  themeStore.isDark ? 'fill-gray-400' : 'fill-gray-600'
-)
-
-const titleTextColor = computed(() => 
-  themeStore.isDark ? '#10b981' : '#047857'
-)
-
-const subtitleTextColor = computed(() => 
-  themeStore.isDark ? '#d1d5db' : '#374151'
-)
-
-const detailTextColor = computed(() => 
-  themeStore.isDark ? '#9ca3af' : '#6b7280'
-)
-
-const averageAccuracy = computed(() => {
-  const edgeNodes = props.nodes.filter(n => n.type === 'edge' && n.accuracy)
-  if (edgeNodes.length === 0) return 0
-  return edgeNodes.reduce((sum, n) => sum + n.accuracy, 0) / edgeNodes.length
+// Fixed layout dimensions - Updated for 700px container
+const svgDimensions = reactive({
+  width: 1200,
+  height: 700,
+  padding: 80
 })
 
-const tooltipStyle = computed(() => ({
-  left: `${tooltipPosition.value.x}px`,
-  top: `${tooltipPosition.value.y}px`,
-  transform: 'translate(-50%, -100%)',
-  pointerEvents: 'none'
-}))
+// P2P Regular topology - Fixed positions for predictable layout
+const CONTROL_NODE_POSITIONS = [
+  { x: 600, y: 70 }  // Central server at top with better spacing
+]
 
-const connectionTooltipStyle = computed(() => ({
-  left: `${connectionTooltipPosition.value.x}px`,
-  top: `${connectionTooltipPosition.value.y}px`,
-  transform: 'translate(-50%, -100%)',
-  pointerEvents: 'none'
-}))
+// Fixed regular circular positions - Your device in center, others in two circles
+// Updated for 700px container with better scaling and centering
+const EDGE_NODE_POSITIONS = [
+  { x: 600, y: 350 },  // Index 0: Your device in center (true center of 700px)
+  
+  // Inner circle - 6 positions around center (radius 150, increased from 130)
+  { x: 600, y: 200 },  // Index 1: Top
+  { x: 730, y: 275 },  // Index 2: Top-right (60° from top)
+  { x: 730, y: 425 },  // Index 3: Bottom-right (120° from top)
+  { x: 600, y: 500 },  // Index 4: Bottom (180° from top)
+  { x: 470, y: 425 },  // Index 5: Bottom-left (240° from top)
+  { x: 470, y: 275 },  // Index 6: Top-left (300° from top)
+  
+  // Outer circle - 8 positions around center (radius 250, increased from 200)
+  { x: 777, y: 173 },  // Index 7: Top-right (45° from top)
+  { x: 850, y: 350 },  // Index 8: Right (90° from top)
+  { x: 777, y: 527 },  // Index 9: Bottom-right (135° from top)
+  { x: 600, y: 600 },  // Index 10: Bottom (180° from top)
+  { x: 423, y: 527 },  // Index 11: Bottom-left (225° from top)
+  { x: 350, y: 350 },  // Index 12: Left (270° from top)
+  { x: 423, y: 173 },  // Index 13: Top-left (315° from top)
+  { x: 716, y: 134 }   // Index 14: Top-right diagonal (30° from top)
+]
 
-// 性能优化相关计算属性
-const isLargeNetwork = computed(() => props.nodes.length > props.maxNodes)
-
-// 进行节点过滤和虚拟化的节点列表
+// Performance optimization - visible nodes
 const visibleNodes = computed(() => {
-  if (!isLargeNetwork.value) {
+  if (props.nodes.length <= props.maxNodes) {
     return props.nodes
   }
   
-  // 大型网络优先级策略：
-  // 1. 显示所有控制节点
-  // 2. 显示自己的节点
-  // 3. 显示部分活跃的边缘节点
+  // Priority: control nodes first, then own nodes, then active nodes
   const controlNodes = props.nodes.filter(n => n.type === 'control')
   const ownNodes = props.nodes.filter(n => n.isOwn && n.type !== 'control')
   const otherActiveNodes = props.nodes
@@ -679,602 +326,223 @@ const visibleNodes = computed(() => {
   return [...controlNodes, ...ownNodes, ...otherActiveNodes]
 })
 
-// 可见连接（只显示与可见节点相关的连接）
-const visibleConnections = computed(() => {
-  const visibleNodeIds = new Set(visibleNodes.value.map(n => n.id))
-  return props.connections.filter(conn => 
-    visibleNodeIds.has(conn.from) && visibleNodeIds.has(conn.to)
-  )
-})
+// Node position tracking
+const nodePositions = ref(new Map())
 
-// 隐藏节点数量统计
-const hiddenNodesCount = computed(() => 
-  Math.max(0, props.nodes.length - visibleNodes.value.length)
-)
-
-// 动画性能优化：大型网络时减少动画
-const shouldShowAnimation = computed(() => {
-  return !isLargeNetwork.value || props.enableVirtualization
-})
-
-// SVG 变换属性
-const svgTransform = computed(() => {
-  return `translate(${panOffset.value.x}, ${panOffset.value.y}) scale(${zoomLevel.value})`
-})
-
-// 缩放控制
-const zoomIn = () => {
-  zoomLevel.value = Math.min(maxZoom, zoomLevel.value * 1.2)
-}
-
-const zoomOut = () => {
-  zoomLevel.value = Math.max(minZoom, zoomLevel.value / 1.2)
-}
-
-const resetView = () => {
-  zoomLevel.value = 1
-  panOffset.value = { x: 0, y: 0 }
-}
-
-// 鼠标事件处理
-const handleMouseDown = (event) => {
-  if (event.button === 0) { // 左键
-    isDragging.value = true
-    lastMousePosition.value = { x: event.clientX, y: event.clientY }
-    event.preventDefault()
-  }
-}
-
-const handleMouseMove = (event) => {
-  if (isDragging.value) {
-    const deltaX = event.clientX - lastMousePosition.value.x
-    const deltaY = event.clientY - lastMousePosition.value.y
-    
-    panOffset.value.x += deltaX
-    panOffset.value.y += deltaY
-    
-    lastMousePosition.value = { x: event.clientX, y: event.clientY }
-    event.preventDefault()
-  }
-}
-
-const handleMouseUp = () => {
-  isDragging.value = false
-}
-
-const handleWheel = (event) => {
-  event.preventDefault()
-  const delta = event.deltaY > 0 ? 0.9 : 1.1
-  const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomLevel.value * delta))
-  
-  if (newZoom !== zoomLevel.value) {
-    // 以鼠标位置为中心缩放
-    const rect = networkSvg.value.getBoundingClientRect()
-    const mouseX = event.clientX - rect.left
-    const mouseY = event.clientY - rect.top
-    
-    const scaleDiff = newZoom / zoomLevel.value
-    panOffset.value.x = mouseX - (mouseX - panOffset.value.x) * scaleDiff
-    panOffset.value.y = mouseY - (mouseY - panOffset.value.y) * scaleDiff
-    
-    zoomLevel.value = newZoom
-  }
-}
-
-// 智能位置分配函数 - 借鉴EdgeAI系统
-const getStablePositionIndex = (nodeId, nodeType) => {
+// Stable position assignment function
+const getStablePositionIndex = (nodeId, nodeType, isOwn = false) => {
   if (nodeType === 'control') {
-    // 控制节点稳定分配
+    // Control node stable assignment
     if (nodeId.includes('server')) return 0
-    if (nodeId.includes('control')) return 1
+    if (nodeId.includes('control')) return 0
     return 0
   } else if (nodeType === 'edge') {
-    // 边缘节点基于ID稳定分配位置
+    // Your device always gets center position (index 0)
+    if (isOwn) return 0
+    
+    // Other edge nodes based on ID stable assignment (starting from index 1)
     const match = nodeId.match(/(\d+)/)
     if (match) {
       const nodeNumber = parseInt(match[1])
-      const layoutConfig = LAYOUT_CONFIGS[props.projectType]
-      const edgePositions = layoutConfig?.edge || []
-      return (nodeNumber - 1) % edgePositions.length
+      return ((nodeNumber - 1) % (EDGE_NODE_POSITIONS.length - 1)) + 1
     }
+    return 1 // Default to index 1 if no number found
   }
   return 0
 }
 
-// 初始化节点位置
+// Initialize fixed positions for all nodes
 const initializeNodePositions = () => {
-  const layoutConfig = LAYOUT_CONFIGS[props.projectType]
-  if (!layoutConfig) return
+  console.log('Initializing P2P positions for', props.nodes.length, 'nodes')
   
   props.nodes.forEach((node, index) => {
-    // 跳过已有位置的节点
-    if (nodePositions.value.has(node.id)) return
-    
-    let position = null
-    
-    if (node.type === 'control' && layoutConfig.control) {
-      const positionIndex = getStablePositionIndex(node.id, node.type)
-      position = layoutConfig.control[positionIndex] || layoutConfig.control[0]
-    } else if (node.type === 'edge' && layoutConfig.edge) {
-      const positionIndex = getStablePositionIndex(node.id, node.type)
-      position = layoutConfig.edge[positionIndex] || layoutConfig.edge[0]
+    // Skip nodes that already have positions
+    if (nodePositions.value.has(node.id)) {
+      return
     }
     
-    if (position) {
-      nodePositions.value.set(node.id, { ...position })
+    if (node.type === 'control') {
+      // Use stable control node position assignment
+      const positionIndex = getStablePositionIndex(node.id, node.type, node.isOwn)
+      if (positionIndex < CONTROL_NODE_POSITIONS.length) {
+        nodePositions.value.set(node.id, CONTROL_NODE_POSITIONS[positionIndex])
+        console.log(`Positioned control node ${node.id} at`, CONTROL_NODE_POSITIONS[positionIndex])
+      }
+    } else if (node.type === 'edge') {
+      // Use stable edge node position assignment
+      const positionIndex = getStablePositionIndex(node.id, node.type, node.isOwn)
+      if (positionIndex < EDGE_NODE_POSITIONS.length) {
+        nodePositions.value.set(node.id, EDGE_NODE_POSITIONS[positionIndex])
+        console.log(`Positioned ${node.isOwn ? 'YOUR' : 'edge'} node ${node.id} at`, EDGE_NODE_POSITIONS[positionIndex])
+      }
     }
   })
+  
+  console.log('Total positioned nodes:', nodePositions.value.size)
 }
 
-// 获取节点位置 - 优先使用智能布局，回退到原坐标
-const getNodePosition = (nodeId) => {
-  const node = props.nodes.find(n => n.id === nodeId)
-  if (!node) return { x: 0, y: 0 }
-  
-  // 优先从位置缓存获取
-  const cachedPosition = nodePositions.value.get(nodeId)
-  if (cachedPosition) {
-    return { ...cachedPosition }
+// Get position for a specific node
+const getNodePosition = (node) => {
+  // First check if we have a stored position
+  const storedPosition = nodePositions.value.get(node.id)
+  if (storedPosition) {
+    // Return a copy to prevent any modifications to the original position
+    return { x: storedPosition.x, y: storedPosition.y }
   }
   
-  // 如果节点有原始坐标，使用原始坐标
-  if (node.x !== undefined && node.y !== undefined) {
+  // If no stored position, assign one immediately using stable index
+  if (node.type === 'control') {
+    const positionIndex = getStablePositionIndex(node.id, node.type, node.isOwn)
+    if (positionIndex < CONTROL_NODE_POSITIONS.length) {
+      const position = CONTROL_NODE_POSITIONS[positionIndex]
+      nodePositions.value.set(node.id, position)
+      return position
+    }
+  } else if (node.type === 'edge') {
+    const positionIndex = getStablePositionIndex(node.id, node.type, node.isOwn)
+    if (positionIndex < EDGE_NODE_POSITIONS.length) {
+      const position = EDGE_NODE_POSITIONS[positionIndex]
+      nodePositions.value.set(node.id, position)
+      return position
+    }
+  }
+  
+  // Fallback to node's original coordinates if available
+  if (node.x && node.y) {
     return { x: node.x, y: node.y }
   }
   
-  // 否则使用布局系统分配位置
-  const layoutConfig = LAYOUT_CONFIGS[props.projectType]
-  if (layoutConfig) {
-    let position = null
-    
-    if (node.type === 'control' && layoutConfig.control) {
-      const positionIndex = getStablePositionIndex(nodeId, node.type)
-      position = layoutConfig.control[positionIndex] || layoutConfig.control[0]
-    } else if (node.type === 'edge' && layoutConfig.edge) {
-      const positionIndex = getStablePositionIndex(nodeId, node.type)
-      position = layoutConfig.edge[positionIndex] || layoutConfig.edge[0]
-    }
-    
-    if (position) {
-      // 缓存位置
-      nodePositions.value.set(nodeId, { ...position })
-      return { ...position }
-    }
-  }
-  
-  // 最后回退到默认位置
+  // Default position if nothing else works
+  console.warn(`No position found for node ${node.id}, using default`)
   return { x: 400, y: 250 }
 }
 
+// Node styling functions
 const getNodeRadius = (node) => {
   if (node.type === 'control') {
-    return 30 // 服务器节点更大
+    return 30 // Control nodes larger
   }
-  return node.isOwn ? 22 : 20 // 自己的设备稍大
+  return node.isOwn ? 25 : 22 // Own device slightly larger
 }
 
 const getNodeFillColor = (node) => {
   if (node.type === 'control') {
-    // 控制节点/服务器 - 红色系
+    // Control node - red
     return themeStore.isDark ? '#ef4444' : '#dc2626'
   } else if (node.type === 'edge') {
     if (node.isOwn) {
-      // 自己的设备 - 蓝色系，更鲜艳
+      // Own device - blue
       return themeStore.isDark ? '#3b82f6' : '#2563eb'
     } else {
-      // 其他边缘设备 - 绿色系
+      // Other edge devices - green
       return themeStore.isDark ? '#10b981' : '#059669'
     }
   }
-  return '#6b7280' // 默认灰色
+  return '#6b7280' // Default gray
 }
 
-const getNodeStrokeColor = (node) => {
-  if (node.type === 'control') {
-    return themeStore.isDark ? '#fca5a5' : '#b91c1c'
-  } else if (node.type === 'edge') {
-    if (node.isOwn) {
-      // 自己的设备有特殊边框
-      return themeStore.isDark ? '#60a5fa' : '#1d4ed8'
-    } else {
-      return themeStore.isDark ? '#34d399' : '#047857'
-    }
-  }
-  return '#4b5563'
-}
-
-const getNodeStrokeWidth = (node) => {
-  if (node.isOwn) return 3 // 自己的设备边框更粗
-  if (node.type === 'control') return 2.5 // 控制节点稍粗
-  if (node.status === 'offline') return 2
-  return 2
-}
-
-const getNodeClasses = (node) => {
-  const classes = ['node-element']
+// Helper functions
+const getConnectionPath = (connection) => {
+  const fromNode = props.nodes.find(n => n.id === connection.from)
+  const toNode = props.nodes.find(n => n.id === connection.to)
   
-  if (node.type === 'control') {
-    classes.push('control-node')
-  } else {
-    classes.push('edge-node')
-    
-    if (node.isOwn) {
-      classes.push('own-node')
-    } else if (node.status === 'offline') {
-      classes.push('other-offline')
-    } else {
-      classes.push('other-online')
-    }
-  }
+  if (!fromNode || !toNode) return ''
   
-  return classes.join(' ')
+  // Use computed positions
+  const fromPos = getNodePosition(fromNode)
+  const toPos = getNodePosition(toNode)
+  
+  // Create curved path
+  const dx = toPos.x - fromPos.x
+  const dy = toPos.y - fromPos.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+  const midX = fromPos.x + dx * 0.5
+  const midY = fromPos.y + dy * 0.5
+  
+  let offset = Math.min(60, Math.max(20, distance / 6))
+  
+  const angle = Math.atan2(dy, dx) + Math.PI / 2
+  const ctrlX = midX + Math.cos(angle) * offset
+  const ctrlY = midY + Math.sin(angle) * offset
+  
+  return `M ${fromPos.x} ${fromPos.y} Q ${ctrlX} ${ctrlY} ${toPos.x} ${toPos.y}`
 }
 
-const getProgressDashArray = (node) => {
-  const radius = getNodeRadius(node) + 8
-  const circumference = 2 * Math.PI * radius
-  return `${circumference * (node.progress / 100)}, ${circumference}`
-}
-
-const getProgressDashOffset = (node) => {
-  const radius = getNodeRadius(node) + 8
-  const circumference = 2 * Math.PI * radius
-  return circumference - (circumference * (node.progress / 100))
-}
-
-const getTextWidth = (text) => {
-  // 简单的文本宽度估算
-  return text.length * 7
-}
-
-const getNodeTypeLabel = (node) => {
-  if (node.type === 'control') {
-    return 'Central Server'
-  } else if (node.type === 'edge') {
-    if (node.isOwn) {
-      return 'Your Training Device'
-    } else {
-      return 'Remote Edge Device'
-    }
+// Data flow animation functions
+const getTransmissionColor = (direction) => {
+  const colors = {
+    upstream: '#3b82f6',      // Blue: edge → control (data upload)
+    downstream: '#10b981',    // Green: control → edge (model download)
+    bidirectional: '#8b5cf6'  // Purple: bidirectional
   }
-  return 'Network Node'
+  return colors[direction] || '#10b981'
 }
 
+const getAnimationValues = (direction) => {
+  switch (direction) {
+    case 'downstream': // Control → edge
+      return "0;-120;-240"
+    case 'upstream':   // Edge → control
+      return "0;120;240"
+    case 'bidirectional': // Bidirectional
+      return "0;-120;0;120;0"
+    default:
+      return "0;-120;-240"
+  }
+}
+
+// Node interaction handlers
 const handleNodeClick = (node) => {
   emit('node-click', node)
 }
 
-const handleNodeHover = async (node) => {
-  hoveredNode.value = node
-  showTooltip.value = true
+// Responsive layout support
+const updateDimensions = () => {
+  if (!networkSvg.value) return
   
-  // 等待DOM更新后计算工具提示位置
-  await nextTick()
-  
-  if (networkSvg.value) {
-    const rect = networkSvg.value.getBoundingClientRect()
-    const nodePos = getNodePosition(node.id)
-    tooltipPosition.value = {
-      x: rect.left + nodePos.x,
-      y: rect.top + nodePos.y - getNodeRadius(node) - 10
-    }
-  }
-  
-  emit('node-hover', node)
-}
-
-const handleMouseLeave = () => {
-  isDragging.value = false // 停止拖拽
-  showTooltip.value = false
-  hoveredNode.value = null
-  showConnectionTooltip.value = false
-  hoveredConnection.value = null
-  emit('node-hover', null)
-}
-
-// 连接线悬停处理
-const handleConnectionHover = async (connection, event) => {
-  hoveredConnection.value = connection
-  showConnectionTooltip.value = true
-  
-  // 计算连接线的中点位置
-  const fromPos = getNodePosition(connection.from)
-  const toPos = getNodePosition(connection.to)
-  const midX = (fromPos.x + toPos.x) / 2
-  const midY = (fromPos.y + toPos.y) / 2
-  
-  // 等待DOM更新后计算工具提示位置
-  await nextTick()
-  
-  if (networkSvg.value) {
-    const rect = networkSvg.value.getBoundingClientRect()
-    connectionTooltipPosition.value = {
-      x: rect.left + (midX * zoomLevel.value) + panOffset.value.x,
-      y: rect.top + (midY * zoomLevel.value) + panOffset.value.y - 10
-    }
-  }
-}
-
-const handleConnectionLeave = () => {
-  showConnectionTooltip.value = false
-  hoveredConnection.value = null
-}
-
-// 获取节点名称
-const getNodeName = (nodeId) => {
-  const node = props.nodes.find(n => n.id === nodeId)
-  return node ? node.name : nodeId
-}
-
-// 获取连接带宽（模拟数据）
-const getConnectionBandwidth = (connection) => {
-  const fromNode = props.nodes.find(n => n.id === connection.from)
-  const toNode = props.nodes.find(n => n.id === connection.to)
-  
-  // 控制节点间的连接带宽更高
-  if (fromNode?.type === 'control' && toNode?.type === 'control') {
-    return `${(Math.random() * 500 + 800).toFixed(0)} Mbps`
-  }
-  // 控制节点到边缘节点的连接
-  if (fromNode?.type === 'control' || toNode?.type === 'control') {
-    return `${(Math.random() * 200 + 300).toFixed(0)} Mbps`
-  }
-  // 边缘节点间的连接
-  return `${(Math.random() * 100 + 100).toFixed(0)} Mbps`
-}
-
-// 获取连接延迟（模拟数据）
-const getConnectionLatency = (connection) => {
-  const fromNode = props.nodes.find(n => n.id === connection.from)
-  const toNode = props.nodes.find(n => n.id === connection.to)
-  
-  // 控制节点间的延迟更低
-  if (fromNode?.type === 'control' && toNode?.type === 'control') {
-    return `${(Math.random() * 5 + 1).toFixed(1)} ms`
-  }
-  // 控制节点到边缘节点的延迟
-  if (fromNode?.type === 'control' || toNode?.type === 'control') {
-    return `${(Math.random() * 20 + 10).toFixed(1)} ms`
-  }
-  // 边缘节点间的延迟
-  return `${(Math.random() * 50 + 20).toFixed(1)} ms`
-}
-
-const formatTrainingTime = () => {
-  // 模拟训练时间
-  const minutes = 45
-  const seconds = 32
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
-// 根据连接类型获取数据流颜色
-const getDataFlowColor = (connection) => {
-  const fromNode = props.nodes.find(n => n.id === connection.from)
-  const toNode = props.nodes.find(n => n.id === connection.to)
-  
-  // 控制节点之间的连接使用紫色
-  if (fromNode?.type === 'control' && toNode?.type === 'control') {
-    return 'url(#dataFlowPurple)'
-  }
-  // 控制节点到边缘节点使用蓝色
-  if (fromNode?.type === 'control' || toNode?.type === 'control') {
-    return 'url(#dataFlowBlue)'
-  }
-  // 边缘节点之间使用绿色
-  return 'url(#dataFlowGreen)'
-}
-
-// 监听主题变化
-watch(
-  () => themeStore.isDark,
-  () => {
-    // 主题变化时的处理逻辑
-  }
-)
-
-// 监听节点变化，重新初始化位置
-watch(
-  () => props.nodes.length,
-  () => {
-    initializeNodePositions()
-  },
-  { immediate: true }
-)
-
-// 监听项目类型变化，清除缓存并重新布局
-watch(
-  () => props.projectType,
-  () => {
-    nodePositions.value.clear()
-    initializeNodePositions()
-  }
-)
-
-// 添加全局鼠标事件监听器
-onMounted(() => {
-  document.addEventListener('mousemove', handleMouseMove)
-  document.addEventListener('mouseup', handleMouseUp)
-  
-  // 初始化节点位置
-  initializeNodePositions()
-  
-  // 添加快捷键事件监听器
-  const container = networkSvg.value?.closest('.network-visualization-container')
+  const container = networkSvg.value.parentElement
   if (container) {
-    container.addEventListener('resetView', resetView)
-    container.addEventListener('zoomIn', zoomIn)
-    container.addEventListener('zoomOut', zoomOut)
+    const rect = container.getBoundingClientRect()
+    svgDimensions.width = Math.max(1200, rect.width)
+    svgDimensions.height = Math.max(700, rect.height)
   }
+}
+
+// Initialize node positions
+const autoArrange = () => {
+  nextTick(() => {
+    initializeNodePositions()
+  })
+}
+
+// Lifecycle management
+onMounted(() => {
+  updateDimensions()
+  initializeNodePositions()
+  window.addEventListener('resize', updateDimensions)
+  
+  // Force position initialization after delay
+  setTimeout(() => {
+    console.log('Force initializing P2P positions for', props.nodes.length, 'nodes')
+    initializeNodePositions()
+  }, 100)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', handleMouseMove)
-  document.removeEventListener('mouseup', handleMouseUp)
-  
-  // 清理快捷键事件监听器
-  const container = networkSvg.value?.closest('.network-visualization-container')
-  if (container) {
-    container.removeEventListener('resetView', resetView)
-    container.removeEventListener('zoomIn', zoomIn)
-    container.removeEventListener('zoomOut', zoomOut)
-  }
+  window.removeEventListener('resize', updateDimensions)
+})
+
+// Watch for node changes and reinitialize positions
+watch(() => props.nodes.length, () => {
+  autoArrange()
+}, { immediate: true })
+
+watch(() => props.nodes, () => {
+  autoArrange()
+}, { deep: true, immediate: true })
+
+defineExpose({
+  autoArrange,
+  updateDimensions
 })
 </script>
-
-<style scoped>
-.network-visualization {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-.node-svg {
-  width: 100%;
-  height: 500px;
-  max-height: 500px;
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  overflow: hidden;
-  border: 1px solid rgba(156, 163, 175, 0.2);
-  cursor: grab;
-}
-
-.node-svg:active {
-  cursor: grabbing;
-}
-
-/* 节点样式 */
-.control-node {
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.control-node:hover {
-  /* Removed movement effects - keeping only subtle visual feedback */
-}
-
-.edge-node {
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.edge-node:hover {
-  /* Removed movement effects - keeping only subtle visual feedback */
-}
-
-.edge-node.own-node {
-  filter: brightness(1.1);
-}
-
-.edge-node.other-offline {
-  opacity: 0.6;
-}
-
-/* 连接线动画 */
-.connection-line {
-  transition: stroke-opacity 0.3s ease;
-}
-
-.data-flow-line {
-  stroke-linecap: round;
-  opacity: 0.8;
-}
-
-/* 状态指示器动画 */
-.status-indicator {
-  filter: drop-shadow(0 0 3px rgba(16, 185, 129, 0.6));
-}
-
-/* 训练完成覆盖层 */
-.training-complete-overlay {
-  animation: fadeIn 0.8s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* 工具提示样式 */
-.node-tooltip {
-  position: fixed;
-  z-index: 1000;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(229, 231, 235, 0.8);
-  border-radius: 8px;
-  padding: 8px 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(8px);
-  max-width: 200px;
-  transition: opacity 0.2s ease;
-}
-
-:root.dark .node-tooltip {
-  background: rgba(31, 41, 55, 0.95);
-  border-color: rgba(75, 85, 99, 0.8);
-}
-
-.connection-tooltip {
-  position: fixed;
-  z-index: 1000;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(229, 231, 235, 0.8);
-  border-radius: 8px;
-  padding: 10px 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(8px);
-  max-width: 240px;
-  transition: opacity 0.2s ease;
-  min-width: 200px;
-}
-
-:root.dark .connection-tooltip {
-  background: rgba(31, 41, 55, 0.95);
-  border-color: rgba(75, 85, 99, 0.8);
-}
-
-.tooltip-content {
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-/* 性能优化提示样式 */
-.performance-notice {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 6px;
-  padding: 8px 12px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  z-index: 10;
-  max-width: 300px;
-  font-size: 12px;
-}
-
-:root.dark .performance-notice {
-  background: rgba(31, 41, 55, 0.95);
-  border-color: rgba(245, 158, 11, 0.4);
-}
-
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .node-svg {
-    height: 400px;
-  }
-  
-  .node-tooltip {
-    font-size: 11px;
-    padding: 6px 10px;
-  }
-}
-</style>

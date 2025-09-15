@@ -26,6 +26,14 @@
               <span class="text-sm text-gray-600 dark:text-gray-400">Live</span>
             </div>
             <Button 
+              @click="refreshSessions" 
+              variant="ghost" 
+              size="sm"
+              :loading="refreshing"
+            >
+              Refresh
+            </Button>
+            <Button 
               @click="toggleTheme" 
               variant="ghost" 
               size="sm"
@@ -54,38 +62,42 @@
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Active Sessions"
-          :value="3"
+          :value="trainingMetrics.activeSessions"
           :icon="PlayIcon"
           variant="success"
           description="Currently training"
+          :loading="loading.metrics"
         />
         
         <StatCard
           title="Completed Today"
-          :value="12"
+          :value="trainingMetrics.completedToday"
           :icon="CheckCircleIcon"
           variant="info"
           description="Successfully finished"
+          :loading="loading.metrics"
         />
         
         <StatCard
           title="Total GPU Hours"
-          :value="48.5"
+          :value="trainingMetrics.totalGpuHours"
           unit="h"
           :precision="1"
           :icon="CpuChipIcon"
           variant="warning"
           description="Resource usage"
+          :loading="loading.metrics"
         />
 
         <StatCard
           title="Average Accuracy"
-          :value="89.2"
+          :value="trainingMetrics.averageAccuracy"
           unit="%"
           :precision="1"
           :icon="TrophyIcon"
           variant="primary"
           description="Session performance"
+          :loading="loading.metrics"
         />
       </div>
 
@@ -180,8 +192,16 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
+import { useUIStore } from '@/stores/ui'
+import { useP2PAIStore } from '@/stores/p2pai'
+import { useErrorBoundary } from '@/composables/useErrorBoundary'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import p2paiService from '@/services/p2paiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import {
   ArrowLeftIcon,
   ChartBarIcon,
@@ -199,6 +219,123 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 
 const router = useRouter()
 const themeStore = useThemeStore()
+const uiStore = useUIStore()
+const p2paiStore = useP2PAIStore()
+const { hasError, retry, captureError } = useErrorBoundary()
+const { enableShortcuts, disableShortcuts } = useKeyboardShortcuts()
+const { cachedApiCall, clearCache } = useApiOptimization()
+
+// State
+const loading = ref({
+  sessions: false,
+  metrics: false
+})
+const refreshing = ref(false)
+const trainingSessions = ref([])
+const trainingMetrics = ref({
+  activeSessions: 0,
+  completedToday: 0,
+  totalGpuHours: 0,
+  averageAccuracy: 0
+})
+
+// Real-time WebSocket connection
+let trainingWS = null
+
+// Load training data from API
+const loadTrainingData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('P2PAI-TrainingMonitor')
+  loading.value.sessions = true
+  loading.value.metrics = true
+  
+  try {
+    const [sessionsResult, metricsResult] = await Promise.all([
+      cachedApiCall(
+        'p2pai-training-sessions',
+        () => p2paiService.training.getTrainingSessions({ active: true }),
+        30 * 1000 // Cache for 30 seconds
+      ),
+      cachedApiCall(
+        'p2pai-training-metrics',
+        () => p2paiService.training.getTrainingMetrics(),
+        60 * 1000 // Cache for 1 minute
+      )
+    ])
+    
+    if (sessionsResult && sessionsResult.data) {
+      trainingSessions.value = sessionsResult.data.map(session => ({
+        id: session.id,
+        name: session.name || 'Training Session',
+        status: session.status || 'active',
+        progress: session.progress || 0,
+        accuracy: session.accuracy || 0,
+        loss: session.loss || 0,
+        epoch: session.current_epoch || 0,
+        totalEpochs: session.total_epochs || 100,
+        startTime: new Date(session.start_time || Date.now()),
+        estimatedTimeRemaining: session.estimated_time_remaining || 0,
+        nodes: session.participating_nodes || []
+      }))
+    }
+    
+    if (metricsResult && metricsResult.data) {
+      trainingMetrics.value = {
+        activeSessions: metricsResult.data.active_sessions || 0,
+        completedToday: metricsResult.data.completed_today || 0,
+        totalGpuHours: metricsResult.data.total_gpu_hours || 0,
+        averageAccuracy: metricsResult.data.average_accuracy || 0
+      }
+    }
+    
+    pageMonitor.end()
+  } catch (error) {
+    console.error('Failed to load training data:', error)
+    captureError(error, null, 'Training data loading failed')
+    pageMonitor.end()
+  } finally {
+    loading.value.sessions = false
+    loading.value.metrics = false
+  }
+}
+
+// Setup real-time training updates
+const setupRealtimeUpdates = () => {
+  try {
+    trainingWS = p2paiService.training.createTrainingWebSocket('*', {
+      onMessage: (data) => {
+        if (data.type === 'training_update') {
+          updateTrainingSession(data.payload)
+        } else if (data.type === 'training_metrics') {
+          updateTrainingMetrics(data.payload)
+        }
+      },
+      onError: (error) => {
+        console.error('Training WebSocket error:', error)
+      }
+    })
+  } catch (error) {
+    console.error('Failed to setup real-time updates:', error)
+  }
+}
+
+// Update training session data
+const updateTrainingSession = (sessionData) => {
+  const index = trainingSessions.value.findIndex(s => s.id === sessionData.id)
+  if (index !== -1) {
+    trainingSessions.value[index] = {
+      ...trainingSessions.value[index],
+      ...sessionData
+    }
+  }
+}
+
+// Update training metrics
+const updateTrainingMetrics = (metricsData) => {
+  trainingMetrics.value = {
+    ...trainingMetrics.value,
+    ...metricsData
+  }
+}
 
 // Methods
 const goBack = () => {
@@ -209,9 +346,45 @@ const toggleTheme = (event) => {
   themeStore.toggleTheme(event)
 }
 
-const refreshSessions = () => {
-  console.log('Refreshing sessions...')
+const refreshSessions = async () => {
+  refreshing.value = true
+  clearCache('p2pai-training-sessions')
+  clearCache('p2pai-training-metrics')
+  await loadTrainingData()
+  refreshing.value = false
+  
+  uiStore.addNotification({
+    type: 'success',
+    title: 'Training Data Refreshed',
+    message: 'All training data has been updated',
+    duration: 2000
+  })
 }
+
+// Computed properties
+const activeSessions = computed(() => trainingSessions.value.filter(s => s.status === 'active'))
+const completedSessions = computed(() => trainingSessions.value.filter(s => s.status === 'completed'))
+
+// Lifecycle
+onMounted(async () => {
+  enableShortcuts()
+  await loadTrainingData()
+  setupRealtimeUpdates()
+  
+  uiStore.addNotification({
+    type: 'info',
+    title: 'Training Monitor',
+    message: 'Real-time training monitoring enabled',
+    duration: 3000
+  })
+})
+
+onUnmounted(() => {
+  disableShortcuts()
+  if (trainingWS) {
+    trainingWS.close()
+  }
+})
 </script>
 
 <style scoped>

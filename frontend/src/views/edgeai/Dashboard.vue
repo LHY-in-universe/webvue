@@ -12,6 +12,19 @@
           </div>
           
           <div class="flex items-center space-x-4">
+            <!-- Offline Mode Indicator -->
+            <div v-if="isOffline" class="flex items-center space-x-1 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded-full">
+              <div class="w-2 h-2 bg-orange-500 rounded-full"></div>
+              <span class="text-xs text-orange-700 dark:text-orange-300">Offline</span>
+              <span v-if="queuedRequests > 0" class="text-xs text-orange-600 dark:text-orange-400">({{ queuedRequests }} queued)</span>
+            </div>
+            
+            <!-- Keyboard Shortcut Hint -->
+            <div class="hidden lg:flex items-center text-xs text-gray-500 dark:text-gray-400">
+              <kbd class="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">Ctrl+Shift+?</kbd>
+              <span class="ml-1">for shortcuts</span>
+            </div>
+            
             <span class="text-sm text-gray-600 dark:text-gray-400">
               Welcome, {{ authStore.user?.username }}
             </span>
@@ -25,7 +38,38 @@
     </nav>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Loading State -->
+      <div v-if="loading" class="flex justify-center items-center py-12">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span class="ml-3 text-gray-600 dark:text-gray-400">Loading dashboard data...</span>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-8">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
+              Failed to load dashboard data
+            </h3>
+            <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+              {{ error }}
+            </div>
+            <div class="mt-3">
+              <Button @click="loadDashboardData" variant="ghost" size="sm" class="text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800/30">
+                Try again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Welcome Header -->
+      <template v-else>
       <div class="text-center mb-12">
         <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
           Welcome to OpenTMP Edge AI Intelligence!
@@ -185,17 +229,24 @@
           </div>
         </div>
       </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { useEdgeAIStore } from '@/stores/edgeai'
 import { useEdgeAIStats, useEdgeAILifecycle } from '@/composables/useEdgeAI'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import { useErrorBoundary } from '@/composables/useErrorBoundary'
+import { useOfflineMode } from '@/composables/useOfflineMode'
+import { useKeyboardShortcuts, useEdgeAIShortcuts } from '@/composables/useKeyboardShortcuts'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import DashboardCard from '@/components/ui/DashboardCard.vue'
@@ -222,8 +273,20 @@ const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const edgeaiStore = useEdgeAIStore()
 const { systemStats, getTotalResources } = useEdgeAIStats()
+const { cachedApiCall, clearCache } = useApiOptimization()
+const { hasError, retry } = useErrorBoundary()
+const { isOffline, queuedRequests, offlineAwareFetch } = useOfflineMode()
+
+// Initialize keyboard shortcuts
+useKeyboardShortcuts()
+useEdgeAIShortcuts()
 
 useEdgeAILifecycle()
+
+// Loading and error states
+const loading = ref(false)
+const error = ref(null)
+const refreshInterval = ref(null)
 
 
 const activeNodes = computed(() => systemStats.value.onlineNodes)
@@ -234,73 +297,16 @@ const offlineNodes = computed(() => systemStats.value.totalNodes - systemStats.v
 
 const totalResources = computed(() => getTotalResources())
 
-const systemLogs = ref([
-  { id: 1, message: 'Node edge-01 connected successfully', time: 'just now' },
-  { id: 2, message: 'Task task-123 execution completed', time: '2 minutes ago' },
-  { id: 3, message: 'New edge node added', time: '5 minutes ago' },
-  { id: 4, message: 'System performance check completed', time: '10 minutes ago' }
-])
+const systemLogs = ref([])
 
 // Search and filter state
 const searchQuery = ref('')
 const statusFilter = ref('')
 
-const projectsList = ref([
-  {
-    id: 1,
-    name: 'Smart Manufacturing Monitor',
-    description: 'EdgeAI-based real-time factory equipment monitoring and predictive maintenance',
-    status: 'Training',
-    progress: 65,
-    nodes: 8,
-    created: '2024-01-15',
-    lastUpdated: '2 hours ago'
-  },
-  {
-    id: 2,
-    name: 'Urban Traffic Optimization',
-    description: 'Intelligent traffic signal control and flow prediction system',
-    status: 'Completed',
-    progress: 100,
-    nodes: 15,
-    created: '2024-01-10',
-    lastUpdated: '30 minutes ago'
-  },
-  {
-    id: 3,
-    name: 'Medical Image Diagnosis',
-    description: 'Distributed medical imaging AI diagnostic system',
-    status: 'Training',
-    progress: 45,
-    nodes: 5,
-    created: '2024-01-08',
-    lastUpdated: '1 day ago'
-  },
-  {
-    id: 4,
-    name: 'Retail Traffic Analysis',
-    description: 'Shopping mall traffic analysis and product recommendation system',
-    status: 'Training',
-    progress: 78,
-    nodes: 12,
-    created: '2024-01-12',
-    lastUpdated: '45 minutes ago'
-  },
-  {
-    id: 5,
-    name: 'Agricultural Environment Monitor',
-    description: 'Farmland environmental data collection and crop growth prediction',
-    status: 'Error',
-    progress: 23,
-    nodes: 3,
-    created: '2024-01-05',
-    lastUpdated: '3 hours ago'
-  }
-])
 
 // Computed property for filtered projects
 const filteredProjects = computed(() => {
-  let filtered = projectsList.value
+  let filtered = edgeaiStore.projects || []
 
   // Filter by search query
   if (searchQuery.value) {
@@ -316,6 +322,88 @@ const filteredProjects = computed(() => {
   }
 
   return filtered
+})
+
+// Load dashboard data from API
+const loadDashboardData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('EdgeAIDashboard')
+  loading.value = true
+  error.value = null
+  
+  try {
+    // Load projects and system logs in parallel
+    const [projectsResult, logsResult] = await Promise.all([
+      cachedApiCall('edgeai-projects', 
+        () => edgeaiService.projects.getProjects(), 
+        2 * 60 * 1000 // Cache for 2 minutes
+      ),
+      cachedApiCall('edgeai-system-logs', 
+        () => edgeaiService.logs.getLogs(), 
+        30 * 1000 // Cache for 30 seconds
+      )
+    ])
+
+    // Update store with real project data
+    if (projectsResult && Array.isArray(projectsResult)) {
+      // Transform backend data to match frontend format
+      const transformedProjects = projectsResult.map(project => ({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        status: project.status || 'Idle',
+        progress: project.progress || 0,
+        nodes: project.connected_nodes || 0,
+        created: project.created_at || new Date().toISOString().split('T')[0],
+        lastUpdated: project.last_updated || 'Unknown'
+      }))
+      edgeaiStore.projects.splice(0, edgeaiStore.projects.length, ...transformedProjects)
+    }
+
+    // Update system logs
+    if (logsResult && Array.isArray(logsResult)) {
+      systemLogs.value = logsResult.map(log => ({
+        id: log.id,
+        message: log.message,
+        time: log.timestamp || log.time || 'Unknown'
+      }))
+    }
+
+    pageMonitor.end({ success: true })
+  } catch (err) {
+    console.error('Failed to load EdgeAI dashboard data:', err)
+    error.value = err.message || 'Failed to load dashboard data'
+    pageMonitor.end({ success: false, error: err.message })
+  } finally {
+    loading.value = false
+  }
+}
+
+// Setup auto-refresh
+const setupAutoRefresh = () => {
+  // Clear any existing interval
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  
+  // Set up new interval for every 30 seconds
+  refreshInterval.value = setInterval(() => {
+    if (!loading.value) {
+      loadDashboardData()
+    }
+  }, 30 * 1000)
+}
+
+// Component lifecycle
+onMounted(async () => {
+  await loadDashboardData()
+  setupAutoRefresh()
+})
+
+onUnmounted(() => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  clearCache() // Clear API cache on unmount
 })
 
 const logout = () => {

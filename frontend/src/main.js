@@ -26,4 +26,19 @@ if (import.meta.env.DEV) {
 app.use(createPinia())
 app.use(router)
 
+// 开发环境下加载调试工具
+if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_API) {
+  Promise.all([
+    import('./utils/apiTest.js'),
+    import('./utils/performanceMonitor.js'),
+    import('./composables/useApiOptimization.js')
+  ]).then(() => {
+    console.log('🔧 Development tools loaded:')
+    console.log('   • API testing: window.apiTest')
+    console.log('   • Performance monitoring: window.performance')
+    console.log('   • Cache management: window.apiOptimization')
+    console.log('   • Run window.performance.report() for performance analysis')
+  })
+}
+
 app.mount('#app')

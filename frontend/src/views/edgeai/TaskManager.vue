@@ -27,7 +27,38 @@
     </nav>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Loading State -->
+      <div v-if="loading" class="flex justify-center items-center py-12">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span class="ml-3 text-gray-600 dark:text-gray-400">Loading tasks data...</span>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-8">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
+              Failed to load tasks data
+            </h3>
+            <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+              {{ error }}
+            </div>
+            <div class="mt-3">
+              <Button @click="loadTasksData" variant="ghost" size="sm" class="text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800/30">
+                Try again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Task Statistics -->
+      <template v-else>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="运行中任务"
@@ -152,17 +183,21 @@
           </table>
         </div>
       </Card>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import {
   CpuChipIcon,
   PlayIcon,
@@ -173,45 +208,15 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
+const { cachedApiCall, clearCache } = useApiOptimization()
 
-const tasks = ref([
-  {
-    id: 1,
-    name: '图像分类训练',
-    type: '深度学习',
-    status: 'running',
-    node: 'edge-node-01',
-    progress: 65,
-    createdAt: '2024-01-10 09:30'
-  },
-  {
-    id: 2,
-    name: '数据预处理',
-    type: '数据处理',
-    status: 'queued',
-    node: '-',
-    progress: 0,
-    createdAt: '2024-01-10 10:15'
-  },
-  {
-    id: 3,
-    name: '模型推理',
-    type: '推理',
-    status: 'completed',
-    node: 'edge-node-02',
-    progress: 100,
-    createdAt: '2024-01-10 08:45'
-  },
-  {
-    id: 4,
-    name: '联邦学习聚合',
-    type: '联邦学习',
-    status: 'failed',
-    node: 'edge-node-03',
-    progress: 25,
-    createdAt: '2024-01-10 07:20'
-  }
-])
+// Loading and error states
+const loading = ref(false)
+const error = ref(null)
+const refreshInterval = ref(null)
+
+// Tasks data (will be loaded from API)
+const tasks = ref([])
 
 const runningTasks = computed(() => 
   tasks.value.filter(task => task.status === 'running').length
@@ -229,6 +234,53 @@ const failedTasks = computed(() =>
   tasks.value.filter(task => task.status === 'failed').length
 )
 
+// Load tasks data from API
+const loadTasksData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('EdgeAITaskManager')
+  loading.value = true
+  error.value = null
+  
+  try {
+    const result = await cachedApiCall('edgeai-tasks', 
+      () => edgeaiService.tasks.getTasks(), 
+      30 * 1000 // Cache for 30 seconds for real-time data
+    )
+
+    if (result && Array.isArray(result)) {
+      tasks.value = result.map(task => ({
+        id: task.id,
+        name: task.name || 'Unnamed Task',
+        type: task.type || '深度学习',
+        status: task.status || 'queued',
+        node: task.node_id || '-',
+        progress: task.progress || 0,
+        createdAt: task.created_at || new Date().toISOString()
+      }))
+    }
+
+    pageMonitor.end({ success: true, taskCount: tasks.value.length })
+  } catch (err) {
+    console.error('Failed to load tasks data:', err)
+    error.value = err.message || 'Failed to load tasks data'
+    pageMonitor.end({ success: false, error: err.message })
+  } finally {
+    loading.value = false
+  }
+}
+
+// Setup auto-refresh for real-time task updates
+const setupAutoRefresh = () => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  
+  refreshInterval.value = setInterval(() => {
+    if (!loading.value) {
+      loadTasksData()
+    }
+  }, 15 * 1000) // Refresh every 15 seconds for tasks
+}
+
 const getStatusColor = (status) => {
   const colors = {
     running: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -245,11 +297,120 @@ const createNewTask = () => {
 
 const viewTask = (task) => {
   console.log('查看任务:', task.name)
+  router.push(`/edgeai/task-details/${task.id}`)
 }
 
-const retryTask = (task) => {
-  console.log('重试任务:', task.name)
-  task.status = 'queued'
-  task.progress = 0
+const retryTask = async (task) => {
+  const monitor = performanceMonitor.startTimer('EdgeAITaskRetry')
+  
+  try {
+    const result = await edgeaiService.tasks.retryTask(task.id)
+    
+    if (result && result.success) {
+      // Update local task state
+      task.status = 'queued'
+      task.progress = 0
+      
+      console.log('重试任务:', task.name)
+      monitor.end({ success: true, taskId: task.id })
+    } else {
+      throw new Error(result?.error || 'Failed to retry task')
+    }
+  } catch (error) {
+    console.error('Failed to retry task:', error)
+    alert(`Failed to retry task "${task.name}": ${error.message}`)
+    monitor.end({ success: false, error: error.message })
+  }
 }
+
+// Add task lifecycle management functions
+const startTask = async (task) => {
+  if (task.status === 'running') {
+    return
+  }
+
+  const monitor = performanceMonitor.startTimer('EdgeAITaskStart')
+  
+  try {
+    const result = await edgeaiService.tasks.startTask(task.id)
+    
+    if (result && result.success) {
+      task.status = 'running'
+      console.log('Started task:', task.name)
+      monitor.end({ success: true, taskId: task.id })
+    } else {
+      throw new Error(result?.error || 'Failed to start task')
+    }
+  } catch (error) {
+    console.error('Failed to start task:', error)
+    alert(`Failed to start task "${task.name}": ${error.message}`)
+    monitor.end({ success: false, error: error.message })
+  }
+}
+
+const stopTask = async (task) => {
+  if (task.status !== 'running') {
+    return
+  }
+
+  const monitor = performanceMonitor.startTimer('EdgeAITaskStop')
+  
+  try {
+    const result = await edgeaiService.tasks.stopTask(task.id)
+    
+    if (result && result.success) {
+      task.status = 'paused'
+      console.log('Stopped task:', task.name)
+      monitor.end({ success: true, taskId: task.id })
+    } else {
+      throw new Error(result?.error || 'Failed to stop task')
+    }
+  } catch (error) {
+    console.error('Failed to stop task:', error)
+    alert(`Failed to stop task "${task.name}": ${error.message}`)
+    monitor.end({ success: false, error: error.message })
+  }
+}
+
+const deleteTask = async (task) => {
+  if (!confirm(`Are you sure you want to delete task "${task.name}"? This action cannot be undone.`)) {
+    return
+  }
+
+  const monitor = performanceMonitor.startTimer('EdgeAITaskDelete')
+  
+  try {
+    const result = await edgeaiService.tasks.deleteTask(task.id)
+    
+    if (result && result.success) {
+      // Remove task from local state
+      const index = tasks.value.findIndex(t => t.id === task.id)
+      if (index !== -1) {
+        tasks.value.splice(index, 1)
+      }
+      
+      console.log('Deleted task:', task.name)
+      monitor.end({ success: true, taskId: task.id })
+    } else {
+      throw new Error(result?.error || 'Failed to delete task')
+    }
+  } catch (error) {
+    console.error('Failed to delete task:', error)
+    alert(`Failed to delete task "${task.name}": ${error.message}`)
+    monitor.end({ success: false, error: error.message })
+  }
+}
+
+// Component lifecycle
+onMounted(async () => {
+  await loadTasksData()
+  setupAutoRefresh()
+})
+
+onUnmounted(() => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  clearCache()
+})
 </script>

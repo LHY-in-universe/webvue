@@ -106,16 +106,6 @@
               <option value="error">Error</option>
             </select>
 
-            <select 
-              v-model="locationFilter" 
-              class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-            >
-              <option value="">All Locations</option>
-              <option value="us-east">US East</option>
-              <option value="us-west">US West</option>
-              <option value="eu-central">EU Central</option>
-              <option value="asia-pacific">Asia Pacific</option>
-            </select>
           </div>
           
           <div class="flex items-center space-x-3">
@@ -525,8 +515,8 @@ const getStatusTextColor = (status) => {
 }
 
 // Lifecycle
-onMounted(() => {
-  edgeaiStore.initializeStore()
+onMounted(async () => {
+  await edgeaiStore.initializeStore()
 })
 
 onUnmounted(() => {

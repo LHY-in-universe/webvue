@@ -356,6 +356,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
+import { useApiOptimization } from '@/composables/useApiOptimization.js'
+import p2paiService from '@/services/p2paiService.js'
+import performanceMonitor from '@/utils/performanceMonitor.js'
 import {
   ArrowLeftIcon,
   UsersIcon,
@@ -380,6 +383,11 @@ import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
 
 const router = useRouter()
 const themeStore = useThemeStore()
+const { cachedApiCall } = useApiOptimization()
+
+// API loading state
+const apiLoading = ref(false)
+const apiError = ref(null)
 
 // Training state
 const isTraining = ref(false)
@@ -387,8 +395,9 @@ const isPaused = ref(false)
 const trainingStatus = ref('Ready')
 const currentRound = ref(0)
 const trainingDuration = ref(0)
-const sessionId = ref('FL-2024-001')
-const sessionStartTime = ref(new Date())
+const sessionId = ref(null)
+const sessionStartTime = ref(null)
+const federatedWebSocket = ref(null)
 
 // Training configuration
 const selectedModel = ref('cnn')
@@ -466,40 +475,90 @@ const toggleTheme = (event) => {
 }
 
 const startTraining = async () => {
-  isTraining.value = true
-  trainingStatus.value = 'Training'
-  sessionStartTime.value = new Date()
+  if (!canStartTraining.value) return
   
-  // Simulate training progress
-  const trainingInterval = setInterval(() => {
-    if (!isTraining.value || isPaused.value) return
+  apiLoading.value = true
+  apiError.value = null
+  
+  try {
+    // Prepare federated training configuration
+    const federatedConfig = {
+      model_architecture: selectedModel.value,
+      hyperparameters: {
+        learning_rate: learningRate.value,
+        batch_size: batchSize.value,
+        local_epochs: localEpochs.value,
+        max_rounds: 100
+      },
+      node_selection: {
+        min_nodes: threshold.value || 2,
+        max_nodes: totalParties.value || 10
+      }
+    }
     
-    trainingDuration.value += 1000
+    console.log('🌐 Starting federated training with config:', federatedConfig)
     
-    if (Math.random() > 0.7) {
-      currentRound.value = Math.min(100, currentRound.value + 1)
-      currentAccuracy.value = Math.min(95, currentAccuracy.value + Math.random() * 2)
-      currentLoss.value = Math.max(0.001, currentLoss.value - Math.random() * 0.01)
+    // Start federated training via API
+    const response = await p2paiService.training.startFederatedTraining(federatedConfig)
+    
+    if (response.success) {
+      // Update state with real session data
+      sessionId.value = response.data.session_id
+      sessionStartTime.value = new Date(response.data.start_time)
+      isTraining.value = true
+      trainingStatus.value = 'Training'
+      currentRound.value = 0
       
-      if (currentAccuracy.value > bestAccuracy.value) {
-        bestAccuracy.value = currentAccuracy.value
-      }
-      if (currentLoss.value < bestLoss.value) {
-        bestLoss.value = currentLoss.value
-      }
+      // Setup WebSocket connection for real-time updates
+      setupFederatedWebSocket(sessionId.value)
+      
+      console.log('✅ Federated training started successfully:', response.data)
+    } else {
+      throw new Error(response.error || 'Failed to start federated training')
     }
-    
-    if (currentRound.value >= 100) {
-      stopTraining()
-      trainingStatus.value = 'Completed'
-    }
-  }, 1000)
+  } catch (err) {
+    console.error('❌ Failed to start federated training:', err)
+    apiError.value = err.message || 'Failed to start federated training'
+    trainingStatus.value = 'Error'
+  } finally {
+    apiLoading.value = false
+  }
 }
 
-const stopTraining = () => {
-  isTraining.value = false
-  isPaused.value = false
-  trainingStatus.value = 'Ready'
+const stopTraining = async () => {
+  if (!sessionId.value) {
+    // Local stop for simulation mode
+    isTraining.value = false
+    isPaused.value = false
+    trainingStatus.value = 'Ready'
+    return
+  }
+  
+  try {
+    console.log('🛑 Stopping federated training session:', sessionId.value)
+    
+    const response = await p2paiService.training.stopTraining(sessionId.value)
+    
+    if (response.success) {
+      isTraining.value = false
+      isPaused.value = false
+      trainingStatus.value = 'Stopped'
+      
+      // Close WebSocket connection
+      if (federatedWebSocket.value) {
+        federatedWebSocket.value.close()
+        federatedWebSocket.value = null
+      }
+      
+      console.log('✅ Federated training stopped successfully')
+    }
+  } catch (err) {
+    console.error('❌ Failed to stop federated training:', err)
+    // Still update local state even if API call fails
+    isTraining.value = false
+    isPaused.value = false
+    trainingStatus.value = 'Error'
+  }
 }
 
 const pauseTraining = () => {
@@ -545,16 +604,117 @@ const formatDataSize = (bytes) => {
   return `${size.toFixed(2)} ${units[unitIndex]}`
 }
 
+// Setup WebSocket connection for real-time federated updates
+const setupFederatedWebSocket = (sessionId) => {
+  if (federatedWebSocket.value) {
+    federatedWebSocket.value.close()
+  }
+  
+  try {
+    federatedWebSocket.value = p2paiService.training.createTrainingWebSocket(sessionId, {
+      onOpen: () => {
+        console.log('📡 Federated WebSocket connected')
+      },
+      onMessage: (data) => {
+        console.log('📨 Federated update received:', data)
+        updateFederatedMetrics(data)
+      },
+      onError: (error) => {
+        console.error('❌ Federated WebSocket error:', error)
+      },
+      onClose: () => {
+        console.log('🔌 Federated WebSocket closed')
+        if (isTraining.value) {
+          // Try to reconnect after 3 seconds
+          setTimeout(() => setupFederatedWebSocket(sessionId), 3000)
+        }
+      }
+    })
+  } catch (err) {
+    console.error('Failed to setup federated WebSocket:', err)
+  }
+}
+
+// Update federated metrics from WebSocket data
+const updateFederatedMetrics = (data) => {
+  if (data.type === 'federated_round') {
+    currentRound.value = data.round || currentRound.value
+    currentAccuracy.value = data.accuracy || currentAccuracy.value
+    currentLoss.value = data.loss || currentLoss.value
+    connectedNodes.value = data.connected_nodes || connectedNodes.value
+    
+    if (data.accuracy > bestAccuracy.value) {
+      bestAccuracy.value = data.accuracy
+    }
+    if (data.loss < bestLoss.value) {
+      bestLoss.value = data.loss
+    }
+    
+    // Update node information
+    if (data.nodes) {
+      networkNodes.value = data.nodes.map(node => ({
+        id: node.id,
+        name: node.name,
+        status: node.status
+      }))
+    }
+  } else if (data.type === 'federated_completed') {
+    trainingStatus.value = 'Completed'
+    isTraining.value = false
+    isPaused.value = false
+  } else if (data.type === 'federated_error') {
+    trainingStatus.value = 'Error'
+    apiError.value = data.message || 'Federated training error occurred'
+    isTraining.value = false
+    isPaused.value = false
+  }
+}
+
+// Load connected nodes data
+const loadNodesData = async () => {
+  try {
+    const nodesResponse = await cachedApiCall(
+      'federated-nodes',
+      () => p2paiService.nodes.getNodes({ type: 'federated' }),
+      30 * 1000 // 30 second cache
+    )
+    
+    if (nodesResponse.data?.nodes) {
+      networkNodes.value = nodesResponse.data.nodes.map(node => ({
+        id: node.id,
+        name: node.name,
+        status: node.status || 'offline'
+      }))
+      connectedNodes.value = networkNodes.value.filter(n => n.status === 'online' || n.status === 'training').length
+    }
+  } catch (err) {
+    console.warn('Failed to load nodes data:', err)
+  }
+}
+
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  console.log('🌐 Federated Training component mounted')
+  
   // Initialize default values
   currentAccuracy.value = 0
   currentLoss.value = 2.5
   bestLoss.value = 2.5
+  
+  // Load initial nodes data
+  await loadNodesData()
 })
 
 onUnmounted(() => {
-  // Clean up any intervals or timers
+  console.log('🧹 Cleaning up Federated Training component')
+  
+  // Close WebSocket connection
+  if (federatedWebSocket.value) {
+    federatedWebSocket.value.close()
+    federatedWebSocket.value = null
+  }
+  
+  // Stop training if active
   if (isTraining.value) {
     stopTraining()
   }

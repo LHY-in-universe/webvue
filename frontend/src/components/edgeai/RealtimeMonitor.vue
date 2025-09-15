@@ -212,9 +212,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, shallowRef } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { useEdgeAIStore } from '@/stores/edgeai'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import MetricsChart from './MetricsChart.vue'
@@ -231,6 +234,7 @@ import {
 
 const themeStore = useThemeStore()
 const edgeaiStore = useEdgeAIStore()
+const { cachedApiCall } = useApiOptimization()
 
 // Component state
 const isConnected = ref(true)
@@ -239,55 +243,32 @@ const refreshing = ref(false)
 const lastUpdate = ref('Just now')
 const eventFilter = ref('')
 
-// Metrics data
+// Metrics data - using shallowRef for better performance with large arrays
 const currentMetrics = ref({
-  cpu: 45,
-  memory: 62,
-  networkIn: 1024 * 1024 * 2.5, // 2.5 MB/s
-  networkOut: 1024 * 1024 * 1.2  // 1.2 MB/s
+  cpu: 0,
+  memory: 0,
+  networkIn: 0,
+  networkOut: 0
 })
 
-const metricsHistory = ref({
+const metricsHistory = shallowRef({
   cpu: [],
   memory: [],
   networkIn: [],
   networkOut: []
 })
 
-const events = ref([
-  {
-    id: 1,
-    type: 'info',
-    message: 'Training started on Factory Node A',
-    timestamp: '2 minutes ago',
-    source: 'Smart Manufacturing Monitor'
-  },
-  {
-    id: 2,
-    type: 'warning',
-    message: 'High CPU usage detected on Traffic Hub Central',
-    timestamp: '5 minutes ago',
-    source: 'System Monitor'
-  },
-  {
-    id: 3,
-    type: 'error',
-    message: 'Connection lost to Retail Analytics Hub',
-    timestamp: '12 minutes ago',
-    source: 'Network Monitor'
-  },
-  {
-    id: 4,
-    type: 'info',
-    message: 'Model checkpoint saved successfully',
-    timestamp: '15 minutes ago',
-    source: 'Medical Image Diagnosis'
-  }
-])
+// Performance optimization: throttle updates
+const updateThrottle = ref(false)
+const THROTTLE_DELAY = 100 // ms
 
-// Auto-refresh interval
+const events = ref([])
+
+// Auto-refresh interval with adaptive timing
 let refreshInterval = null
 const REFRESH_INTERVAL = 2000 // 2 seconds
+const BACKGROUND_REFRESH_INTERVAL = 10000 // 10 seconds when tab is hidden
+let isPageVisible = ref(true)
 
 // Computed properties
 const trainingProjects = computed(() => {
@@ -358,45 +339,95 @@ const toggleAutoRefresh = () => {
 }
 
 const refreshData = async () => {
+  // Throttle rapid successive calls
+  if (updateThrottle.value) return
+  
+  updateThrottle.value = true
+  setTimeout(() => {
+    updateThrottle.value = false
+  }, THROTTLE_DELAY)
+  
+  const pageMonitor = performanceMonitor.monitorPageLoad('RealtimeMonitor')
   refreshing.value = true
   
   try {
-    // Simulate data refresh
-    await new Promise(resolve => setTimeout(resolve, 500))
+    const [metricsResult, eventsResult] = await Promise.all([
+      cachedApiCall('edgeai-realtime-metrics', 
+        () => edgeaiService.monitoring.getRealTimeMetrics(), 
+        5 * 1000 // Cache for 5 seconds
+      ),
+      cachedApiCall('edgeai-recent-events', 
+        () => edgeaiService.monitoring.getRecentEvents(), 
+        10 * 1000 // Cache for 10 seconds
+      )
+    ])
     
-    // Update current metrics with some randomness
-    currentMetrics.value = {
-      cpu: Math.max(10, Math.min(95, currentMetrics.value.cpu + (Math.random() - 0.5) * 10)),
-      memory: Math.max(15, Math.min(90, currentMetrics.value.memory + (Math.random() - 0.5) * 8)),
-      networkIn: Math.max(1024 * 512, currentMetrics.value.networkIn + (Math.random() - 0.5) * 1024 * 1024),
-      networkOut: Math.max(1024 * 256, currentMetrics.value.networkOut + (Math.random() - 0.5) * 1024 * 512)
+    if (metricsResult) {
+      // Batch updates for better performance
+      await nextTick(() => {
+        currentMetrics.value = {
+          cpu: Math.round(metricsResult.cpu_usage || 0),
+          memory: Math.round(metricsResult.memory_usage || 0),
+          networkIn: metricsResult.network_in || 0,
+          networkOut: metricsResult.network_out || 0
+        }
+        
+        // Update history (keep last 30 points) - efficient array operations
+        const maxPoints = 30
+        const newHistory = { ...metricsHistory.value }
+        
+        newHistory.cpu = [...newHistory.cpu, currentMetrics.value.cpu].slice(-maxPoints)
+        newHistory.memory = [...newHistory.memory, currentMetrics.value.memory].slice(-maxPoints)
+        newHistory.networkIn = [...newHistory.networkIn, currentMetrics.value.networkIn].slice(-maxPoints)
+        newHistory.networkOut = [...newHistory.networkOut, currentMetrics.value.networkOut].slice(-maxPoints)
+        
+        metricsHistory.value = newHistory
+      })
     }
     
-    // Update history (keep last 30 points)
-    const maxPoints = 30
-    
-    metricsHistory.value.cpu.push(currentMetrics.value.cpu)
-    metricsHistory.value.memory.push(currentMetrics.value.memory)
-    metricsHistory.value.networkIn.push(currentMetrics.value.networkIn)
-    metricsHistory.value.networkOut.push(currentMetrics.value.networkOut)
-    
-    if (metricsHistory.value.cpu.length > maxPoints) {
-      metricsHistory.value.cpu.shift()
-      metricsHistory.value.memory.shift()
-      metricsHistory.value.networkIn.shift()
-      metricsHistory.value.networkOut.shift()
+    if (eventsResult && eventsResult.data) {
+      // Only update events if there are changes
+      const newEvents = eventsResult.data.map(event => ({
+        id: event.id,
+        type: event.severity || 'info',
+        message: event.message,
+        timestamp: formatRelativeTime(event.created_at),
+        source: event.source || 'System Monitor'
+      }))
+      
+      // Check if events actually changed before updating
+      if (JSON.stringify(newEvents) !== JSON.stringify(events.value)) {
+        events.value = newEvents
+      }
     }
     
     lastUpdate.value = new Date().toLocaleTimeString()
+    pageMonitor.end()
     
-    // Occasionally add new events
-    if (Math.random() < 0.1) {
-      addRandomEvent()
-    }
-    
+  } catch (err) {
+    console.error('Failed to refresh realtime data:', err)
+    pageMonitor.end()
   } finally {
     refreshing.value = false
   }
+}
+
+const formatRelativeTime = (timestamp) => {
+  if (!timestamp) return 'Unknown time'
+  
+  const now = new Date()
+  const eventTime = new Date(timestamp)
+  const diffMs = now - eventTime
+  const diffMinutes = Math.floor(diffMs / 60000)
+  
+  if (diffMinutes < 1) return 'Just now'
+  if (diffMinutes < 60) return `${diffMinutes} minutes ago`
+  
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} hours ago`
+  
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays} days ago`
 }
 
 const startAutoRefresh = () => {
@@ -404,7 +435,9 @@ const startAutoRefresh = () => {
     clearInterval(refreshInterval)
   }
   
-  refreshInterval = setInterval(refreshData, REFRESH_INTERVAL)
+  // Use different intervals based on page visibility
+  const interval = isPageVisible.value ? REFRESH_INTERVAL : BACKGROUND_REFRESH_INTERVAL
+  refreshInterval = setInterval(refreshData, interval)
 }
 
 const stopAutoRefresh = () => {
@@ -414,33 +447,33 @@ const stopAutoRefresh = () => {
   }
 }
 
-const addRandomEvent = () => {
-  const eventTypes = ['info', 'warning', 'error']
-  const messages = [
-    'Training epoch completed',
-    'Model accuracy improved',
-    'Node reconnected successfully',
-    'High resource usage detected',
-    'Network latency increased',
-    'Training paused due to error',
-    'Backup created successfully',
-    'Performance optimization applied'
-  ]
-  
-  const newEvent = {
-    id: Date.now(),
-    type: eventTypes[Math.floor(Math.random() * eventTypes.length)],
-    message: messages[Math.floor(Math.random() * messages.length)],
-    timestamp: 'Just now',
-    source: 'System Monitor'
+const loadInitialData = async () => {
+  try {
+    const metricsHistoryResult = await cachedApiCall('edgeai-metrics-history', 
+      () => edgeaiService.monitoring.getMetricsHistory(), 
+      60 * 1000 // Cache for 1 minute
+    )
+    
+    if (metricsHistoryResult && metricsHistoryResult.data) {
+      const history = metricsHistoryResult.data
+      metricsHistory.value.cpu = history.cpu || []
+      metricsHistory.value.memory = history.memory || []
+      metricsHistory.value.networkIn = history.network_in || []
+      metricsHistory.value.networkOut = history.network_out || []
+    }
+  } catch (err) {
+    console.error('Failed to load initial metrics history:', err)
+    // Fall back to empty arrays
+    initializeEmptyData()
   }
-  
-  events.value.unshift(newEvent)
-  
-  // Keep only last 50 events
-  if (events.value.length > 50) {
-    events.value = events.value.slice(0, 50)
-  }
+}
+
+const initializeEmptyData = () => {
+  // Initialize with empty arrays if API fails
+  metricsHistory.value.cpu = []
+  metricsHistory.value.memory = []
+  metricsHistory.value.networkIn = []
+  metricsHistory.value.networkOut = []
 }
 
 const clearEvents = () => {
@@ -483,31 +516,48 @@ const formatBytes = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
-// Initialize data
-const initializeData = () => {
-  // Fill initial history
-  for (let i = 0; i < 10; i++) {
-    metricsHistory.value.cpu.push(Math.random() * 50 + 20)
-    metricsHistory.value.memory.push(Math.random() * 40 + 30)
-    metricsHistory.value.networkIn.push(Math.random() * 1024 * 1024 * 2)
-    metricsHistory.value.networkOut.push(Math.random() * 1024 * 1024 * 1)
+// Check connection status
+const checkConnectionStatus = async () => {
+  try {
+    const result = await edgeaiService.monitoring.getConnectionStatus()
+    isConnected.value = result.connected || false
+  } catch (err) {
+    console.error('Failed to check connection status:', err)
+    isConnected.value = false
   }
 }
 
 // Lifecycle
-onMounted(() => {
-  initializeData()
+onMounted(async () => {
+  await Promise.all([
+    loadInitialData(),
+    checkConnectionStatus()
+  ])
+  
+  // Add visibility change listener for performance optimization
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   
   if (autoRefresh.value) {
     startAutoRefresh()
   }
   
   // Initial data refresh
-  refreshData()
+  await refreshData()
 })
+
+// Handle page visibility for performance optimization
+const handleVisibilityChange = () => {
+  isPageVisible.value = !document.hidden
+  
+  if (autoRefresh.value) {
+    stopAutoRefresh()
+    startAutoRefresh()
+  }
+}
 
 onUnmounted(() => {
   stopAutoRefresh()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 // Watch for connection status

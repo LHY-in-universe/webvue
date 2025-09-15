@@ -17,6 +17,26 @@
             <span class="text-sm text-gray-600 dark:text-gray-400">
               Welcome, {{ authStore.user?.username }}
             </span>
+            
+            <!-- Offline/Online Status -->
+            <div v-if="isOffline" class="flex items-center space-x-2 text-sm text-yellow-600 dark:text-yellow-400">
+              <div class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+              <span>Offline Mode</span>
+              <span v-if="queuedRequests > 0">({{ queuedRequests }} queued)</span>
+            </div>
+            
+            <!-- Refresh Button -->
+            <Button 
+              @click="refreshData" 
+              variant="ghost" 
+              size="sm"
+              :disabled="loading"
+              :leftIcon="loading ? undefined : ChartBarIcon"
+            >
+              <LoadingSpinner v-if="loading" size="sm" />
+              <span v-else>Refresh</span>
+            </Button>
+            
             <SimpleThemeToggle size="sm" />
             <Button @click="logout" variant="ghost" size="sm">
               Logout
@@ -25,6 +45,30 @@
         </div>
       </div>
     </nav>
+
+    <!-- Error State -->
+    <div v-if="error && !loading" class="max-w-4xl mx-auto px-6 py-4">
+      <Card class="bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800">
+        <div class="p-4 flex items-center space-x-3">
+          <div class="flex-shrink-0">
+            <svg class="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
+              Failed to load dashboard data
+            </h3>
+            <p class="mt-1 text-sm text-red-700 dark:text-red-300">
+              {{ error }}
+            </p>
+          </div>
+          <Button @click="refreshData" variant="secondary" size="sm">
+            Retry
+          </Button>
+        </div>
+      </Card>
+    </div>
 
     <div class="max-w-4xl mx-auto px-6 py-8">
       <!-- Client Dashboard -->
@@ -487,9 +531,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useUIStore } from '@/stores/ui'
+import { useP2PAIStore } from '@/stores/p2pai'
+import { useApiOptimization } from '@/composables/useApiOptimization.js'
+import { useErrorBoundary } from '@/composables/useErrorBoundary'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import { useOfflineMode } from '@/composables/useOfflineMode'
+import p2paiService from '@/services/p2paiService.js'
+import performanceMonitor from '@/utils/performanceMonitor.js'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -513,6 +565,21 @@ import {
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const uiStore = useUIStore()
+const p2paiStore = useP2PAIStore()
+const { cachedApiCall, clearCache } = useApiOptimization()
+const { hasError, retry, captureError } = useErrorBoundary()
+const { enableShortcuts, disableShortcuts } = useKeyboardShortcuts()
+const { 
+  isOffline, 
+  queuedRequests, 
+  hasOfflineData, 
+  offlineAwareFetch 
+} = useOfflineMode()
+
+// API loading state
+const loading = ref(true)
+const error = ref(null)
 
 
 // Common data
@@ -537,63 +604,97 @@ const activeTrainingSessions = ref(2)
 const pendingRequests = ref(1)
 const systemUptime = ref(48.73)
 
+// Enhanced API data loading function
+const loadDashboardData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('P2PAIDashboard')
+  loading.value = true
+  error.value = null
+  
+  try {
+    // Load all dashboard data in parallel using cached API calls
+    const [projectStats, nodeStats, trainingData, modelStats, datasetStats] = await Promise.all([
+      cachedApiCall('project-stats', () => p2paiService.projects.getProjectStats(), 2 * 60 * 1000),
+      cachedApiCall('node-stats', () => p2paiService.nodes.getNodeStats(), 1 * 60 * 1000),
+      cachedApiCall('training-sessions', () => p2paiService.training.getTrainingSessions({ limit: 10 }), 30 * 1000),
+      cachedApiCall('model-stats', () => p2paiService.models.getModelStats(), 5 * 60 * 1000),
+      cachedApiCall('dataset-stats', () => p2paiService.datasets.getDatasetStats(), 5 * 60 * 1000)
+    ])
+    
+    // Update project data with real API data
+    if (projectStats.data?.projects) {
+      projects.value = projectStats.data.projects.map(project => ({
+        ...project,
+        lastUpdated: formatTime(project.last_updated)
+      }))
+    }
+    
+    // Update dashboard statistics
+    completedTraining.value = trainingData.data?.completed_sessions || 0
+    ongoingTraining.value = trainingData.data?.active_sessions || 0
+    averageAccuracy.value = trainingData.data?.average_accuracy || 0
+    connectedClients.value = nodeStats.data?.connected_nodes || 0
+    activeTrainingSessions.value = trainingData.data?.active_sessions || 0
+    pendingRequests.value = trainingData.data?.pending_requests || 0
+    systemUptime.value = nodeStats.data?.uptime_hours || 0
+    
+    // Sync with main P2PAI store
+    await p2paiStore.loadRealData()
+    
+    console.log('📊 Dashboard data loaded successfully')
+    pageMonitor.end()
+  } catch (err) {
+    console.error('❌ Failed to load dashboard data:', err)
+    error.value = err.message || 'Failed to load dashboard data'
+    captureError(err, null, 'Dashboard data loading failed')
+    pageMonitor.end()
+  } finally {
+    loading.value = false
+  }
+}
+
+// Enhanced refresh dashboard data
+const refreshData = async () => {
+  // Clear all caches for fresh data
+  clearCache('project-stats')
+  clearCache('node-stats')
+  clearCache('training-sessions')
+  clearCache('model-stats')
+  clearCache('dataset-stats')
+  
+  await loadDashboardData()
+  
+  uiStore.addNotification({
+    type: 'success',
+    title: 'Dashboard Refreshed',
+    message: 'All data has been updated',
+    duration: 2000
+  })
+}
+
+// Format time helper for real timestamps
+const formatTime = (timestamp) => {
+  if (!timestamp) return 'Unknown'
+  
+  const now = new Date()
+  const time = new Date(timestamp)
+  const diffInMinutes = Math.floor((now - time) / (1000 * 60))
+  
+  if (diffInMinutes < 1) return 'Just now'
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`
+  
+  const hours = Math.floor(diffInMinutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 // 项目搜索和过滤 - 复制EdgeAI功能
 const searchQuery = ref('')
 const statusFilter = ref('')
 
-// 项目数据 - 完全按照EdgeAI格式
-const projects = ref([
-  {
-    id: 'federated-1',
-    name: 'Federated Learning Project A',
-    description: 'Standard federated learning with 6 edge nodes for image classification',
-    status: 'Training',
-    nodes: 6,
-    progress: 65,
-    created: '2024-01-15',
-    lastUpdated: '2 hours ago'
-  },
-  {
-    id: 'mpc-1',
-    name: 'MPC Privacy Training',
-    description: 'Secure multi-party computation with cryptographic protection for sensitive data',
-    status: 'Training',
-    nodes: 3,
-    progress: 43,
-    created: '2024-01-18',
-    lastUpdated: '1 hour ago'
-  },
-  {
-    id: 'local-1',
-    name: 'Local Model Training',
-    description: 'Standalone training with local data for rapid prototyping',
-    status: 'Completed',
-    nodes: 1,
-    progress: 100,
-    created: '2024-01-10',
-    lastUpdated: '3 days ago'
-  },
-  {
-    id: 'federated-2',
-    name: 'Large Scale Federated Network',
-    description: 'Distributed training across 15 edge devices with advanced aggregation',
-    status: 'Idle',
-    nodes: 15,
-    progress: 25,
-    created: '2024-01-20',
-    lastUpdated: '5 hours ago'
-  },
-  {
-    id: 'mpc-2',
-    name: 'Healthcare MPC Training',
-    description: 'Privacy-preserving training for medical data with differential privacy',
-    status: 'Error',
-    nodes: 4,
-    progress: 15,
-    created: '2024-01-22',
-    lastUpdated: '12 hours ago'
-  }
-])
+// 项目数据 - 初始为空，将从API加载
+const projects = ref([])
 
 // 计算属性 - 复制EdgeAI的过滤逻辑
 const filteredProjects = computed(() => {
@@ -775,8 +876,17 @@ const logout = () => {
   router.push('/')
 }
 
-onMounted(() => {
-  // Initialize with some demo data
+// Auto-refresh interval
+let refreshInterval = null
+
+onMounted(async () => {
+  console.group('🚀 P2P AI Dashboard mounted')
+  console.log('Loading dashboard data...')
+  
+  // Enable modern functionality
+  enableShortcuts()
+  
+  // Initialize with some demo data for backwards compatibility
   accuracy.value = parseFloat((75 + Math.random() * 10).toFixed(2))
   
   // Handle role from URL parameters
@@ -784,5 +894,40 @@ onMounted(() => {
   if (role && (role === 'client' || role === 'server')) {
     authStore.setUserType(role)
   }
+  
+  // Load initial data from API
+  await loadDashboardData()
+  
+  // Set up auto-refresh every 30 seconds
+  refreshInterval = setInterval(() => {
+    if (!loading.value) {
+      refreshData()
+    }
+  }, 30000)
+  
+  // Show welcome notification
+  uiStore.addNotification({
+    type: 'info',
+    title: 'P2PAI Dashboard',
+    message: 'Dashboard loaded with enhanced features',
+    duration: 3000
+  })
+  
+  console.log('Dashboard initialized with auto-refresh and modern features')
+  console.groupEnd()
+})
+
+onUnmounted(() => {
+  console.log('🧹 Cleaning up P2P AI Dashboard')
+  
+  // Disable modern functionality
+  disableShortcuts()
+  
+  // Clear refresh interval
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
+  
+  console.log('P2P AI Dashboard unmounted')
 })
 </script>

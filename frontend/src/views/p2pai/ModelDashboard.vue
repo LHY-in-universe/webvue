@@ -86,6 +86,7 @@
           :trend="8.3"
           trend-label="vs last month"
           description="All models"
+          :loading="loading.models"
           animated
         />
         
@@ -96,6 +97,7 @@
           variant="success"
           :progress="deploymentRate"
           description="Active deployments"
+          :loading="loading.models"
           animated
         />
         
@@ -105,6 +107,7 @@
           :icon="ArrowPathIcon"
           variant="warning"
           description="Currently training"
+          :loading="loading.models"
           animated
         />
 
@@ -118,6 +121,7 @@
           :trend="2.1"
           trend-label="improvement"
           description="Average accuracy"
+          :loading="loading.models"
           animated
         />
       </div>
@@ -161,6 +165,7 @@
                 @click="refreshModels"
                 variant="ghost"
                 :leftIcon="ArrowPathIcon"
+                :loading="refreshing"
                 size="sm"
               >
                 Refresh
@@ -687,9 +692,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
+import { useUIStore } from '@/stores/ui'
+import { useP2PAIStore } from '@/stores/p2pai'
+import { useErrorBoundary } from '@/composables/useErrorBoundary'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import p2paiService from '@/services/p2paiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import {
   ArrowLeftIcon,
   CpuChipIcon,
@@ -721,6 +733,11 @@ import Modal from '@/components/ui/Modal.vue'
 
 const router = useRouter()
 const themeStore = useThemeStore()
+const uiStore = useUIStore()
+const p2paiStore = useP2PAIStore()
+const { hasError, retry, captureError } = useErrorBoundary()
+const { enableShortcuts, disableShortcuts } = useKeyboardShortcuts()
+const { cachedApiCall, clearCache } = useApiOptimization()
 
 // State
 const searchQuery = ref('')
@@ -741,101 +758,13 @@ const newModel = ref({
   outputClasses: 10
 })
 
-// Mock model data
-const models = ref([
-  {
-    id: 1,
-    name: 'Image Classifier v2.1',
-    description: 'Advanced CNN for image classification',
-    architecture: 'ResNet',
-    version: '2.1',
-    parameters: 25600000,
-    size: 98304000,
-    accuracy: 94.2,
-    loss: 0.156,
-    f1Score: 0.941,
-    status: 'deployed',
-    createdAt: new Date('2024-01-15'),
-    progress: 100,
-    currentEpoch: 50,
-    totalEpochs: 50,
-    inferenceTime: 12,
-    memoryUsage: 256,
-    endpoint: '/api/models/image-classifier',
-    requestsToday: 1245
-  },
-  {
-    id: 2,
-    name: 'Sentiment Analyzer',
-    description: 'BERT-based sentiment analysis model',
-    architecture: 'Transformer',
-    version: '1.3',
-    parameters: 110000000,
-    size: 440000000,
-    accuracy: 91.8,
-    loss: 0.203,
-    f1Score: 0.915,
-    status: 'training',
-    createdAt: new Date('2024-02-10'),
-    progress: 68,
-    currentEpoch: 34,
-    totalEpochs: 50,
-    inferenceTime: 25,
-    memoryUsage: 512
-  },
-  {
-    id: 3,
-    name: 'Object Detector',
-    description: 'YOLOv5 for real-time object detection',
-    architecture: 'CNN',
-    version: '3.0',
-    parameters: 46200000,
-    size: 184800000,
-    accuracy: 87.5,
-    loss: 0.284,
-    f1Score: 0.872,
-    status: 'ready',
-    createdAt: new Date('2024-01-25'),
-    progress: 100,
-    currentEpoch: 100,
-    totalEpochs: 100,
-    inferenceTime: 18,
-    memoryUsage: 384
-  },
-  {
-    id: 4,
-    name: 'Speech Recognizer',
-    description: 'Deep speech recognition model',
-    architecture: 'RNN',
-    version: '1.0',
-    parameters: 78000000,
-    size: 312000000,
-    accuracy: 89.3,
-    status: 'error',
-    createdAt: new Date('2024-02-01'),
-    progress: 0,
-    currentEpoch: 0,
-    totalEpochs: 75
-  },
-  {
-    id: 5,
-    name: 'GAN Generator',
-    description: 'StyleGAN for image generation',
-    architecture: 'GAN',
-    version: '2.0',
-    parameters: 95000000,
-    size: 380000000,
-    accuracy: 92.7,
-    status: 'deployed',
-    createdAt: new Date('2024-01-30'),
-    progress: 100,
-    currentEpoch: 200,
-    totalEpochs: 200,
-    inferenceTime: 45,
-    memoryUsage: 768,
-    requestsToday: 856
-  }
-])
+// Real data state
+const models = ref([])
+const loading = ref({
+  models: false,
+  operations: false
+})
+const refreshing = ref(false)
 
 // Computed properties
 const filteredModels = computed(() => {
@@ -860,6 +789,52 @@ const averageAccuracy = computed(() => {
 const canCreateModel = computed(() => {
   return newModel.value.name && newModel.value.description
 })
+
+// Real data loading
+const loadModels = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('P2PAI-ModelDashboard')
+  loading.value.models = true
+  
+  try {
+    const result = await cachedApiCall(
+      'p2pai-models', 
+      () => p2paiService.models.getModels(), 
+      60 * 1000 // Cache for 1 minute
+    )
+    
+    if (result && result.data) {
+      models.value = result.data.map(model => ({
+        id: model.id,
+        name: model.name,
+        description: model.description,
+        architecture: model.architecture || 'CNN',
+        version: model.version || '1.0',
+        parameters: model.parameters || 0,
+        size: model.size || 0,
+        accuracy: model.accuracy || 0,
+        loss: model.loss || 0,
+        f1Score: model.f1_score || 0,
+        status: model.status || 'ready',
+        createdAt: new Date(model.created_at || Date.now()),
+        progress: model.progress || 0,
+        currentEpoch: model.current_epoch || 0,
+        totalEpochs: model.total_epochs || 100,
+        inferenceTime: model.inference_time || 0,
+        memoryUsage: model.memory_usage || 0,
+        endpoint: model.endpoint || '',
+        requestsToday: model.requests_today || 0
+      }))
+    }
+    
+    pageMonitor.end()
+  } catch (error) {
+    console.error('Failed to load models:', error)
+    captureError(error, null, 'Model loading failed')
+    pageMonitor.end()
+  } finally {
+    loading.value.models = false
+  }
+}
 
 // Methods
 const goBack = () => {
@@ -940,14 +915,55 @@ const selectModel = (model) => {
   showDetailsModal.value = true
 }
 
-const deployModel = (model) => {
-  model.status = 'deployed'
-  console.log('Deploying model:', model.name)
+const deployModel = async (model) => {
+  loading.value.operations = true
+  
+  try {
+    const result = await p2paiService.models.deployModel(model.id, {
+      environment: 'production',
+      auto_scale: true
+    })
+    
+    if (result.success) {
+      model.status = 'deployed'
+      uiStore.addNotification({
+        type: 'success',
+        title: 'Model Deployed',
+        message: `${model.name} has been successfully deployed`,
+        duration: 3000
+      })
+    } else {
+      throw new Error(result.error || 'Failed to deploy model')
+    }
+  } catch (error) {
+    console.error('Failed to deploy model:', error)
+    captureError(error, null, 'Model deployment failed')
+  } finally {
+    loading.value.operations = false
+  }
 }
 
-const stopModel = (model) => {
-  model.status = 'ready'
-  console.log('Stopping model:', model.name)
+const stopModel = async (model) => {
+  loading.value.operations = true
+  
+  try {
+    const result = await p2paiService.models.stopModel?.(model.id)
+    
+    if (result?.success) {
+      model.status = 'ready'
+      uiStore.addNotification({
+        type: 'info',
+        title: 'Model Stopped',
+        message: `${model.name} deployment has been stopped`,
+        duration: 3000
+      })
+    }
+  } catch (error) {
+    console.error('Failed to stop model:', error)
+    captureError(error, null, 'Model stop failed')
+  } finally {
+    loading.value.operations = false
+  }
 }
 
 const testModel = (model) => {
@@ -992,65 +1008,85 @@ const bulkDelete = () => {
   }
 }
 
-const refreshModels = () => {
-  console.log('Refreshing models...')
+const refreshModels = async () => {
+  refreshing.value = true
+  clearCache('p2pai-models')
+  await loadModels()
+  refreshing.value = false
+  
+  uiStore.addNotification({
+    type: 'success',
+    title: 'Models Refreshed',
+    message: 'Model data has been updated',
+    duration: 2000
+  })
 }
 
 const createModel = async () => {
   if (!canCreateModel.value) return
   
-  const model = {
-    id: models.value.length + 1,
-    name: newModel.value.name,
-    description: newModel.value.description,
-    architecture: newModel.value.architecture,
-    version: '1.0',
-    parameters: Math.floor(Math.random() * 50000000) + 1000000,
-    size: Math.floor(Math.random() * 200000000) + 10000000,
-    accuracy: Math.random() * 20 + 75,
-    status: 'training',
-    createdAt: new Date(),
-    progress: 0,
-    currentEpoch: 0,
-    totalEpochs: 50
-  }
+  loading.value.operations = true
   
-  models.value.push(model)
-  
-  // Reset form
-  newModel.value = {
-    name: '',
-    description: '',
-    architecture: 'CNN',
-    taskType: 'classification',
-    inputShape: '',
-    outputClasses: 10
-  }
-  
-  showCreateModal.value = false
-  
-  // Simulate training
-  const trainingInterval = setInterval(() => {
-    if (model.status !== 'training') {
-      clearInterval(trainingInterval)
-      return
+  try {
+    const modelData = {
+      name: newModel.value.name,
+      description: newModel.value.description,
+      architecture: newModel.value.architecture,
+      task_type: newModel.value.taskType,
+      input_shape: newModel.value.inputShape,
+      output_classes: newModel.value.outputClasses
     }
     
-    model.progress += Math.random() * 5
-    model.currentEpoch = Math.floor((model.progress / 100) * model.totalEpochs)
+    const result = await p2paiService.models.createModel?.(modelData)
     
-    if (model.progress >= 100) {
-      model.status = 'ready'
-      model.progress = 100
-      model.currentEpoch = model.totalEpochs
-      clearInterval(trainingInterval)
+    if (result?.success) {
+      // Reset form
+      newModel.value = {
+        name: '',
+        description: '',
+        architecture: 'CNN',
+        taskType: 'classification',
+        inputShape: '',
+        outputClasses: 10
+      }
+      
+      showCreateModal.value = false
+      
+      // Refresh models list
+      await loadModels()
+      
+      uiStore.addNotification({
+        type: 'success',
+        title: 'Model Created',
+        message: `${modelData.name} has been created successfully`,
+        duration: 3000
+      })
+    } else {
+      throw new Error(result?.error || 'Failed to create model')
     }
-  }, 1000)
+  } catch (error) {
+    console.error('Failed to create model:', error)
+    captureError(error, null, 'Model creation failed')
+  } finally {
+    loading.value.operations = false
+  }
 }
 
 // Lifecycle
-onMounted(() => {
-  // Initialize component
+onMounted(async () => {
+  enableShortcuts()
+  await loadModels()
+  
+  uiStore.addNotification({
+    type: 'info',
+    title: 'Model Dashboard',
+    message: 'Model management interface loaded',
+    duration: 2000
+  })
+})
+
+onUnmounted(() => {
+  disableShortcuts()
 })
 </script>
 

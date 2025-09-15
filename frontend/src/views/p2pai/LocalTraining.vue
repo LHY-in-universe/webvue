@@ -593,6 +593,9 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
+import { useApiOptimization } from '@/composables/useApiOptimization.js'
+import p2paiService from '@/services/p2paiService.js'
+import performanceMonitor from '@/utils/performanceMonitor.js'
 import {
   ArrowLeftIcon,
   ShieldCheckIcon,
@@ -619,6 +622,11 @@ import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
 
 const router = useRouter()
 const themeStore = useThemeStore()
+const { cachedApiCall } = useApiOptimization()
+
+// API loading state
+const apiLoading = ref(false)
+const apiError = ref(null)
 
 // Training state
 const isTraining = ref(false)
@@ -626,9 +634,10 @@ const isPaused = ref(false)
 const trainingStatus = ref('Ready')
 const currentEpoch = ref(0)
 const trainingDuration = ref(0)
-const sessionId = ref('LOCAL-2024-001')
-const sessionStartTime = ref(new Date())
+const sessionId = ref(null)
+const sessionStartTime = ref(null)
 const deviceName = ref('MacBook-Pro-M1')
+const trainingWebSocket = ref(null)
 
 // Dataset configuration
 const selectedDataset = ref('')
@@ -720,32 +729,41 @@ const toggleTheme = (event) => {
   themeStore.toggleTheme(event)
 }
 
-const onDatasetChange = () => {
+const onDatasetChange = async () => {
   if (selectedDataset.value) {
-    // Simulate loading dataset information
-    const datasets = {
-      cifar10: {
-        totalSamples: 60000,
-        trainingSamples: 48000,
-        validationSamples: 6000,
-        testSamples: 6000
-      },
-      mnist: {
-        totalSamples: 70000,
-        trainingSamples: 56000,
-        validationSamples: 7000,
-        testSamples: 7000
-      },
-      custom: {
-        totalSamples: 0,
-        trainingSamples: 0,
-        validationSamples: 0,
-        testSamples: 0
+    try {
+      // Load real dataset information from API
+      const datasetStats = await cachedApiCall(
+        `dataset-${selectedDataset.value}`,
+        () => p2paiService.datasets.getDatasets({ name: selectedDataset.value }),
+        5 * 60 * 1000
+      )
+      
+      if (datasetStats.data && datasetStats.data.length > 0) {
+        const dataset = datasetStats.data[0]
+        datasetInfo.value = {
+          totalSamples: dataset.total_samples || 0,
+          trainingSamples: Math.floor((dataset.total_samples || 0) * trainSplit.value / 100),
+          validationSamples: Math.floor((dataset.total_samples || 0) * (100 - trainSplit.value) / 100),
+          testSamples: dataset.test_samples || 0
+        }
+        datasetSize.value = datasetInfo.value.totalSamples
+      } else {
+        // Fallback to mock data if no real dataset found
+        const datasets = {
+          cifar10: { totalSamples: 60000, trainingSamples: 48000, validationSamples: 6000, testSamples: 6000 },
+          mnist: { totalSamples: 70000, trainingSamples: 56000, validationSamples: 7000, testSamples: 7000 },
+          custom: { totalSamples: 0, trainingSamples: 0, validationSamples: 0, testSamples: 0 }
+        }
+        datasetInfo.value = datasets[selectedDataset.value] || datasets.custom
+        datasetSize.value = datasetInfo.value.totalSamples
       }
+    } catch (err) {
+      console.warn('Failed to load dataset info, using defaults:', err)
+      // Use fallback values
+      datasetInfo.value = { totalSamples: 1000, trainingSamples: 800, validationSamples: 200, testSamples: 0 }
+      datasetSize.value = 1000
     }
-    
-    datasetInfo.value = datasets[selectedDataset.value]
-    datasetSize.value = datasetInfo.value.totalSamples
   }
 }
 
@@ -772,63 +790,93 @@ const uploadDataset = () => {
 const startTraining = async () => {
   if (!canStartTraining.value) return
   
-  isTraining.value = true
-  trainingStatus.value = 'Training'
-  sessionStartTime.value = new Date()
-  currentEpoch.value = 0
-  trainingHistory.value = []
+  apiLoading.value = true
+  apiError.value = null
   
-  // Simulate training progress
-  const trainingInterval = setInterval(() => {
-    if (!isTraining.value || isPaused.value) return
-    
-    trainingDuration.value += 1000
-    
-    // Simulate epoch completion
-    if (Math.random() > 0.8) {
-      currentEpoch.value++
-      const newAccuracy = Math.min(95, 20 + Math.log(currentEpoch.value) * 15 + Math.random() * 5)
-      const newLoss = Math.max(0.01, 2.5 * Math.exp(-currentEpoch.value * 0.1) + Math.random() * 0.1)
-      
-      currentAccuracy.value = newAccuracy
-      currentLoss.value = newLoss
-      validationAccuracy.value = newAccuracy - Math.random() * 3
-      
-      if (newAccuracy > bestAccuracy.value) {
-        accuracyTrend.value = ((newAccuracy - bestAccuracy.value) / bestAccuracy.value * 100)
-        bestAccuracy.value = newAccuracy
+  try {
+    // Prepare training configuration
+    const trainingConfig = {
+      model_architecture: selectedModel.value,
+      dataset: selectedDataset.value,
+      hyperparameters: {
+        learning_rate: learningRate.value,
+        batch_size: batchSize.value,
+        max_epochs: maxEpochs.value,
+        optimizer: optimizer.value,
+        dropout_rate: dropoutRate.value,
+        weight_decay: weightDecay.value,
+        early_stopping: earlyStopping.value
+      },
+      data_split: {
+        train_ratio: trainSplit.value / 100,
+        validation_ratio: (100 - trainSplit.value) / 100
       }
-      
-      // Add to history
-      trainingHistory.value.unshift({
-        epoch: currentEpoch.value,
-        accuracy: newAccuracy,
-        loss: newLoss,
-        timestamp: new Date()
-      })
-      
-      // Keep only last 10 records
-      if (trainingHistory.value.length > 10) {
-        trainingHistory.value = trainingHistory.value.slice(0, 10)
-      }
-      
-      // Simulate resource usage changes
-      cpuUsage.value = 40 + Math.random() * 30
-      memoryUsage.value = 60 + Math.random() * 25
-      gpuUsage.value = 70 + Math.random() * 25
     }
     
-    if (currentEpoch.value >= maxEpochs.value) {
-      stopTraining()
-      trainingStatus.value = 'Completed'
+    console.log('🚀 Starting local training with config:', trainingConfig)
+    
+    // Start training via API
+    const response = await p2paiService.training.startLocalTraining(trainingConfig)
+    
+    if (response.success) {
+      // Update state with real session data
+      sessionId.value = response.data.session_id
+      sessionStartTime.value = new Date(response.data.start_time)
+      isTraining.value = true
+      trainingStatus.value = 'Training'
+      currentEpoch.value = 0
+      trainingHistory.value = []
+      
+      // Create WebSocket connection for real-time updates
+      setupTrainingWebSocket(sessionId.value)
+      
+      console.log('✅ Training started successfully:', response.data)
+    } else {
+      throw new Error(response.error || 'Failed to start training')
     }
-  }, 1000)
+  } catch (err) {
+    console.error('❌ Failed to start training:', err)
+    apiError.value = err.message || 'Failed to start training'
+    trainingStatus.value = 'Error'
+  } finally {
+    apiLoading.value = false
+  }
 }
 
-const stopTraining = () => {
-  isTraining.value = false
-  isPaused.value = false
-  trainingStatus.value = 'Ready'
+const stopTraining = async () => {
+  if (!sessionId.value) {
+    // Local stop for simulation mode
+    isTraining.value = false
+    isPaused.value = false
+    trainingStatus.value = 'Ready'
+    return
+  }
+  
+  try {
+    console.log('🛑 Stopping training session:', sessionId.value)
+    
+    const response = await p2paiService.training.stopTraining(sessionId.value)
+    
+    if (response.success) {
+      isTraining.value = false
+      isPaused.value = false
+      trainingStatus.value = 'Stopped'
+      
+      // Close WebSocket connection
+      if (trainingWebSocket.value) {
+        trainingWebSocket.value.close()
+        trainingWebSocket.value = null
+      }
+      
+      console.log('✅ Training stopped successfully')
+    }
+  } catch (err) {
+    console.error('❌ Failed to stop training:', err)
+    // Still update local state even if API call fails
+    isTraining.value = false
+    isPaused.value = false
+    trainingStatus.value = 'Error'
+  }
 }
 
 const pauseTraining = () => {
@@ -874,8 +922,78 @@ watch(trainSplit, (newSplit) => {
   }
 })
 
+// Setup WebSocket connection for real-time training updates
+const setupTrainingWebSocket = (sessionId) => {
+  if (trainingWebSocket.value) {
+    trainingWebSocket.value.close()
+  }
+  
+  try {
+    trainingWebSocket.value = p2paiService.training.createTrainingWebSocket(sessionId, {
+      onOpen: () => {
+        console.log('📡 Training WebSocket connected')
+      },
+      onMessage: (data) => {
+        console.log('📨 Training update received:', data)
+        updateTrainingMetrics(data)
+      },
+      onError: (error) => {
+        console.error('❌ Training WebSocket error:', error)
+      },
+      onClose: () => {
+        console.log('🔌 Training WebSocket closed')
+        if (isTraining.value) {
+          // Try to reconnect after 3 seconds
+          setTimeout(() => setupTrainingWebSocket(sessionId), 3000)
+        }
+      }
+    })
+  } catch (err) {
+    console.error('Failed to setup WebSocket:', err)
+  }
+}
+
+// Update training metrics from WebSocket data
+const updateTrainingMetrics = (data) => {
+  if (data.type === 'training_progress') {
+    currentEpoch.value = data.epoch || currentEpoch.value
+    currentAccuracy.value = data.accuracy || currentAccuracy.value
+    currentLoss.value = data.loss || currentLoss.value
+    validationAccuracy.value = data.validation_accuracy || validationAccuracy.value
+    
+    if (data.accuracy > bestAccuracy.value) {
+      accuracyTrend.value = ((data.accuracy - bestAccuracy.value) / bestAccuracy.value * 100)
+      bestAccuracy.value = data.accuracy
+    }
+    
+    // Add to history
+    trainingHistory.value.unshift({
+      epoch: data.epoch,
+      accuracy: data.accuracy,
+      loss: data.loss,
+      timestamp: new Date()
+    })
+    
+    // Keep only last 10 records
+    if (trainingHistory.value.length > 10) {
+      trainingHistory.value = trainingHistory.value.slice(0, 10)
+    }
+  } else if (data.type === 'training_completed') {
+    trainingStatus.value = 'Completed'
+    isTraining.value = false
+    isPaused.value = false
+  } else if (data.type === 'training_error') {
+    trainingStatus.value = 'Error'
+    apiError.value = data.message || 'Training error occurred'
+    isTraining.value = false
+    isPaused.value = false
+  }
+}
+
 // Lifecycle
 onMounted(() => {
+  console.log('🚀 Local Training component mounted')
+  
   // Initialize default values
   currentAccuracy.value = 0
   currentLoss.value = 2.5
@@ -883,6 +1001,15 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  console.log('🧹 Cleaning up Local Training component')
+  
+  // Close WebSocket connection
+  if (trainingWebSocket.value) {
+    trainingWebSocket.value.close()
+    trainingWebSocket.value = null
+  }
+  
+  // Stop training if active
   if (isTraining.value) {
     stopTraining()
   }

@@ -58,6 +58,18 @@ const props = defineProps({
     type: String,
     default: 'light',
     validator: value => ['light', 'dark'].includes(value)
+  },
+  realtime: {
+    type: Boolean,
+    default: false
+  },
+  maxDataPoints: {
+    type: Number,
+    default: 50
+  },
+  autoScroll: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -601,6 +613,53 @@ const stopAnimation = () => {
   }
 }
 
+// Real-time chart update function
+const updateChartRealtime = (newData, oldData) => {
+  if (!chartInstance.value || !newData) return
+  
+  try {
+    const chart = chartInstance.value
+    
+    // Update labels if they've changed
+    if (newData.labels && Array.isArray(newData.labels)) {
+      if (props.autoScroll && newData.labels.length > props.maxDataPoints) {
+        // Keep only the last maxDataPoints
+        const startIndex = newData.labels.length - props.maxDataPoints
+        chart.data.labels = newData.labels.slice(startIndex)
+      } else {
+        chart.data.labels = [...newData.labels]
+      }
+    }
+    
+    // Update datasets
+    if (newData.datasets && Array.isArray(newData.datasets)) {
+      newData.datasets.forEach((newDataset, index) => {
+        if (chart.data.datasets[index] && newDataset.data) {
+          if (props.autoScroll && newDataset.data.length > props.maxDataPoints) {
+            // Keep only the last maxDataPoints
+            const startIndex = newDataset.data.length - props.maxDataPoints
+            chart.data.datasets[index].data = newDataset.data.slice(startIndex)
+          } else {
+            chart.data.datasets[index].data = [...newDataset.data]
+          }
+          
+          // Update other dataset properties if they've changed
+          if (newDataset.label !== undefined) {
+            chart.data.datasets[index].label = newDataset.label
+          }
+        }
+      })
+    }
+    
+    // Animate the chart update
+    chart.update(props.animated ? 'active' : 'none')
+  } catch (err) {
+    console.error('Failed to update chart in realtime:', err)
+    // Fallback to full re-render
+    renderChart()
+  }
+}
+
 // Lifecycle
 onMounted(async () => {
   await nextTick()
@@ -615,8 +674,12 @@ onUnmounted(() => {
 })
 
 // Watch for data changes
-watch(() => props.data, () => {
-  renderChart()
+watch(() => props.data, (newData, oldData) => {
+  if (props.realtime && chartInstance.value) {
+    updateChartRealtime(newData, oldData)
+  } else {
+    renderChart()
+  }
 }, { deep: true })
 
 watch(() => props.theme, () => {

@@ -37,7 +37,38 @@
         </p>
       </div>
 
+      <!-- Loading State -->
+      <div v-if="loading" class="flex justify-center items-center py-12">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span class="ml-3 text-gray-600 dark:text-gray-400">Loading models data...</span>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-8">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
+              Failed to load models data
+            </h3>
+            <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+              {{ error }}
+            </div>
+            <div class="mt-3">
+              <Button @click="loadModelsData" variant="ghost" size="sm" class="text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800/30">
+                Try again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Statistics Cards -->
+      <template v-else>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Total Models"
@@ -236,18 +267,22 @@
         @close="showUploadModal = false"
         @uploaded="handleModelUploaded"
       />
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
 import ModelUploadModal from '@/components/edgeai/ModelUploadModal.vue'
+import { useApiOptimization } from '@/composables/useApiOptimization'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import {
   CpuChipIcon,
   PlusIcon,
@@ -260,82 +295,25 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
+const { cachedApiCall, clearCache } = useApiOptimization()
 
 // Reactive data
 const searchQuery = ref('')
 const typeFilter = ref('')
 const showUploadModal = ref(false)
 const showImportModal = ref(false)
+const loading = ref(false)
+const error = ref(null)
+const refreshInterval = ref(null)
 
-// Statistics
-const totalModels = ref(12)
-const activeModels = ref(8)
-const modelVersions = ref(24)
-const storageUsed = ref(156.7)
+// Statistics (will be loaded from API)
+const totalModels = ref(0)
+const activeModels = ref(0)
+const modelVersions = ref(0)
+const storageUsed = ref(0)
 
-// Models data
-const models = ref([
-  {
-    id: 1,
-    name: 'Gemma-7B-Instruct',
-    description: 'Large language model for instruction following',
-    type: 'LLM',
-    version: 'v2.1.0',
-    status: 'Active',
-    size: '14.2 GB',
-    lastUpdated: '2024-01-15'
-  },
-  {
-    id: 2,
-    name: 'ResNet-50',
-    description: 'Residual neural network for image classification',
-    type: 'Vision',
-    version: 'v1.8.3',
-    status: 'Active',
-    size: '98 MB',
-    lastUpdated: '2024-01-12'
-  },
-  {
-    id: 3,
-    name: 'YOLO-v8',
-    description: 'Object detection and segmentation model',
-    type: 'Vision',
-    version: 'v8.0.2',
-    status: 'Inactive',
-    size: '6.2 GB',
-    lastUpdated: '2024-01-10'
-  },
-  {
-    id: 4,
-    name: 'Whisper-Large',
-    description: 'Automatic speech recognition model',
-    type: 'Audio',
-    version: 'v3.0.0',
-    status: 'Active',
-    size: '3.1 GB',
-    lastUpdated: '2024-01-08'
-  },
-  {
-    id: 5,
-    name: 'BERT-Base',
-    description: 'Bidirectional encoder for language understanding',
-    type: 'LLM',
-    version: 'v1.2.1',
-    status: 'Inactive',
-    size: '440 MB',
-    lastUpdated: '2024-01-05'
-  },
-  {
-    id: 6,
-    name: 'EfficientNet-B7',
-    description: 'Efficient convolutional neural network',
-    type: 'Vision',
-    version: 'v2.0.1',
-    status: 'Active',
-    size: '256 MB',
-    lastUpdated: '2024-01-03'
-  }
-])
+// Models data (will be loaded from API)
+const models = ref([])
 
 // Computed properties
 const filteredModels = computed(() => {
@@ -377,16 +355,98 @@ const getStatusColor = (status) => {
   return colors[status] || colors.Inactive
 }
 
-// Handler functions
-const refreshModels = () => {
-  console.log('Refreshing models...')
+// Load models data from API
+const loadModelsData = async () => {
+  const pageMonitor = performanceMonitor.monitorPageLoad('EdgeAIModelManagement')
+  loading.value = true
+  error.value = null
+  
+  try {
+    // Load models and statistics in parallel
+    const [modelsResult, statsResult] = await Promise.all([
+      cachedApiCall('edgeai-models', 
+        () => edgeaiService.models.getModels(), 
+        2 * 60 * 1000 // Cache for 2 minutes
+      ),
+      cachedApiCall('edgeai-model-stats', 
+        () => edgeaiService.models.getModelStats(), 
+        1 * 60 * 1000 // Cache for 1 minute
+      )
+    ])
+
+    // Update models data
+    if (modelsResult && Array.isArray(modelsResult)) {
+      models.value = modelsResult.map(model => ({
+        id: model.id,
+        name: model.name,
+        description: model.description || 'No description available',
+        type: model.type || 'Other',
+        version: model.version || 'v1.0.0',
+        status: model.status || 'Inactive',
+        size: model.size || 'Unknown',
+        lastUpdated: model.last_updated || new Date().toISOString().split('T')[0]
+      }))
+    }
+
+    // Update statistics
+    if (statsResult) {
+      totalModels.value = statsResult.total || models.value.length
+      activeModels.value = statsResult.active || models.value.filter(m => m.status === 'Active').length
+      modelVersions.value = statsResult.versions || models.value.length
+      storageUsed.value = statsResult.storage_used || 0
+    }
+
+    pageMonitor.end({ success: true, modelCount: models.value.length })
+  } catch (err) {
+    console.error('Failed to load models data:', err)
+    error.value = err.message || 'Failed to load models data'
+    pageMonitor.end({ success: false, error: err.message })
+  } finally {
+    loading.value = false
+  }
 }
 
-const deployModel = (model) => {
-  if (model.status !== 'Active') {
-    model.status = 'Active'
-    activeModels.value++
-    console.log('Deployed model:', model.name)
+// Setup auto-refresh
+const setupAutoRefresh = () => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  
+  refreshInterval.value = setInterval(() => {
+    if (!loading.value) {
+      loadModelsData()
+    }
+  }, 60 * 1000) // Refresh every minute
+}
+
+// Handler functions
+const refreshModels = async () => {
+  clearCache() // Clear cache to ensure fresh data
+  await loadModelsData()
+}
+
+const deployModel = async (model) => {
+  if (model.status === 'Active') {
+    return // Already deployed
+  }
+
+  const monitor = performanceMonitor.startTimer('EdgeAIModelDeploy')
+  
+  try {
+    const result = await edgeaiService.models.deployModel(model.id)
+    
+    if (result && result.success) {
+      model.status = 'Active'
+      activeModels.value++
+      
+      console.log('Deployed model:', model.name)
+      monitor.end({ success: true, modelId: model.id })
+    } else {
+      throw new Error(result?.error || 'Failed to deploy model')
+    }
+  } catch (error) {
+    console.error('Failed to deploy model:', error)
+    monitor.end({ success: false, error: error.message })
   }
 }
 
@@ -395,23 +455,54 @@ const viewModelDetails = (model) => {
   router.push(`/edgeai/model-details/${model.id}`)
 }
 
-const deleteModel = (model) => {
-  if (confirm(`Are you sure you want to delete ${model.name}?`)) {
-    const index = models.value.findIndex(m => m.id === model.id)
-    if (index !== -1) {
-      models.value.splice(index, 1)
-      totalModels.value--
-      if (model.status === 'Active') {
-        activeModels.value--
+const deleteModel = async (model) => {
+  if (!confirm(`Are you sure you want to delete ${model.name}? This action cannot be undone.`)) {
+    return
+  }
+
+  const monitor = performanceMonitor.startTimer('EdgeAIModelDelete')
+  
+  try {
+    const result = await edgeaiService.models.deleteModel(model.id)
+    
+    if (result && result.success) {
+      const index = models.value.findIndex(m => m.id === model.id)
+      if (index !== -1) {
+        models.value.splice(index, 1)
+        totalModels.value--
+        if (model.status === 'Active') {
+          activeModels.value--
+        }
       }
+      
       console.log('Deleted model:', model.name)
+      monitor.end({ success: true, modelId: model.id })
+    } else {
+      throw new Error(result?.error || 'Failed to delete model')
     }
+  } catch (error) {
+    console.error('Failed to delete model:', error)
+    alert(`Failed to delete ${model.name}: ${error.message}`)
+    monitor.end({ success: false, error: error.message })
   }
 }
 
-const handleModelUploaded = (newModel) => {
-  models.value.unshift(newModel)
-  totalModels.value++
+const handleModelUploaded = async (newModel) => {
+  // Refresh the entire models list after upload
+  await loadModelsData()
   console.log('New model uploaded:', newModel.name)
 }
+
+// Component lifecycle
+onMounted(async () => {
+  await loadModelsData()
+  setupAutoRefresh()
+})
+
+onUnmounted(() => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
+  clearCache()
+})
 </script>

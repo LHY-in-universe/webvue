@@ -165,6 +165,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useUIStore } from '@/stores/ui'
+import edgeaiService from '@/services/edgeaiService'
+import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
 import { CloudArrowUpIcon } from '@heroicons/vue/24/outline'
 
@@ -176,6 +179,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'uploaded'])
+
+const uiStore = useUIStore()
 
 const form = ref({
   name: '',
@@ -202,35 +207,73 @@ const handleFileSelect = (event) => {
 const uploadModel = async () => {
   if (!canUpload.value || uploading.value) return
 
+  const pageMonitor = performanceMonitor.monitorPageLoad('ModelUpload')
   uploading.value = true
   uploadProgress.value = 0
 
-  // Simulate upload progress
-  const progressInterval = setInterval(() => {
-    uploadProgress.value += Math.random() * 10
-    if (uploadProgress.value >= 100) {
-      uploadProgress.value = 100
-      clearInterval(progressInterval)
-      
-      setTimeout(() => {
-        // Create new model object
-        const newModel = {
-          id: Date.now(),
-          name: form.value.name,
-          description: form.value.description,
-          type: form.value.type,
-          version: form.value.version,
-          status: 'Inactive',
-          size: (selectedFile.value.size / (1024 * 1024)).toFixed(1) + ' MB',
-          lastUpdated: 'just now'
-        }
+  try {
+    // Create FormData for file upload
+    const formData = new FormData()
+    formData.append('file', selectedFile.value)
+    formData.append('name', form.value.name)
+    formData.append('description', form.value.description)
+    formData.append('model_type', form.value.type)
+    formData.append('version', form.value.version)
 
-        uploading.value = false
-        emit('uploaded', newModel)
-        close()
-      }, 500)
+    // Upload with progress tracking
+    const result = await edgeaiService.models.uploadModel(formData, (progress) => {
+      uploadProgress.value = Math.round(progress)
+    })
+
+    if (result.success) {
+      const newModel = {
+        id: result.data.id,
+        name: result.data.name,
+        description: result.data.description,
+        type: result.data.model_type,
+        version: result.data.version,
+        status: result.data.status || 'Inactive',
+        size: formatFileSize(result.data.file_size),
+        lastUpdated: 'just now',
+        accuracy: result.data.accuracy || 0,
+        latency: result.data.latency || 0,
+        downloads: 0,
+        deployments: 0
+      }
+
+      uiStore.addNotification({
+        type: 'success',
+        title: 'Model Uploaded',
+        message: `${form.value.name} has been uploaded successfully`
+      })
+
+      emit('uploaded', newModel)
+      close()
+    } else {
+      throw new Error(result.error || 'Failed to upload model')
     }
-  }, 200)
+
+    pageMonitor.end()
+
+  } catch (err) {
+    console.error('Failed to upload model:', err)
+    uiStore.addNotification({
+      type: 'error',
+      title: 'Upload Failed',
+      message: err.message || 'Failed to upload model'
+    })
+    pageMonitor.end()
+  } finally {
+    uploading.value = false
+  }
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
 const close = () => {
