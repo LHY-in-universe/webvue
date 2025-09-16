@@ -96,11 +96,15 @@ export const API_ENDPOINTS = {
     PROJECTS: {
       LIST: '/api/edgeai/projects',
       CREATE: '/api/edgeai/projects',
+      DETAIL: '/api/edgeai/projects/{id}',
       IMPORT: '/api/edgeai/projects/import',
       EXPORT: '/api/edgeai/projects/{id}/export',
       START: '/api/edgeai/projects/{id}/start',
       PAUSE: '/api/edgeai/projects/{id}/pause',
-      STOP: '/api/edgeai/projects/{id}/stop'
+      STOP: '/api/edgeai/projects/{id}/stop',
+      TEMPLATES: '/api/edgeai/projects/templates',
+      IMPORT_HISTORY: '/api/edgeai/projects/import-history',
+      LOAD_FROM_URL: '/api/edgeai/projects/load-from-url'
     },
     
     // 节点管理
@@ -109,6 +113,7 @@ export const API_ENDPOINTS = {
       OPERATION: '/api/edgeai/nodes/{id}/operation',
       START_TRAINING: '/api/edgeai/nodes/{id}/start-training',
       STOP_TRAINING: '/api/edgeai/nodes/{id}/stop-training',
+      VISUALIZATION: '/api/edgeai/nodes/visualization/{projectId}',
       WS: '/api/edgeai/nodes/ws/{id}'
     },
     
@@ -118,6 +123,7 @@ export const API_ENDPOINTS = {
       STOP: '/api/edgeai/training/stop',
       BATCH_START: '/api/edgeai/training/batch-start',
       BATCH_STOP: '/api/edgeai/training/batch-stop',
+      CONFIG: '/api/edgeai/training/config/{projectId}',
       WS: '/api/edgeai/training/ws/{projectId}'
     },
     
@@ -147,6 +153,18 @@ export const API_ENDPOINTS = {
       STOP: '/api/edgeai/tasks/{id}/stop',
       BATCH_CREATE: '/api/edgeai/tasks/batch-create',
       QUEUE: '/api/edgeai/tasks/queue'
+    },
+
+    // 模型管理
+    MODELS: {
+      LIST: '/api/edgeai/models',
+      DETAIL: '/api/edgeai/models/{id}',
+      DEPLOY: '/api/edgeai/models/{id}/deploy',
+      DELETE: '/api/edgeai/models/{id}',
+      DOWNLOAD: '/api/edgeai/models/{id}/download',
+      EXPORT: '/api/edgeai/models/{id}/export',
+      STATS: '/api/edgeai/models/stats/overview',
+      PERFORMANCE: '/api/edgeai/models/{id}/performance'
     }
   }
 }

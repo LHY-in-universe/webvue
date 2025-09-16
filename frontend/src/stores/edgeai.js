@@ -95,32 +95,34 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
         edgeaiService.nodes.getNodes()
       ])
       
-      if (projectsResult && projectsResult.data) {
-        projects.value = projectsResult.data.map(project => ({
+      if (projectsResult && Array.isArray(projectsResult)) {
+        projects.value = projectsResult.map(project => ({
           id: project.id,
           name: project.name,
           description: project.description,
-          type: project.project_type || 'general',
+          type: project.type || 'general',
           status: project.status,
           progress: project.progress || 0,
           connectedNodes: project.connected_nodes || 0,
           currentEpoch: project.current_epoch || 0,
           totalEpochs: project.total_epochs || 100,
-          modelType: project.model_type || 'neural_network',
+          modelType: project.model_type || 'cnn',
           batchSize: project.batch_size || 32,
           learningRate: project.learning_rate || 0.001,
-          created: project.created_at,
-          lastUpdate: project.updated_at,
+          created: project.created,
+          lastUpdate: project.last_update,
           metrics: project.metrics || {
             accuracy: 0,
             loss: 0,
-            f1Score: 0
+            f1_score: 0,
+            precision: 0,
+            recall: 0
           }
         }))
       }
       
-      if (nodesResult && nodesResult.data) {
-        nodes.value = nodesResult.data.map(node => ({
+      if (nodesResult && Array.isArray(nodesResult)) {
+        nodes.value = nodesResult.map(node => ({
           id: node.id,
           name: node.name,
           type: node.node_type || 'edge',
@@ -143,8 +145,12 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
       return { success: true }
     } catch (error) {
       console.error('Failed to load real data:', error)
-      // Fallback to mock data
-      loadMockData()
+      connectionError.value = `API Error: ${error.message}`
+      
+      // Clear any existing data on error
+      projects.value = []
+      nodes.value = []
+      
       return { success: false, error: error.message }
     } finally {
       loading.value.projects = false
@@ -304,52 +310,79 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   }
 
   const connectWebSocket = () => {
-    // Disable WebSocket in development mode for demo purposes
-    if (import.meta.env.MODE === 'development') {
-      console.log('EdgeAI WebSocket disabled in development mode')
-      // Simulate connection for demo
-      setTimeout(() => {
-        isConnected.value = true
-        connectionError.value = null
-        console.log('EdgeAI WebSocket simulated connection (demo mode)')
-      }, 1000)
-      return
-    }
+    // Enable WebSocket in all modes, including development
+    console.log('EdgeAI WebSocket connecting...')
 
+    // Close existing connection if any
     if (ws.value) {
       ws.value.close()
+      ws.value = null
     }
 
     try {
-      // Mock WebSocket URL (in real implementation, this would be actual WebSocket server)
-      ws.value = new WebSocket('ws://localhost:8080/edgeai/ws')
-      
+      // Use proper WebSocket URL for EdgeAI monitoring
+      const wsUrl = `ws://localhost:8000/api/edgeai/nodes/ws/control-1`
+      console.log('Connecting to WebSocket:', wsUrl)
+
+      ws.value = new WebSocket(wsUrl)
+
       ws.value.onopen = () => {
         isConnected.value = true
         connectionError.value = null
         connectionRetries.value = 0
         console.log('EdgeAI WebSocket connected')
+        lastUpdate.value = new Date()
       }
 
       ws.value.onmessage = (event) => {
-        handleWebSocketMessage(JSON.parse(event.data))
+        try {
+          const data = JSON.parse(event.data)
+          handleWebSocketMessage(data)
+          lastUpdate.value = new Date()
+        } catch (parseError) {
+          console.error('Error parsing WebSocket message:', parseError, 'Raw data:', event.data)
+        }
       }
 
-      ws.value.onclose = () => {
+      ws.value.onclose = (event) => {
         isConnected.value = false
-        if (connectionRetries.value < maxRetries) {
+        console.log(`EdgeAI WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`)
+
+        // Only retry if it wasn't a manual close and we haven't exceeded max retries
+        if (event.code !== 1000 && connectionRetries.value < maxRetries) {
+          const retryDelay = 3000 * Math.pow(2, connectionRetries.value) // Exponential backoff
+          console.log(`Retrying WebSocket connection in ${retryDelay}ms (attempt ${connectionRetries.value + 1}/${maxRetries})`)
+
           setTimeout(() => {
             connectionRetries.value++
             connectWebSocket()
-          }, 3000 * Math.pow(2, connectionRetries.value))
+          }, retryDelay)
+        } else if (connectionRetries.value >= maxRetries) {
+          connectionError.value = 'WebSocket connection failed after multiple retries. Running in offline mode.'
+          console.warn('Max WebSocket retries reached. Switching to offline mode.')
         }
       }
 
       ws.value.onerror = (error) => {
+        isConnected.value = false
         connectionError.value = 'WebSocket connection failed'
-        console.error('EdgeAI WebSocket error:', error)
+        console.error('EdgeAI WebSocket error:', {
+          error,
+          readyState: ws.value?.readyState,
+          url: ws.value?.url
+        })
       }
+
+      // Set a timeout for connection establishment
+      setTimeout(() => {
+        if (ws.value && ws.value.readyState === WebSocket.CONNECTING) {
+          console.warn('WebSocket connection timeout, closing...')
+          ws.value.close()
+        }
+      }, 10000) // 10 second timeout
+
     } catch (error) {
+      isConnected.value = false
       connectionError.value = 'Failed to establish WebSocket connection'
       console.error('WebSocket connection error:', error)
     }
@@ -422,26 +455,37 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const createProject = async (projectData) => {
     loading.value.projects = true
     try {
+      // Format data for API - only send required fields
+      const apiData = {
+        name: projectData.name,
+        description: projectData.description,
+        type: projectData.type || projectData.project_type || 'manufacturing',
+        model_type: projectData.modelType || projectData.model_type || 'cnn'
+      }
+
+      console.log('EdgeAI Store - Original projectData:', projectData)
+      console.log('EdgeAI Store - Sending apiData to backend:', apiData)
+
       // Call real API to create project
-      const result = await edgeaiService.projects.createProject(projectData)
+      const result = await edgeaiService.projects.createProject(apiData)
       
-      if (result && result.data) {
+      if (result) {
         const newProject = {
-          id: result.data.id,
-          name: result.data.name,
-          description: result.data.description,
-          type: result.data.project_type || 'general',
-          status: result.data.status || 'created',
-          progress: result.data.progress || 0,
-          connectedNodes: result.data.connected_nodes || 0,
-          currentEpoch: result.data.current_epoch || 0,
-          totalEpochs: result.data.total_epochs || 100,
-          modelType: result.data.model_type || 'neural_network',
-          batchSize: result.data.batch_size || 32,
-          learningRate: result.data.learning_rate || 0.001,
-          created: result.data.created_at,
-          lastUpdate: result.data.updated_at,
-          metrics: result.data.metrics || {
+          id: result.id,
+          name: result.name,
+          description: result.description,
+          type: result.type || 'general',
+          status: result.status || 'created',
+          progress: result.progress || 0,
+          connectedNodes: result.connected_nodes || 0,
+          currentEpoch: result.current_epoch || 0,
+          totalEpochs: result.total_epochs || 100,
+          modelType: result.model_type || 'neural_network',
+          batchSize: result.batch_size || 32,
+          learningRate: result.learning_rate || 0.001,
+          created: result.created_at,
+          lastUpdate: result.updated_at,
+          metrics: result.metrics || {
             accuracy: 0,
             loss: 0,
             f1Score: 0
@@ -462,6 +506,10 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   }
 
   const updateProject = (updatedProject) => {
+    if (!updatedProject || !updatedProject.id) {
+      console.warn('Invalid project data received for update:', updatedProject)
+      return
+    }
     const index = projects.value.findIndex(p => p.id === updatedProject.id)
     if (index !== -1) {
       projects.value[index] = { ...projects.value[index], ...updatedProject }
@@ -494,6 +542,10 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
 
   // Node management
   const updateNode = (updatedNode) => {
+    if (!updatedNode || !updatedNode.id) {
+      console.warn('Invalid node data received for update:', updatedNode)
+      return
+    }
     const index = nodes.value.findIndex(n => n.id === updatedNode.id)
     if (index !== -1) {
       nodes.value[index] = { ...nodes.value[index], ...updatedNode }
@@ -537,16 +589,116 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const restartNode = async (nodeId) => {
     loading.value.operations = true
     try {
-      await new Promise(resolve => setTimeout(resolve, 1200))
-      const node = nodes.value.find(n => n.id === nodeId)
-      if (node) {
-        node.status = 'online'
-        node.cpuUsage = Math.random() * 30 + 10
-        node.memoryUsage = Math.random() * 40 + 20
-        node.lastSeen = 'just now'
+      const result = await edgeaiService.nodes.restartNode(nodeId)
+      
+      if (result && result.success !== false) {
+        // Update node in local state
+        const node = nodes.value.find(n => n.id === nodeId)
+        if (node) {
+          node.status = 'online'
+          node.lastSeen = 'just now'
+        }
+        return { success: true }
+      } else {
+        return { success: false, error: result?.message || 'Failed to restart node' }
       }
-      return { success: true }
     } catch (error) {
+      console.error('Failed to restart node:', error)
+      return { success: false, error: error.message }
+    } finally {
+      loading.value.operations = false
+    }
+  }
+
+  const addNode = async (nodeData) => {
+    loading.value.operations = true
+    try {
+      const result = await edgeaiService.nodes.addNode(nodeData)
+      
+      if (result && result.data) {
+        const newNode = {
+          id: result.data.id,
+          name: result.data.name,
+          type: result.data.node_type || 'edge',
+          status: result.data.status || 'offline',
+          project: result.data.current_project || 'unassigned',
+          location: result.data.location || 'Unknown',
+          cpuUsage: result.data.cpu_usage || 0,
+          memoryUsage: result.data.memory_usage || 0,
+          gpuUsage: result.data.gpu_usage || 0,
+          progress: result.data.progress || 0,
+          currentEpoch: result.data.current_epoch || 0,
+          totalEpochs: result.data.total_epochs || 0,
+          lastSeen: result.data.last_seen || 'unknown',
+          connections: result.data.connections || []
+        }
+        
+        nodes.value.push(newNode)
+        return { success: true, node: newNode }
+      } else {
+        return { success: false, error: 'Invalid API response' }
+      }
+    } catch (error) {
+      console.error('Failed to add node:', error)
+      return { success: false, error: error.message }
+    } finally {
+      loading.value.operations = false
+    }
+  }
+
+  const connectToNode = async (nodeId) => {
+    loading.value.operations = true
+    try {
+      const result = await edgeaiService.nodes.connectToNode(nodeId)
+      
+      if (result && result.success !== false) {
+        const node = nodes.value.find(n => n.id === nodeId)
+        if (node) {
+          node.status = 'online'
+          node.lastSeen = 'just now'
+        }
+        return { success: true }
+      } else {
+        return { success: false, error: result?.message || 'Failed to connect to node' }
+      }
+    } catch (error) {
+      console.error('Failed to connect to node:', error)
+      return { success: false, error: error.message }
+    } finally {
+      loading.value.operations = false
+    }
+  }
+
+  const disconnectFromNode = async (nodeId) => {
+    loading.value.operations = true
+    try {
+      const result = await edgeaiService.nodes.disconnectFromNode(nodeId)
+      
+      if (result && result.success !== false) {
+        const node = nodes.value.find(n => n.id === nodeId)
+        if (node) {
+          node.status = 'offline'
+          node.lastSeen = 'just now'
+        }
+        return { success: true }
+      } else {
+        return { success: false, error: result?.message || 'Failed to disconnect from node' }
+      }
+    } catch (error) {
+      console.error('Failed to disconnect from node:', error)
+      return { success: false, error: error.message }
+    } finally {
+      loading.value.operations = false
+    }
+  }
+
+  const exportNodes = async (exportParams = {}) => {
+    loading.value.operations = true
+    try {
+      const result = await edgeaiService.nodes.exportNodes(exportParams)
+      return result
+    } catch (error) {
+      console.error('Failed to export nodes:', error)
       return { success: false, error: error.message }
     } finally {
       loading.value.operations = false
@@ -577,12 +729,12 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   }
 
   // Import/Export
-  const importProject = async (projectData) => {
+  const importProject = async (formData, onProgress) => {
     loading.value.projects = true
     try {
-      // Call real API to import project
-      const result = await edgeaiService.projects.importProject(projectData)
-      
+      // Call real API to import project with correct signature
+      const result = await edgeaiService.projects.importProject(formData, onProgress)
+
       if (result && result.data) {
         const importedProject = {
           id: result.data.id,
@@ -605,7 +757,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
             f1Score: 0
           }
         }
-        
+
         projects.value.push(importedProject)
         return { success: true, project: importedProject }
       } else {
@@ -676,6 +828,10 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
     startNodeTraining,
     stopNodeTraining,
     restartNode,
+    addNode,
+    connectToNode,
+    disconnectFromNode,
+    exportNodes,
     setSelectedNode,
     updateConfig,
     refreshData,

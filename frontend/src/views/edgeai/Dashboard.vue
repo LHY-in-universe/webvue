@@ -85,7 +85,10 @@
           <div class="flex items-center justify-center mb-4">
             <ComputerDesktopIcon class="w-12 h-12 text-gray-600 dark:text-gray-400" />
           </div>
-          <div class="text-3xl font-bold text-gray-900 dark:text-white mb-2">5</div>
+          <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
+          <div v-else class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            {{ systemStats.totalProjects }}
+          </div>
           <div class="text-gray-600 dark:text-gray-400">Total Projects</div>
         </div>
 
@@ -93,7 +96,10 @@
           <div class="flex items-center justify-center mb-4">
             <ServerIcon class="w-12 h-12 text-green-600 dark:text-green-400" />
           </div>
-          <div class="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">12</div>
+          <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
+          <div v-else class="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
+            {{ systemStats.onlineNodes }}
+          </div>
           <div class="text-gray-600 dark:text-gray-400">Active Nodes</div>
         </div>
 
@@ -103,7 +109,10 @@
               <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
             </svg>
           </div>
-          <div class="text-3xl font-bold text-yellow-500 mb-2">3</div>
+          <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
+          <div v-else class="text-3xl font-bold text-yellow-500 mb-2">
+            {{ systemStats.trainingNodes }}
+          </div>
           <div class="text-gray-600 dark:text-gray-400">Training Tasks</div>
         </div>
 
@@ -111,7 +120,10 @@
           <div class="flex items-center justify-center mb-4">
             <ChartBarIcon class="w-12 h-12 text-purple-600 dark:text-purple-400" />
           </div>
-          <div class="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">87%</div>
+          <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
+          <div v-else class="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
+            {{ completionRate }}%
+          </div>
           <div class="text-gray-600 dark:text-gray-400">Completion Rate</div>
         </div>
       </div>
@@ -200,31 +212,122 @@
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
               {{ project.description }}
             </p>
-            
-            <!-- Connected Nodes -->
-            <div class="flex justify-between text-sm mb-2">
-              <span class="text-gray-500 dark:text-gray-400">Connected Nodes:</span>
-              <span class="font-semibold text-gray-900 dark:text-white">{{ project.nodes }}</span>
+
+            <!-- Model Information -->
+            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 mb-4">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-medium text-gray-600 dark:text-gray-400">MODEL INFO</span>
+                <span :class="getModelTypeBadgeColor(project.modelType)" class="px-2 py-1 rounded-full text-xs font-medium">
+                  {{ project.modelType?.toUpperCase() || 'CNN' }}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="text-gray-600 dark:text-gray-400">
+                  Batch Size: <span class="font-medium text-gray-900 dark:text-white">{{ project.batchSize || 32 }}</span>
+                </div>
+                <div class="text-gray-600 dark:text-gray-400">
+                  Learning Rate: <span class="font-medium text-gray-900 dark:text-white">{{ project.learningRate || 0.001 }}</span>
+                </div>
+              </div>
             </div>
-            
-            <!-- Training Progress -->
-            <div class="flex justify-between text-sm mb-2">
-              <span class="text-gray-500 dark:text-gray-400">Training Progress:</span>
-              <span class="font-semibold text-gray-900 dark:text-white">{{ project.progress }}%</span>
+
+            <!-- Performance Metrics -->
+            <div v-if="project.metrics && project.status !== 'created'" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mb-4">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-medium text-blue-600 dark:text-blue-400">PERFORMANCE</span>
+                <div class="flex items-center">
+                  <div class="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
+                  <span class="text-xs text-blue-600 dark:text-blue-400">Live</span>
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-2">
+                <div class="text-center">
+                  <div class="text-lg font-bold text-blue-600 dark:text-blue-400">
+                    {{ (project.metrics?.accuracy || 0).toFixed(1) }}%
+                  </div>
+                  <div class="text-xs text-gray-600 dark:text-gray-400">Accuracy</div>
+                </div>
+                <div class="text-center">
+                  <div class="text-lg font-bold text-green-600 dark:text-green-400">
+                    {{ (project.metrics?.f1Score || 0).toFixed(1) }}
+                  </div>
+                  <div class="text-xs text-gray-600 dark:text-gray-400">F1 Score</div>
+                </div>
+                <div class="text-center">
+                  <div class="text-lg font-bold text-orange-600 dark:text-orange-400">
+                    {{ (project.metrics?.loss || 0).toFixed(3) }}
+                  </div>
+                  <div class="text-xs text-gray-600 dark:text-gray-400">Loss</div>
+                </div>
+              </div>
             </div>
-            
-            <!-- Progress Bar -->
-            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
-              <div 
-                class="bg-green-500 h-2 rounded-full transition-all duration-300"
-                :style="{ width: project.progress + '%' }"
-              ></div>
+
+            <!-- Training Status & Progress -->
+            <div class="mb-4">
+              <div class="flex justify-between text-sm mb-2">
+                <span class="text-gray-500 dark:text-gray-400">Connected Nodes:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ project.connectedNodes || project.nodes }}</span>
+              </div>
+
+              <div class="flex justify-between text-sm mb-2">
+                <span class="text-gray-500 dark:text-gray-400">Training Progress:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ project.progress }}%</span>
+              </div>
+
+              <!-- Epoch Information -->
+              <div v-if="project.currentEpoch || project.totalEpochs" class="flex justify-between text-sm mb-2">
+                <span class="text-gray-500 dark:text-gray-400">Epochs:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">
+                  {{ project.currentEpoch || 0 }} / {{ project.totalEpochs || 100 }}
+                </span>
+              </div>
+
+              <!-- Progress Bar -->
+              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+                <div
+                  :class="getProgressBarColor(project.status, project.progress)"
+                  class="h-2 rounded-full transition-all duration-300"
+                  :style="{ width: project.progress + '%' }"
+                ></div>
+              </div>
+
+              <!-- ETA and Speed -->
+              <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span v-if="project.status === 'training'">ETA: {{ calculateETA(project) }}</span>
+                <span v-else-if="project.status === 'active' || project.status === 'completed'">Status: Completed</span>
+                <span v-else>Status: {{ project.status || 'Idle' }}</span>
+
+                <span v-if="project.status === 'training'">{{ calculateTrainingSpeed(project) }} epochs/hr</span>
+                <span v-else-if="project.status === 'active' && project.totalEpochs">{{ project.currentEpoch || 0 }}/{{ project.totalEpochs }} epochs</span>
+              </div>
             </div>
-            
+
+            <!-- Resource Usage (if available) -->
+            <div v-if="project.resourceUsage" class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 mb-4">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-medium text-yellow-600 dark:text-yellow-400">RESOURCES</span>
+                <span class="text-xs text-yellow-600 dark:text-yellow-400">Live Usage</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div class="text-center">
+                  <div class="text-sm font-bold text-yellow-600 dark:text-yellow-400">
+                    {{ project.resourceUsage.cpu || 0 }}%
+                  </div>
+                  <div class="text-xs text-gray-600 dark:text-gray-400">CPU</div>
+                </div>
+                <div class="text-center">
+                  <div class="text-sm font-bold text-yellow-600 dark:text-yellow-400">
+                    {{ project.resourceUsage.memory || 0 }}%
+                  </div>
+                  <div class="text-xs text-gray-600 dark:text-gray-400">Memory</div>
+                </div>
+              </div>
+            </div>
+
             <!-- Timestamps -->
-            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-600">
               <span>Created: {{ project.created }}</span>
-              <span>Updated: {{ project.lastUpdated }}</span>
+              <span>Updated: {{ project.lastUpdate || project.lastUpdated || 'Unknown' }}</span>
             </div>
           </div>
         </div>
@@ -239,6 +342,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
+import { useUIStore } from '@/stores/ui'
 import { useEdgeAIStore } from '@/stores/edgeai'
 import { useEdgeAIStats, useEdgeAILifecycle } from '@/composables/useEdgeAI'
 import { useApiOptimization } from '@/composables/useApiOptimization'
@@ -271,6 +375,7 @@ import {
 const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+const uiStore = useUIStore()
 const edgeaiStore = useEdgeAIStore()
 const { systemStats, getTotalResources } = useEdgeAIStats()
 const { cachedApiCall, clearCache } = useApiOptimization()
@@ -289,11 +394,17 @@ const error = ref(null)
 const refreshInterval = ref(null)
 
 
-const activeNodes = computed(() => systemStats.value.onlineNodes)
-const runningTasks = computed(() => systemStats.value.trainingNodes)
-const completedTasks = computed(() => systemStats.value.activeProjects)
-const avgResponseTime = ref(245)
-const offlineNodes = computed(() => systemStats.value.totalNodes - systemStats.value.onlineNodes)
+// Computed properties for dashboard statistics
+const completionRate = computed(() => {
+  const projects = edgeaiStore.projects || []
+  if (projects.length === 0) return 0
+
+  const completedProjects = projects.filter(project =>
+    project.status === 'Completed' || project.progress >= 100
+  ).length
+
+  return Math.round((completedProjects / projects.length) * 100)
+})
 
 const totalResources = computed(() => getTotalResources())
 
@@ -329,16 +440,20 @@ const loadDashboardData = async () => {
   const pageMonitor = performanceMonitor.monitorPageLoad('EdgeAIDashboard')
   loading.value = true
   error.value = null
-  
+
   try {
-    // Load projects and system logs in parallel
-    const [projectsResult, logsResult] = await Promise.all([
-      cachedApiCall('edgeai-projects', 
-        () => edgeaiService.projects.getProjects(), 
+    // Load projects, nodes, and system logs in parallel
+    const [projectsResult, nodesResult, logsResult] = await Promise.all([
+      cachedApiCall('edgeai-projects',
+        () => edgeaiService.projects.getProjects(),
         2 * 60 * 1000 // Cache for 2 minutes
       ),
-      cachedApiCall('edgeai-system-logs', 
-        () => edgeaiService.logs.getLogs(), 
+      cachedApiCall('edgeai-nodes',
+        () => edgeaiService.nodes.getNodes(),
+        1 * 60 * 1000 // Cache for 1 minute
+      ),
+      cachedApiCall('edgeai-system-logs',
+        () => edgeaiService.logs.getLogs(),
         30 * 1000 // Cache for 30 seconds
       )
     ])
@@ -359,9 +474,36 @@ const loadDashboardData = async () => {
       edgeaiStore.projects.splice(0, edgeaiStore.projects.length, ...transformedProjects)
     }
 
-    // Update system logs
-    if (logsResult && Array.isArray(logsResult)) {
-      systemLogs.value = logsResult.map(log => ({
+    // Update store with real node data
+    if (nodesResult && Array.isArray(nodesResult)) {
+      // Transform backend node data to match frontend format
+      const transformedNodes = nodesResult.map(node => ({
+        id: node.id,
+        name: node.name,
+        status: node.status || 'offline',
+        location: node.location || 'Unknown',
+        project: node.project_id || 'Unassigned',
+        cpuUsage: node.cpu_usage || 0,
+        memoryUsage: node.memory_usage || 0,
+        gpuUsage: node.gpu_usage || 0,
+        activeTasks: node.active_tasks || 0,
+        uptime: node.uptime || '0 minutes',
+        lastSeen: node.last_seen || 'Unknown',
+        hardware: {
+          cpu: node.hardware?.cpu || 'Unknown',
+          memory: node.hardware?.memory || 'Unknown',
+          storage: node.hardware?.storage || 'Unknown',
+          gpu: node.hardware?.gpu || null
+        },
+        recentActivity: node.recent_activity || []
+      }))
+      edgeaiStore.nodes.splice(0, edgeaiStore.nodes.length, ...transformedNodes)
+    }
+
+    // Update system logs (handle paginated response)
+    if (logsResult) {
+      const logItems = Array.isArray(logsResult) ? logsResult : (logsResult.items || [])
+      systemLogs.value = logItems.map(log => ({
         id: log.id,
         message: log.message,
         time: log.timestamp || log.time || 'Unknown'
@@ -371,31 +513,77 @@ const loadDashboardData = async () => {
     pageMonitor.end({ success: true })
   } catch (err) {
     console.error('Failed to load EdgeAI dashboard data:', err)
-    error.value = err.message || 'Failed to load dashboard data'
-    pageMonitor.end({ success: false, error: err.message })
+
+    // Handle different types of errors
+    let errorMessage = 'Failed to load dashboard data'
+    if (err?.message) {
+      errorMessage = err.message
+    } else if (typeof err === 'string') {
+      errorMessage = err
+    } else if (err?.error) {
+      errorMessage = err.error
+    }
+
+    error.value = errorMessage
+    pageMonitor.end({ success: false, error: errorMessage })
+
+    // Show user-friendly notification on error
+    try {
+      uiStore.addNotification({
+        type: 'error',
+        title: 'Dashboard Load Failed',
+        message: 'Unable to load dashboard data. Please check your connection and try again.'
+      })
+    } catch (notifError) {
+      console.error('Failed to show notification:', notifError)
+    }
   } finally {
     loading.value = false
   }
 }
 
-// Setup auto-refresh
+// Setup auto-refresh with intelligent caching
 const setupAutoRefresh = () => {
   // Clear any existing interval
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
   }
-  
+
   // Set up new interval for every 30 seconds
-  refreshInterval.value = setInterval(() => {
-    if (!loading.value) {
-      loadDashboardData()
+  refreshInterval.value = setInterval(async () => {
+    if (!loading.value && !isOffline.value) {
+      // Clear specific caches before refresh to get fresh data
+      clearCache('edgeai-projects')
+      clearCache('edgeai-nodes')
+      clearCache('edgeai-system-logs')
+
+      await loadDashboardData()
     }
   }, 30 * 1000)
 }
 
+// Manual refresh function for user-triggered refresh
+const refreshDashboard = async () => {
+  if (loading.value) return
+
+  // Clear all caches for manual refresh
+  clearCache()
+  await loadDashboardData()
+
+  uiStore.addNotification({
+    type: 'success',
+    title: 'Dashboard Refreshed',
+    message: 'Dashboard data has been updated with the latest information.'
+  })
+}
+
 // Component lifecycle
 onMounted(async () => {
+  // Initialize EdgeAI store first
+  await edgeaiStore.initializeStore()
+  // Then load dashboard data
   await loadDashboardData()
+  // Setup auto-refresh
   setupAutoRefresh()
 })
 
@@ -403,7 +591,10 @@ onUnmounted(() => {
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
   }
-  clearCache() // Clear API cache on unmount
+  // Cleanup EdgeAI store connections
+  edgeaiStore.cleanup()
+  // Clear API cache on unmount
+  clearCache()
 })
 
 const logout = () => {
@@ -484,11 +675,87 @@ const openProjectVisualization = (project) => {
 // Utility functions for project display
 const getStatusDotColor = (status) => {
   const colors = {
+    training: 'bg-blue-500',
     Training: 'bg-blue-500',
-    Completed: 'bg-green-500', 
+    completed: 'bg-green-500',
+    Completed: 'bg-green-500',
+    active: 'bg-green-500',
+    Active: 'bg-green-500',
+    idle: 'bg-gray-500',
     Idle: 'bg-gray-500',
+    error: 'bg-red-500',
     Error: 'bg-red-500'
   }
   return colors[status] || 'bg-gray-500'
+}
+
+// Helper functions for enhanced project card visualization
+const getModelTypeBadgeColor = (modelType) => {
+  const colors = {
+    cnn: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
+    rnn: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300',
+    transformer: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300',
+    lstm: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300',
+    gru: 'bg-pink-100 text-pink-800 dark:bg-pink-900/50 dark:text-pink-300'
+  }
+  return colors[modelType?.toLowerCase()] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+}
+
+const getProgressBarColor = (status, progress) => {
+  if (status === 'error') return 'bg-red-500'
+  if (status === 'completed' || status === 'active') return 'bg-green-500'
+  if (status === 'training') {
+    if (progress > 80) return 'bg-blue-500'
+    if (progress > 50) return 'bg-yellow-500'
+    return 'bg-orange-500'
+  }
+  return 'bg-gray-500'
+}
+
+const calculateETA = (project) => {
+  if (!project || project.status !== 'training') return 'N/A'
+
+  const { currentEpoch = 0, totalEpochs = 100, progress = 0 } = project
+
+  // More lenient check - only require currentEpoch > 0 and totalEpochs > currentEpoch
+  if (currentEpoch <= 0 || totalEpochs <= currentEpoch) return 'Calculating...'
+
+  // Estimate based on current progress rate
+  const epochsRemaining = totalEpochs - currentEpoch
+  const averageTimePerEpoch = 2.5 // Assume 2.5 minutes per epoch
+  const estimatedMinutes = epochsRemaining * averageTimePerEpoch
+
+  if (estimatedMinutes < 60) {
+    return `${Math.round(estimatedMinutes)}m`
+  } else if (estimatedMinutes < 1440) {
+    const hours = Math.floor(estimatedMinutes / 60)
+    const minutes = Math.round(estimatedMinutes % 60)
+    return `${hours}h ${minutes}m`
+  } else {
+    const days = Math.floor(estimatedMinutes / 1440)
+    const hours = Math.floor((estimatedMinutes % 1440) / 60)
+    return `${days}d ${hours}h`
+  }
+}
+
+const calculateTrainingSpeed = (project) => {
+  if (!project || project.status !== 'training') return '0'
+
+  const { currentEpoch = 0 } = project
+
+  // Simulate training speed based on model type and current epoch
+  const baseSpeed = {
+    cnn: 24,
+    rnn: 18,
+    transformer: 12,
+    lstm: 20,
+    gru: 22
+  }
+
+  const speed = baseSpeed[project.modelType?.toLowerCase()] || 20
+
+  // Add some randomness to make it more realistic
+  const variation = (Math.random() - 0.5) * 4
+  return Math.max(1, Math.round(speed + variation))
 }
 </script>

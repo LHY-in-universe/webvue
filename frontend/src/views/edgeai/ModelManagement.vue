@@ -430,7 +430,7 @@ const deployModel = async (model) => {
     return // Already deployed
   }
 
-  const monitor = performanceMonitor.startTimer('EdgeAIModelDeploy')
+  const monitor = performanceMonitor.monitorPageLoad('EdgeAIModelDeploy')
   
   try {
     const result = await edgeaiService.models.deployModel(model.id)
@@ -460,7 +460,7 @@ const deleteModel = async (model) => {
     return
   }
 
-  const monitor = performanceMonitor.startTimer('EdgeAIModelDelete')
+  const monitor = performanceMonitor.monitorPageLoad('EdgeAIModelDelete')
   
   try {
     const result = await edgeaiService.models.deleteModel(model.id)

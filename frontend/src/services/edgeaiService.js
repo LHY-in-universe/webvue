@@ -84,6 +84,47 @@ export const projectService = {
     const url = API_ENDPOINTS.EDGE_AI.PROJECTS.STOP.replace('{id}', projectId)
     const response = await apiClient.post(url)
     return response.data
+  },
+
+  /**
+   * 获取项目模板
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 模板列表
+   */
+  async getTemplates(params = {}) {
+    const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.PROJECTS.TEMPLATES, { params })
+    return response.data
+  },
+
+  /**
+   * 获取导入历史
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 导入历史
+   */
+  async getImportHistory(params = {}) {
+    const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.PROJECTS.IMPORT_HISTORY, { params })
+    return response.data
+  },
+
+  /**
+   * 从URL加载配置
+   * @param {string} url - 配置URL
+   * @returns {Promise<Object>} 配置数据
+   */
+  async loadFromUrl(url) {
+    const response = await apiClient.post(API_ENDPOINTS.EDGE_AI.PROJECTS.LOAD_FROM_URL, { url })
+    return response.data
+  },
+
+  /**
+   * 获取单个项目详情
+   * @param {string} projectId - 项目ID
+   * @returns {Promise<Object>} 项目详情
+   */
+  async getProject(projectId) {
+    const url = API_ENDPOINTS.EDGE_AI.PROJECTS.DETAIL.replace('{id}', projectId)
+    const response = await apiClient.get(url)
+    return response.data
   }
 }
 
@@ -137,6 +178,83 @@ export const nodeService = {
   },
 
   /**
+   * 添加新节点
+   * @param {Object} nodeData - 节点数据
+   * @returns {Promise<Object>} 添加结果
+   */
+  async addNode(nodeData) {
+    const response = await apiClient.post(API_ENDPOINTS.EDGE_AI.NODES.LIST, nodeData)
+    return response.data
+  },
+
+  /**
+   * 重启节点
+   * @param {string} nodeId - 节点ID
+   * @returns {Promise<Object>} 重启结果
+   */
+  async restartNode(nodeId) {
+    const url = API_ENDPOINTS.EDGE_AI.NODES.OPERATION.replace('{id}', nodeId)
+    const response = await apiClient.post(url, { operation: 'restart' })
+    return response.data
+  },
+
+  /**
+   * 连接到节点
+   * @param {string} nodeId - 节点ID
+   * @returns {Promise<Object>} 连接结果
+   */
+  async connectToNode(nodeId) {
+    const url = API_ENDPOINTS.EDGE_AI.NODES.OPERATION.replace('{id}', nodeId)
+    const response = await apiClient.post(url, { operation: 'start' })
+    return response.data
+  },
+
+  /**
+   * 断开节点连接
+   * @param {string} nodeId - 节点ID
+   * @returns {Promise<Object>} 断开结果
+   */
+  async disconnectFromNode(nodeId) {
+    const url = API_ENDPOINTS.EDGE_AI.NODES.OPERATION.replace('{id}', nodeId)
+    const response = await apiClient.post(url, { operation: 'stop' })
+    return response.data
+  },
+
+  /**
+   * 导出节点数据
+   * @param {Object} exportParams - 导出参数
+   * @returns {Promise<Object>} 导出结果
+   */
+  async exportNodes(exportParams = {}) {
+    const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.NODES.LIST, { 
+      params: { ...exportParams, export: true },
+      responseType: 'blob'
+    })
+    
+    // 创建下载
+    const blob = new Blob([response.data], { type: 'text/csv' })
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = 'nodes_export.csv'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(downloadUrl)
+    
+    return { success: true, message: 'Nodes exported successfully' }
+  },
+
+  /**
+   * 获取节点统计
+   * @returns {Promise<Object>} 节点统计
+   */
+  async getNodeStats() {
+    const response = await apiClient.get('/api/edgeai/nodes/stats/overview')
+    return response.data
+  },
+
+  /**
    * 创建节点WebSocket连接
    * @param {string} nodeId - 节点ID
    * @param {Object} callbacks - 回调函数
@@ -172,6 +290,17 @@ export const nodeService = {
     }
 
     return ws
+  },
+
+  /**
+   * 获取可视化节点数据
+   * @param {string} projectId - 项目ID
+   * @returns {Promise<Object>} 可视化节点数据
+   */
+  async getVisualizationNodes(projectId) {
+    const url = API_ENDPOINTS.EDGE_AI.NODES.VISUALIZATION.replace('{projectId}', projectId)
+    const response = await apiClient.get(url)
+    return response.data
   }
 }
 
@@ -255,6 +384,17 @@ export const trainingService = {
     }
 
     return ws
+  },
+
+  /**
+   * 获取训练配置
+   * @param {string} projectId - 项目ID
+   * @returns {Promise<Object>} 训练配置
+   */
+  async getTrainingConfig(projectId) {
+    const url = API_ENDPOINTS.EDGE_AI.TRAINING.CONFIG.replace('{projectId}', projectId)
+    const response = await apiClient.get(url)
+    return response.data
   }
 }
 
@@ -451,6 +591,100 @@ export const taskService = {
   }
 }
 
+/**
+ * 模型管理服务
+ */
+export const modelService = {
+  /**
+   * 获取模型列表
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 模型列表
+   */
+  async getModels(params = {}) {
+    const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.MODELS.LIST, { params })
+    return response.data
+  },
+
+  /**
+   * 获取模型详情
+   * @param {string} modelId - 模型ID
+   * @returns {Promise<Object>} 模型详情
+   */
+  async getModel(modelId) {
+    const url = API_ENDPOINTS.EDGE_AI.MODELS.DETAIL.replace('{id}', modelId)
+    const response = await apiClient.get(url)
+    return response.data
+  },
+
+  /**
+   * 部署模型
+   * @param {string} modelId - 模型ID
+   * @param {Object} deployConfig - 部署配置
+   * @returns {Promise<Object>} 部署结果
+   */
+  async deployModel(modelId, deployConfig) {
+    const url = API_ENDPOINTS.EDGE_AI.MODELS.DEPLOY.replace('{id}', modelId)
+    const response = await apiClient.post(url, deployConfig)
+    return response.data
+  },
+
+  /**
+   * 删除模型
+   * @param {string} modelId - 模型ID
+   * @returns {Promise<Object>} 删除结果
+   */
+  async deleteModel(modelId) {
+    const url = API_ENDPOINTS.EDGE_AI.MODELS.DELETE.replace('{id}', modelId)
+    const response = await apiClient.delete(url)
+    return response.data
+  },
+
+  /**
+   * 下载模型
+   * @param {string} modelId - 模型ID
+   * @param {string} filename - 文件名
+   * @returns {Promise} 下载响应
+   */
+  async downloadModel(modelId, filename) {
+    const url = API_ENDPOINTS.EDGE_AI.MODELS.DOWNLOAD.replace('{id}', modelId)
+    return await downloadFile(url, filename || `model_${modelId}.zip`)
+  },
+
+  /**
+   * 导出模型
+   * @param {string} modelId - 模型ID
+   * @param {Object} exportConfig - 导出配置
+   * @returns {Promise<Object>} 导出结果
+   */
+  async exportModel(modelId, exportConfig) {
+    const url = API_ENDPOINTS.EDGE_AI.MODELS.EXPORT.replace('{id}', modelId)
+    const response = await apiClient.post(url, exportConfig)
+    return response.data
+  },
+
+  /**
+   * 获取模型统计
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 模型统计
+   */
+  async getModelStats(params = {}) {
+    const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.MODELS.STATS, { params })
+    return response.data
+  },
+
+  /**
+   * 获取模型性能指标
+   * @param {string} modelId - 模型ID
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 模型性能指标
+   */
+  async getModelPerformance(modelId, params = {}) {
+    const url = API_ENDPOINTS.EDGE_AI.MODELS.PERFORMANCE.replace('{id}', modelId)
+    const response = await apiClient.get(url, { params })
+    return response.data
+  }
+}
+
 // 导出所有服务
 export default {
   projects: projectService,
@@ -458,5 +692,6 @@ export default {
   training: trainingService,
   performance: performanceService,
   logs: logService,
-  tasks: taskService
+  tasks: taskService,
+  models: modelService
 }

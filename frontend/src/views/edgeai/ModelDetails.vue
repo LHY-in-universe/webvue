@@ -317,8 +317,8 @@ const loadModelDetails = async () => {
         () => edgeaiService.models.getModel(modelId), 
         120 * 1000 // Cache for 2 minutes
       ),
-      cachedApiCall(`edgeai-model-stats-${modelId}`, 
-        () => edgeaiService.models.getModelStats(modelId), 
+      cachedApiCall(`edgeai-model-stats-${modelId}`,
+        () => edgeaiService.models.getModelStats(),
         60 * 1000 // Cache for 1 minute
       ),
       cachedApiCall(`edgeai-model-performance-${modelId}`, 
@@ -332,17 +332,22 @@ const loadModelDetails = async () => {
         id: modelResult.id,
         name: modelResult.name,
         description: modelResult.description,
-        type: modelResult.model_type || 'Custom',
+        type: modelResult.type || 'Custom',
         version: modelResult.version,
         status: modelResult.status,
-        size: formatFileSize(modelResult.file_size),
+        size: modelResult.size || 'Unknown',
         architecture: modelResult.architecture || 'Unknown',
         framework: modelResult.framework || 'Unknown',
         parameters: modelResult.parameters || 'N/A',
         inputSize: modelResult.input_size || 'N/A',
         license: modelResult.license || 'N/A',
-        created: formatDate(modelResult.created_at),
-        lastUpdated: formatRelativeTime(modelResult.updated_at)
+        created: modelResult.created_date || 'N/A',
+        lastUpdated: modelResult.last_updated || 'N/A',
+        accuracy: modelResult.accuracy || 0,
+        deploymentCount: modelResult.deployment_count || 0,
+        projects: modelResult.projects || [],
+        metrics: modelResult.metrics || {},
+        performance: modelResult.performance || {}
       }
     }
     

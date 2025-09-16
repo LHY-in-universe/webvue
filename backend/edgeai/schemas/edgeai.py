@@ -30,6 +30,13 @@ class ProjectType(str, Enum):
     MEDICAL = "medical"
     RETAIL = "retail"
     AGRICULTURE = "agriculture"
+    FINANCE = "finance"
+    ENERGY = "energy"
+    SECURITY = "security"
+    LOGISTICS = "logistics"
+    EDUCATION = "education"
+    AUTOMOTIVE = "automotive"
+    ENVIRONMENT = "environment"
 
 class ModelType(str, Enum):
     CNN = "cnn"

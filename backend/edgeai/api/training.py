@@ -219,17 +219,17 @@ async def stop_batch_training(project_ids: List[str]):
     批量停止训练
     """
     results = []
-    
+
     for project_id in project_ids:
         try:
             sessions_to_stop = [
                 session_id for session_id, session in active_training_sessions.items()
                 if session["project_id"] == project_id
             ]
-            
+
             for session_id in sessions_to_stop:
                 active_training_sessions[session_id]["status"] = "stopped"
-            
+
             results.append({
                 "project_id": project_id,
                 "success": True,
@@ -241,8 +241,157 @@ async def stop_batch_training(project_ids: List[str]):
                 "success": False,
                 "error": str(e)
             })
-    
+
     return {
         "results": results,
         "total_stopped": len([r for r in results if r["success"]])
+    }
+
+@router.get("/config/{project_id}")
+async def get_training_config(project_id: str):
+    """
+    获取特定项目的训练配置
+    """
+    # 模拟训练配置数据
+    training_configs = {
+        "proj-001": {
+            "ai_model": "Smart Manufacturing CNN",
+            "strategy": "Federated Learning",
+            "protocol": "FedAvg",
+            "target_accuracy": "≥95%",
+            "estimated_completion": "2 hours",
+            "model_architecture": {
+                "type": "cnn",
+                "layers": [
+                    {"type": "conv2d", "filters": 32, "kernel_size": 3, "activation": "relu"},
+                    {"type": "maxpooling2d", "pool_size": 2},
+                    {"type": "conv2d", "filters": 64, "kernel_size": 3, "activation": "relu"},
+                    {"type": "maxpooling2d", "pool_size": 2},
+                    {"type": "flatten"},
+                    {"type": "dense", "units": 128, "activation": "relu"},
+                    {"type": "dropout", "rate": 0.5},
+                    {"type": "dense", "units": 10, "activation": "softmax"}
+                ]
+            },
+            "hyperparameters": {
+                "batch_size": 32,
+                "learning_rate": 0.001,
+                "total_epochs": 100,
+                "optimizer": "adam",
+                "loss_function": "categorical_crossentropy"
+            },
+            "federated_config": {
+                "min_clients": 3,
+                "max_clients": 10,
+                "rounds": 100,
+                "client_fraction": 0.8,
+                "local_epochs": 5
+            }
+        },
+        "proj-002": {
+            "ai_model": "Traffic Flow RNN",
+            "strategy": "Distributed Training",
+            "protocol": "AllReduce",
+            "target_accuracy": "≥90%",
+            "estimated_completion": "3 hours",
+            "model_architecture": {
+                "type": "rnn",
+                "layers": [
+                    {"type": "lstm", "units": 64, "return_sequences": True},
+                    {"type": "dropout", "rate": 0.3},
+                    {"type": "lstm", "units": 32, "return_sequences": False},
+                    {"type": "dropout", "rate": 0.3},
+                    {"type": "dense", "units": 16, "activation": "relu"},
+                    {"type": "dense", "units": 4, "activation": "softmax"}
+                ]
+            },
+            "hyperparameters": {
+                "batch_size": 64,
+                "learning_rate": 0.0001,
+                "total_epochs": 150,
+                "optimizer": "rmsprop",
+                "loss_function": "sparse_categorical_crossentropy"
+            },
+            "distributed_config": {
+                "num_workers": 4,
+                "sync_mode": "synchronous",
+                "gradient_compression": True
+            }
+        },
+        "proj-003": {
+            "ai_model": "Medical Diagnosis Transformer",
+            "strategy": "Secure Aggregation",
+            "protocol": "SecAgg",
+            "target_accuracy": "≥98%",
+            "estimated_completion": "5 hours",
+            "model_architecture": {
+                "type": "transformer",
+                "layers": [
+                    {"type": "multi_head_attention", "heads": 8, "d_model": 512},
+                    {"type": "layer_normalization"},
+                    {"type": "feed_forward", "d_ff": 2048},
+                    {"type": "layer_normalization"},
+                    {"type": "global_average_pooling"},
+                    {"type": "dense", "units": 256, "activation": "relu"},
+                    {"type": "dropout", "rate": 0.4},
+                    {"type": "dense", "units": 3, "activation": "softmax"}
+                ]
+            },
+            "hyperparameters": {
+                "batch_size": 16,
+                "learning_rate": 0.0005,
+                "total_epochs": 200,
+                "optimizer": "adamw",
+                "loss_function": "categorical_crossentropy"
+            },
+            "security_config": {
+                "privacy_budget": 1.0,
+                "noise_multiplier": 1.3,
+                "max_grad_norm": 1.0,
+                "secure_aggregation": True
+            }
+        }
+    }
+
+    # 默认配置
+    default_config = {
+        "ai_model": "EdgeAI Neural Network",
+        "strategy": "Federated Learning",
+        "protocol": "FedAvg",
+        "target_accuracy": "≥85%",
+        "estimated_completion": "1.5 hours",
+        "model_architecture": {
+            "type": "neural_network",
+            "layers": [
+                {"type": "dense", "units": 128, "activation": "relu"},
+                {"type": "dropout", "rate": 0.3},
+                {"type": "dense", "units": 64, "activation": "relu"},
+                {"type": "dropout", "rate": 0.3},
+                {"type": "dense", "units": 32, "activation": "relu"},
+                {"type": "dense", "units": 10, "activation": "softmax"}
+            ]
+        },
+        "hyperparameters": {
+            "batch_size": 32,
+            "learning_rate": 0.001,
+            "total_epochs": 100,
+            "optimizer": "adam",
+            "loss_function": "categorical_crossentropy"
+        },
+        "federated_config": {
+            "min_clients": 2,
+            "max_clients": 8,
+            "rounds": 50,
+            "client_fraction": 0.6,
+            "local_epochs": 3
+        }
+    }
+
+    # 返回特定项目配置或默认配置
+    config = training_configs.get(project_id, default_config)
+
+    return {
+        "project_id": project_id,
+        "config": config,
+        "last_updated": "2024-01-15T10:30:00Z"
     }

@@ -48,19 +48,41 @@
               :error="errors.name"
             />
 
-
+            <div class="space-y-2">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Project Type
+              </label>
+              <select
+                v-model="projectData.type"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              >
+                <option value="manufacturing">Manufacturing</option>
+                <option value="healthcare">Healthcare</option>
+                <option value="finance">Finance</option>
+                <option value="retail">Retail</option>
+                <option value="transportation">Transportation</option>
+                <option value="research">Research</option>
+                <option value="general">General</option>
+              </select>
+            </div>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Project Description
+              Project Description *
             </label>
             <textarea
               v-model="projectData.description"
               rows="3"
               placeholder="Describe your EdgeAI project and its objectives"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+              :class="[
+                'w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none',
+                errors.description ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+              ]"
             ></textarea>
+            <p v-if="errors.description" class="mt-1 text-sm text-red-600 dark:text-red-400">
+              {{ errors.description }}
+            </p>
           </div>
 
           <!-- Model Configuration -->
@@ -87,30 +109,30 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Training Strategy
                 </label>
-                <select 
-                  v-model="projectData.modelType" 
+                <select
+                  v-model="projectData.trainingStrategy"
                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
-                  <option value="sft">sft</option>
-                  <option value="dpo">dpo</option>
-                  <option value="grpo">grpo</option>
-                  <option value="ipo">ipo</option>
-                  <option value="kto">kto</option>
+                  <option value="sft">SFT (Supervised Fine-Tuning)</option>
+                  <option value="dpo">DPO (Direct Preference Optimization)</option>
+                  <option value="grpo">GRPO (Generalized RPO)</option>
+                  <option value="ipo">IPO (Identity Policy Optimization)</option>
+                  <option value="kto">KTO (Kahneman-Tversky Optimization)</option>
                 </select>
               </div>
               
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Protocal
+                  Protocol
                 </label>
-                <select 
-                  v-model="projectData.modelType" 
+                <select
+                  v-model="projectData.protocol"
                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
-                  <option value="fedavg">fedavg</option>
-                  <option value="fedygi">fedygi</option>
-                  <option value="fedadam">fedadam</option>
-                  <option value="fedavgm">fedavgm</option>
+                  <option value="fedavg">FedAvg (Federated Averaging)</option>
+                  <option value="fedygi">FedYgi (Federated YGI)</option>
+                  <option value="fedadam">FedAdam (Federated Adam)</option>
+                  <option value="fedavgm">FedAvgM (Federated Averaging with Momentum)</option>
                 </select>
               </div>
 
@@ -125,6 +147,8 @@
                 placeholder="100"
                 min="1"
                 max="1000"
+                required
+                :error="errors.epochs"
               />
 
               <Input
@@ -134,6 +158,8 @@
                 placeholder="32"
                 min="1"
                 max="512"
+                required
+                :error="errors.batchSize"
               />
 
               <Input
@@ -144,10 +170,9 @@
                 placeholder="0.001"
                 min="0.0001"
                 max="1"
+                required
+                :error="errors.learningRate"
               />
-
-
-
             </div>
           </div>
 
@@ -163,6 +188,8 @@
                 placeholder="5"
                 min="1"
                 max="50"
+                required
+                :error="errors.targetNodes"
               />
 
               <div class="space-y-2">
@@ -202,6 +229,7 @@
                   placeholder="1"
                   min="1"
                   size="sm"
+                  :error="errors.minNodes"
                 />
                 <Input
                   v-model.number="projectData.maxNodes"
@@ -210,6 +238,7 @@
                   placeholder="10"
                   min="1"
                   size="sm"
+                  :error="errors.maxNodes"
                 />
               </div>
             </div>
@@ -306,19 +335,27 @@ const creating = ref(false)
 const errors = ref({})
 
 const projectData = ref({
+  // Basic Information
   name: '',
   type: 'manufacturing',
   description: '',
-  modelType: 'cnn',
+
+  // Model Configuration
+  modelType: 'Gemma',
+  trainingStrategy: 'sft',
+  protocol: 'fedavg',
   epochs: 100,
   batchSize: 32,
   learningRate: 0.001,
-  optimizer: 'adam',
+
+  // Node Configuration
   targetNodes: 5,
   resourceLevel: 'medium',
   autoScaling: false,
   minNodes: 1,
   maxNodes: 10,
+
+  // Advanced Settings
   enableMonitoring: true,
   dataEncryption: true,
   checkpointing: true
@@ -335,20 +372,94 @@ const goBack = () => {
 const createProject = async () => {
   creating.value = true
   errors.value = {}
-  
+
   try {
-    // Validation
+    // Comprehensive validation
     if (!projectData.value.name.trim()) {
       errors.value.name = 'Project name is required'
       return
     }
 
-    // Use EdgeAI store to create project
-    const result = await edgeaiStore.createProject(projectData.value)
-    
+    if (!projectData.value.description.trim()) {
+      errors.value.description = 'Project description is required'
+      return
+    }
+
+    if (projectData.value.epochs < 1 || projectData.value.epochs > 1000) {
+      errors.value.epochs = 'Epochs must be between 1 and 1000'
+      return
+    }
+
+    if (projectData.value.batchSize < 1 || projectData.value.batchSize > 512) {
+      errors.value.batchSize = 'Batch size must be between 1 and 512'
+      return
+    }
+
+    if (projectData.value.learningRate < 0.0001 || projectData.value.learningRate > 1) {
+      errors.value.learningRate = 'Learning rate must be between 0.0001 and 1'
+      return
+    }
+
+    if (projectData.value.targetNodes < 1 || projectData.value.targetNodes > 50) {
+      errors.value.targetNodes = 'Target nodes must be between 1 and 50'
+      return
+    }
+
+    if (projectData.value.autoScaling) {
+      if (projectData.value.minNodes < 1 || projectData.value.minNodes > projectData.value.maxNodes) {
+        errors.value.minNodes = 'Min nodes must be at least 1 and not exceed max nodes'
+        return
+      }
+      if (projectData.value.maxNodes < projectData.value.minNodes) {
+        errors.value.maxNodes = 'Max nodes must be at least equal to min nodes'
+        return
+      }
+    }
+
+    // Build comprehensive JSON payload
+    const payload = {
+      // Basic project information
+      name: projectData.value.name.trim(),
+      project_type: projectData.value.type,
+      description: projectData.value.description.trim(),
+
+      // Model configuration
+      model_type: projectData.value.modelType,
+      training_strategy: projectData.value.trainingStrategy,
+      protocol: projectData.value.protocol,
+
+      // Training parameters
+      total_epochs: projectData.value.epochs,
+      batch_size: projectData.value.batchSize,
+      learning_rate: projectData.value.learningRate,
+
+      // Node configuration
+      target_nodes: projectData.value.targetNodes,
+      resource_level: projectData.value.resourceLevel,
+
+      // Auto-scaling configuration
+      auto_scaling: projectData.value.autoScaling,
+      min_nodes: projectData.value.autoScaling ? projectData.value.minNodes : projectData.value.targetNodes,
+      max_nodes: projectData.value.autoScaling ? projectData.value.maxNodes : projectData.value.targetNodes,
+
+      // Advanced settings
+      enable_monitoring: projectData.value.enableMonitoring,
+      data_encryption: projectData.value.dataEncryption,
+      checkpointing: projectData.value.checkpointing,
+
+      // Metadata
+      created_at: new Date().toISOString(),
+      status: 'created'
+    }
+
+    console.log('Creating project with payload:', JSON.stringify(payload, null, 2))
+
+    // Use EdgeAI store to create project with formatted payload
+    const result = await edgeaiStore.createProject(payload)
+
     if (result.success) {
-      console.log('Project created:', result.project)
-      
+      console.log('Project created successfully:', result.project)
+
       uiStore.addNotification({
         type: 'success',
         title: 'Project Created Successfully',
@@ -360,13 +471,13 @@ const createProject = async () => {
           }
         ]
       })
-      
+
       // Redirect to dashboard
       router.push('/edgeai/dashboard')
     } else {
       throw new Error(result.error || 'Unknown error occurred')
     }
-    
+
   } catch (error) {
     console.error('Error creating project:', error)
     uiStore.addNotification({

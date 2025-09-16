@@ -25,15 +25,142 @@ log_messages = [
     "Data validation failed"
 ]
 
-for i in range(200):
-    mock_logs.append({
-        "id": f"log-{i:03d}",
-        "level": random.choice(log_levels),
-        "message": random.choice(log_messages),
-        "timestamp": datetime.now() - timedelta(minutes=random.randint(0, 1440)),
-        "node_id": f"edge-{(i % 4) + 1}",
-        "project_id": f"proj-{(i % 3) + 1:03d}"
-    })
+def generate_dynamic_logs():
+    """Generate 500 realistic log entries with diverse scenarios"""
+    detailed_log_scenarios = [
+        # Training and Model Operations
+        {"level": "INFO", "message": "Model training initialized for {project}", "category": "training"},
+        {"level": "INFO", "message": "Training epoch {epoch}/100 completed - Loss: {loss:.4f}", "category": "training"},
+        {"level": "INFO", "message": "Model checkpoint saved successfully", "category": "training"},
+        {"level": "WARNING", "message": "Training convergence slower than expected", "category": "training"},
+        {"level": "ERROR", "message": "Training interrupted due to insufficient memory", "category": "training"},
+        {"level": "INFO", "message": "Model validation completed - Accuracy: {accuracy:.2f}%", "category": "training"},
+
+        # Node Operations
+        {"level": "INFO", "message": "Edge node successfully connected to cluster", "category": "node"},
+        {"level": "INFO", "message": "Node health check completed - All systems operational", "category": "node"},
+        {"level": "WARNING", "message": "Node CPU usage reached 85% - Scaling recommended", "category": "node"},
+        {"level": "WARNING", "message": "Network latency increased to {latency}ms", "category": "node"},
+        {"level": "ERROR", "message": "Node connection lost - Attempting reconnection", "category": "node"},
+        {"level": "INFO", "message": "Node firmware updated to version {version}", "category": "node"},
+        {"level": "CRITICAL", "message": "Node temperature exceeded safe threshold: {temp}°C", "category": "node"},
+
+        # Data Processing
+        {"level": "INFO", "message": "Data preprocessing completed for {dataset} samples", "category": "data"},
+        {"level": "INFO", "message": "Feature extraction completed in {time:.2f}s", "category": "data"},
+        {"level": "WARNING", "message": "Data quality check found {issues} anomalies", "category": "data"},
+        {"level": "ERROR", "message": "Data validation failed - Schema mismatch detected", "category": "data"},
+        {"level": "INFO", "message": "Dataset synchronization completed", "category": "data"},
+
+        # Inference and Deployment
+        {"level": "INFO", "message": "Model deployed to edge device successfully", "category": "inference"},
+        {"level": "INFO", "message": "Inference request processed in {time}ms", "category": "inference"},
+        {"level": "WARNING", "message": "Inference queue backlog reached {count} requests", "category": "inference"},
+        {"level": "ERROR", "message": "Model inference failed - Input tensor size mismatch", "category": "inference"},
+        {"level": "INFO", "message": "Batch inference completed - {count} predictions generated", "category": "inference"},
+
+        # System Monitoring
+        {"level": "INFO", "message": "System monitoring dashboard updated", "category": "system"},
+        {"level": "WARNING", "message": "Disk usage reached 90% capacity", "category": "system"},
+        {"level": "WARNING", "message": "Memory usage spike detected: {usage}%", "category": "system"},
+        {"level": "ERROR", "message": "Database connection pool exhausted", "category": "system"},
+        {"level": "CRITICAL", "message": "System backup failed - Manual intervention required", "category": "system"},
+        {"level": "INFO", "message": "Security scan completed - No vulnerabilities found", "category": "system"},
+
+        # Performance and Optimization
+        {"level": "INFO", "message": "Performance optimization completed - {improvement}% faster", "category": "performance"},
+        {"level": "WARNING", "message": "Model performance degradation detected", "category": "performance"},
+        {"level": "INFO", "message": "Auto-scaling triggered - Adding {count} instances", "category": "performance"},
+        {"level": "ERROR", "message": "Performance benchmark failed to meet SLA requirements", "category": "performance"},
+
+        # Network and Communication
+        {"level": "INFO", "message": "WebSocket connection established with client", "category": "network"},
+        {"level": "WARNING", "message": "API rate limit exceeded for endpoint {endpoint}", "category": "network"},
+        {"level": "ERROR", "message": "Network timeout occurred during data transfer", "category": "network"},
+        {"level": "INFO", "message": "SSL certificate renewed successfully", "category": "network"},
+
+        # Configuration and Setup
+        {"level": "INFO", "message": "Configuration updated for {component}", "category": "config"},
+        {"level": "WARNING", "message": "Deprecated configuration parameter detected", "category": "config"},
+        {"level": "ERROR", "message": "Configuration validation failed - Invalid format", "category": "config"},
+
+        # User Actions
+        {"level": "INFO", "message": "User {user} logged in successfully", "category": "user"},
+        {"level": "INFO", "message": "Project {project} created by user {user}", "category": "user"},
+        {"level": "WARNING", "message": "Multiple failed login attempts detected", "category": "user"},
+        {"level": "ERROR", "message": "Unauthorized access attempt blocked", "category": "user"}
+    ]
+
+    projects = ["Smart Manufacturing", "Healthcare Analytics", "Autonomous Driving", "IoT Sensors", "Financial Risk", "Retail Optimization", "Energy Management", "Security Monitoring", "Agricultural AI", "Traffic Control"]
+    nodes = [f"edge-{i:02d}" for i in range(1, 21)]
+    project_ids = [f"proj-{i:03d}" for i in range(1, 11)]
+    users = ["admin", "researcher", "engineer", "analyst", "operator"]
+
+    logs = []
+    for i in range(500):
+        scenario = random.choice(detailed_log_scenarios)
+        message = scenario["message"]
+
+        # Format message with dynamic values
+        if "{project}" in message:
+            message = message.replace("{project}", random.choice(projects))
+        if "{epoch}" in message:
+            message = message.replace("{epoch}", str(random.randint(1, 100)))
+        if "{loss}" in message:
+            message = message.replace("{loss}", str(random.uniform(0.001, 0.5)))
+        if "{accuracy}" in message:
+            message = message.replace("{accuracy}", str(random.uniform(75, 99)))
+        if "{latency}" in message:
+            message = message.replace("{latency}", str(random.randint(50, 500)))
+        if "{version}" in message:
+            message = message.replace("{version}", f"{random.randint(1,3)}.{random.randint(0,9)}.{random.randint(0,9)}")
+        if "{temp}" in message:
+            message = message.replace("{temp}", str(random.randint(75, 95)))
+        if "{dataset}" in message:
+            message = message.replace("{dataset}", str(random.randint(1000, 50000)))
+        if "{time}" in message:
+            if "ms" in message:
+                message = message.replace("{time}", str(random.randint(10, 1000)))
+            else:
+                message = message.replace("{time}", str(random.uniform(0.5, 30)))
+        if "{issues}" in message:
+            message = message.replace("{issues}", str(random.randint(1, 20)))
+        if "{count}" in message:
+            message = message.replace("{count}", str(random.randint(1, 100)))
+        if "{usage}" in message:
+            message = message.replace("{usage}", str(random.randint(80, 95)))
+        if "{improvement}" in message:
+            message = message.replace("{improvement}", str(random.randint(10, 50)))
+        if "{endpoint}" in message:
+            endpoints = ["/api/models", "/api/training", "/api/inference", "/api/data"]
+            message = message.replace("{endpoint}", random.choice(endpoints))
+        if "{component}" in message:
+            components = ["model", "node", "database", "monitoring", "scheduler"]
+            message = message.replace("{component}", random.choice(components))
+        if "{user}" in message:
+            message = message.replace("{user}", random.choice(users))
+
+        # Create timestamp with more realistic distribution
+        # More recent logs are more frequent
+        hours_ago = random.choices(
+            range(0, 168),  # 7 days
+            weights=[max(1, 168-h) for h in range(168)]  # Weight recent logs more heavily
+        )[0]
+
+        logs.append({
+            "id": f"log-{i:03d}",
+            "level": scenario["level"],
+            "message": message,
+            "timestamp": datetime.now() - timedelta(hours=hours_ago, minutes=random.randint(0, 59)),
+            "node_id": random.choice(nodes),
+            "project_id": random.choice(project_ids),
+            "category": scenario["category"]
+        })
+
+    return sorted(logs, key=lambda x: x["timestamp"], reverse=True)
+
+# Generate comprehensive mock logs
+mock_logs = generate_dynamic_logs()
 
 @router.get("/", response_model=PaginatedResponse)
 async def get_logs(

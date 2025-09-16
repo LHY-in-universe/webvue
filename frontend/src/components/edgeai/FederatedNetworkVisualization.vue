@@ -88,18 +88,29 @@
         </g>
       </g>
       
-      <!-- Nodes (Total: {{ nodes.length }}) -->
+      <!-- Nodes (Total: {{ validNodes.length }}) -->
       <g class="nodes">
-        <g v-for="node in nodes" :key="node.id" 
+        <g v-for="node in validNodes" :key="node.id"
            class="node-group static-node"
            :class="{ 'node-fading': nodeAnimationStates?.get(node.id)?.fading }"
-           :style="{ 
+           :style="{
              opacity: getNodeOpacity(node),
              transform: `scale(${getNodeScale(node)})`,
              transformOrigin: `${getNodePosition(node).x}px ${getNodePosition(node).y}px`,
              pointerEvents: 'all'
            }"
         >
+          <!-- Larger Invisible Click Area -->
+          <circle
+            :cx="getNodePosition(node).x"
+            :cy="getNodePosition(node).y"
+            r="40"
+            fill="transparent"
+            class="node-click-area cursor-pointer"
+            style="pointer-events: all; user-select: none;"
+            @click.stop.prevent="handleNodeClick(node)"
+          />
+
           <!-- Main Node Circle - Simplified -->
           <circle
             :cx="getNodePosition(node).x"
@@ -108,21 +119,21 @@
             :fill="node.type === 'training' ? '#3b82f6' : (node.type === 'control' ? '#ef4444' : '#10b981')"
             :stroke="themeStore.isDark ? '#ffffff' : '#000000'"
             stroke-width="2"
-            class="node-circle cursor-pointer select-none no-hover clickable-node"
-            style="pointer-events: all; user-select: none;"
-            @click.stop.prevent="handleNodeClick(node)"
+            class="node-circle select-none no-hover"
+            style="pointer-events: none; user-select: none;"
           />
           
           <!-- Node Label -->
           <text
             :x="getNodePosition(node).x"
-            :y="getNodePosition(node).y - 35"
+            :y="getNodePosition(node).y - 40"
             text-anchor="middle"
             :fill="themeStore.isDark ? '#ffffff' : '#000000'"
-            font-size="12"
+            font-size="11"
             font-weight="600"
             class="node-label"
-          >{{ node.name || node.id }}</text>
+            style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; pointer-events: none; user-select: none;"
+          >{{ getNodeDisplayName(node) }}</text>
           
           <!-- Training Progress Text (for training nodes) -->
           <text
@@ -134,6 +145,7 @@
             font-size="14"
             font-weight="bold"
             class="progress-text"
+            style="pointer-events: none; user-select: none;"
           >{{ Math.round(node.trainingProgress) }}%</text>
         </g>
       </g>
@@ -230,23 +242,58 @@ const svgDimensions = reactive({
   padding: 80
 })
 
+// Computed property for valid nodes - filter out invalid/undefined nodes
+const validNodes = computed(() => {
+  if (!props.nodes || !Array.isArray(props.nodes)) {
+    console.warn('validNodes: props.nodes is not a valid array:', props.nodes)
+    return []
+  }
+
+  const filtered = props.nodes.filter(node => {
+    if (!node) {
+      console.warn('validNodes: found null/undefined node')
+      return false
+    }
+
+    if (!node.id) {
+      console.warn('validNodes: found node without id:', node)
+      return false
+    }
+
+    if (!node.type) {
+      console.warn('validNodes: found node without type, defaulting to "training":', node)
+      node.type = 'training'
+    }
+
+    if (!node.name) {
+      console.warn('validNodes: found node without name, using id:', node)
+      node.name = node.id
+    }
+
+    return true
+  })
+
+  console.log(`validNodes: filtered ${filtered.length} valid nodes from ${props.nodes.length} total`)
+  return filtered
+})
+
 // Fan-shaped node positions (训练节点大幅下移与模型节点区分)
 const FIXED_NODE_POSITIONS = [
-  // 第一层扇形 (内圈) - 大幅下移与模型节点区分
-  { x: 500, y: 320 }, { x: 700, y: 320 }, { x: 900, y: 320 },
-  // 第二层扇形 (中圈) - 进一步大幅下移
-  { x: 340, y: 420 }, { x: 520, y: 460 }, { x: 700, y: 480 }, { x: 880, y: 460 }, { x: 1060, y: 420 },
-  // 第三层扇形 (外圈) - 更大幅度下移
-  { x: 140, y: 540 }, { x: 380, y: 580 }, { x: 620, y: 600 }, { x: 780, y: 600 }, { x: 1020, y: 580 }, { x: 1260, y: 540 },
+  // 第一层扇形 (内圈) - 错开Y坐标避免标签重叠
+  { x: 500, y: 300 }, { x: 700, y: 320 }, { x: 900, y: 300 },
+  // 第二层扇形 (中圈) - 错开Y坐标避免标签重叠
+  { x: 340, y: 420 }, { x: 520, y: 450 }, { x: 700, y: 480 }, { x: 880, y: 450 }, { x: 1060, y: 420 },
+  // 第三层扇形 (外圈) - 错开Y坐标避免标签重叠
+  { x: 140, y: 540 }, { x: 380, y: 570 }, { x: 620, y: 590 }, { x: 780, y: 610 }, { x: 1020, y: 570 }, { x: 1260, y: 540 },
   // 最外层 - 底部中心下移
-  { x: 700, y: 620 }
+  { x: 700, y: 640 }
 ]
 
 // Control nodes at the center/top of the fan (优化控制节点位置)
 const CONTROL_NODE_POSITIONS = [
-  { x: 480, y: 140 },  // 左侧控制中心
-  { x: 700, y: 100 },  // 中央控制中心  
-  { x: 920, y: 140 }   // 右侧控制中心
+  { x: 480, y: 130 },  // 左侧控制中心
+  { x: 700, y: 100 },  // 中央控制中心
+  { x: 920, y: 130 }   // 右侧控制中心
 ]
 
 // Node position tracking
@@ -272,14 +319,15 @@ const getStablePositionIndex = (nodeId, nodeType) => {
 
 // Initialize fixed positions for all nodes
 const initializeNodePositions = () => {
-  console.log('Initializing positions for', props.nodes.length, 'nodes')
-  
-  props.nodes.forEach((node, index) => {
+  const nodes = validNodes.value
+  console.log('Initializing positions for', nodes.length, 'valid nodes')
+
+  nodes.forEach((node, index) => {
     // 跳过已经有位置的节点
     if (nodePositions.value.has(node.id)) {
       return
     }
-    
+
     if (['model', 'control'].includes(node.type)) {
       // 使用稳定的控制节点位置分配
       const positionIndex = getStablePositionIndex(node.id, node.type)
@@ -296,51 +344,69 @@ const initializeNodePositions = () => {
       }
     }
   })
-  
+
   console.log('Total positioned nodes:', nodePositions.value.size)
 }
 
 // Get position for a specific node
 const getNodePosition = (node) => {
+  if (!node || !node.id) {
+    console.error('getNodePosition called with invalid node:', node)
+    return { x: 400, y: 250 }
+  }
+
   // First check if we have a stored position
   const storedPosition = nodePositions.value.get(node.id)
   if (storedPosition) {
-    // Return a copy to prevent any modifications to the original position
-    return { x: storedPosition.x, y: storedPosition.y }
+    // Validate stored position
+    if (typeof storedPosition.x === 'number' && typeof storedPosition.y === 'number') {
+      // Return a copy to prevent any modifications to the original position
+      return { x: storedPosition.x, y: storedPosition.y }
+    } else {
+      console.error(`Invalid stored position for node ${node.id}:`, storedPosition)
+      nodePositions.value.delete(node.id) // Remove invalid position
+    }
   }
-  
+
   // If no stored position, assign one immediately using stable index
   if (['model', 'control'].includes(node.type)) {
     const positionIndex = getStablePositionIndex(node.id, node.type)
-    if (positionIndex < CONTROL_NODE_POSITIONS.length) {
+    if (positionIndex >= 0 && positionIndex < CONTROL_NODE_POSITIONS.length) {
       const position = CONTROL_NODE_POSITIONS[positionIndex]
       nodePositions.value.set(node.id, position)
+      console.log(`Assigned control position to ${node.id}:`, position)
       return position
     }
   } else if (node.type === 'training') {
     const positionIndex = getStablePositionIndex(node.id, node.type)
-    if (positionIndex < FIXED_NODE_POSITIONS.length) {
+    if (positionIndex >= 0 && positionIndex < FIXED_NODE_POSITIONS.length) {
       const position = FIXED_NODE_POSITIONS[positionIndex]
       nodePositions.value.set(node.id, position)
+      console.log(`Assigned training position to ${node.id}:`, position)
       return position
     }
   }
-  
+
   // Fallback to node's original coordinates if available
-  if (node.x && node.y) {
-    return { x: node.x, y: node.y }
+  if (node.x && node.y && typeof node.x === 'number' && typeof node.y === 'number') {
+    const fallbackPosition = { x: node.x, y: node.y }
+    nodePositions.value.set(node.id, fallbackPosition)
+    console.log(`Using fallback position for ${node.id}:`, fallbackPosition)
+    return fallbackPosition
   }
-  
+
   // Default position if nothing else works
-  console.warn(`No position found for node ${node.id}, using default`)
-  return { x: 400, y: 250 }
+  const defaultPosition = { x: 400, y: 250 }
+  console.warn(`No position found for node ${node.id} (type: ${node.type}), using default:`, defaultPosition)
+  nodePositions.value.set(node.id, defaultPosition)
+  return defaultPosition
 }
 
 // Helper functions
 const getConnectionPath = (connection) => {
-  const fromNode = props.nodes.find(n => n.id === connection.from)
-  const toNode = props.nodes.find(n => n.id === connection.to)
-  
+  const fromNode = validNodes.value.find(n => n.id === connection.from)
+  const toNode = validNodes.value.find(n => n.id === connection.to)
+
   if (!fromNode || !toNode) return ''
   
   // Use computed positions instead of static coordinates
@@ -381,9 +447,9 @@ const getConnectionWidth = (connection) => {
 }
 
 const getMidpoint = (connection) => {
-  const from = props.nodes.find(n => n.id === connection.from)
-  const to = props.nodes.find(n => n.id === connection.to)
-  
+  const from = validNodes.value.find(n => n.id === connection.from)
+  const to = validNodes.value.find(n => n.id === connection.to)
+
   if (!from || !to) return { x: 0, y: 0 }
   
   return {
@@ -459,39 +525,131 @@ const getAnimationValues = (direction) => {
 
 // 获取节点的透明度（基于动画状态）
 const getNodeOpacity = (node) => {
+  if (!node || !node.id) {
+    console.warn('getNodeOpacity called with invalid node:', node)
+    return 1
+  }
+
   const animationState = props.nodeAnimationStates?.get(node.id)
   if (!animationState) return 1
-  
+
   if (animationState.fading) {
     // 计算淡出进度（3秒内从1到0）
     const elapsed = Date.now() - animationState.fadeStartTime
     const fadeProgress = Math.min(elapsed / 3000, 1) // 3秒淡出
-    return 1 - fadeProgress
+    const opacity = 1 - fadeProgress
+    // 确保最小透明度为0.3，避免节点完全不可见
+    return Math.max(0.3, opacity)
   }
-  
+
   return 1
 }
 
 // 获取节点的缩放（基于动画状态）
 const getNodeScale = (node) => {
+  if (!node || !node.id) {
+    console.warn('getNodeScale called with invalid node:', node)
+    return 1
+  }
+
   const animationState = props.nodeAnimationStates?.get(node.id)
   if (!animationState) return 1
-  
+
   if (animationState.fading) {
-    // 计算缩放进度（3秒内从1到0.3）
+    // 计算缩放进度（3秒内从1到0.5）
     const elapsed = Date.now() - animationState.fadeStartTime
     const fadeProgress = Math.min(elapsed / 3000, 1)
-    return 1 - (fadeProgress * 0.7) // 缩放到30%
+    const scale = 1 - (fadeProgress * 0.5) // 缩放到50%而不是30%
+    // 确保最小缩放为0.5，保持节点可点击
+    return Math.max(0.5, scale)
   }
-  
+
   return 1
+}
+
+// Validate node data structure
+const validateNode = (node) => {
+  if (!node) {
+    console.error('Node is null or undefined')
+    return false
+  }
+
+  if (!node.id) {
+    console.error('Node missing required id field:', node)
+    return false
+  }
+
+  if (!node.type) {
+    console.warn(`Node ${node.id} missing type field, assuming 'training'`)
+    node.type = 'training'
+  }
+
+  if (!node.name) {
+    console.warn(`Node ${node.id} missing name field, using ID as name`)
+    node.name = node.id
+  }
+
+  return true
+}
+
+// Get display name for node (truncate if too long to prevent overlap)
+const getNodeDisplayName = (node) => {
+  if (!validateNode(node)) {
+    return 'Invalid'
+  }
+
+  const name = node.name || node.id
+  // Truncate long names to prevent overlap - use 12 chars max
+  if (name.length > 12) {
+    return name.substring(0, 9) + '...'
+  }
+  return name
 }
 
 // All dragging functionality removed - nodes are completely static
 
 // Node interaction handlers
 const handleNodeClick = (node) => {
-  emit('node-click', node)
+  // Enhanced click logging for debugging
+  console.log('🖱️ Node click event triggered:', {
+    timestamp: new Date().toISOString(),
+    nodeId: node?.id,
+    nodeName: node?.name,
+    nodeType: node?.type,
+    nodeStatus: node?.status,
+    hasValidId: !!node?.id,
+    eventType: 'click',
+    position: node ? getNodePosition(node) : null
+  })
+
+  // Validate node data
+  if (!validateNode(node)) {
+    console.error('❌ Node click rejected - validation failed:', {
+      node,
+      reason: 'Invalid node data'
+    })
+    return
+  }
+
+  // Additional safety check
+  if (!node.id) {
+    console.error('❌ Node click rejected - missing ID:', node)
+    return
+  }
+
+  console.log('✅ Node click successful, emitting event for:', {
+    nodeId: node.id,
+    nodeName: node.name,
+    nodeType: node.type
+  })
+
+  // Emit the node click event
+  try {
+    emit('node-click', node)
+    console.log('📤 Node click event emitted successfully')
+  } catch (error) {
+    console.error('❌ Failed to emit node click event:', error)
+  }
 }
 
 // All hover handlers removed for completely static nodes
@@ -531,7 +689,7 @@ onMounted(() => {
   
   // Force position initialization after a short delay
   setTimeout(() => {
-    console.log('Force initializing positions for', props.nodes.length, 'nodes')
+    console.log('Force initializing positions for', validNodes.value.length, 'valid nodes')
     initializeNodePositions()
   }, 100)
 })
@@ -540,13 +698,13 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateDimensions)
 })
 
-// Watch for node changes and reinitialize positions
-watch(() => props.nodes.length, () => {
+// Watch for valid node changes and reinitialize positions
+watch(() => validNodes.value.length, () => {
   autoArrange()
 }, { immediate: true })
 
-// Watch for nodes array changes to reinitialize positions
-watch(() => props.nodes, () => {
+// Watch for valid nodes array changes to reinitialize positions
+watch(validNodes, () => {
   autoArrange()
 }, { deep: true, immediate: true })
 
@@ -584,9 +742,32 @@ defineExpose({
 
 .node-label,
 .progress-text {
-  pointer-events: none;
-  user-select: none;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.node-click-area {
+  cursor: pointer !important;
+  pointer-events: all !important;
+  fill: transparent;
+}
+
+.node-circle {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+/* Ensure proper layering */
+.nodes {
+  pointer-events: all;
+}
+
+.node-group {
+  pointer-events: all !important;
 }
 
 .connection-line {

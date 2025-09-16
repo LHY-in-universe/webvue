@@ -132,7 +132,6 @@ function handleApiResponse(response) {
  * @returns {Promise} 拒绝的Promise
  */
 function handleApiError(error) {
-  const { notifications } = useNotifications()
   let errorMessage = 'An unexpected error occurred'
   let errorCode = 'UNKNOWN_ERROR'
   
@@ -183,8 +182,22 @@ function handleApiError(error) {
     errorCode = 'UNKNOWN_ERROR'
   }
   
-  // 显示用户友好的错误提示
-  notifications.error(errorMessage)
+  // 使用全局通知实例显示错误提示
+  try {
+    // 尝试导入全局通知实例
+    import('@/composables/useNotifications.js').then(module => {
+      const { $notify } = module
+      if ($notify && $notify.error) {
+        $notify.error(errorMessage)
+      }
+    }).catch(() => {
+      // 如果导入失败，使用console输出
+      console.error('API Error:', errorMessage)
+    })
+  } catch (e) {
+    // 降级处理：使用console输出
+    console.error('API Error:', errorMessage)
+  }
   
   // 返回结构化错误
   const apiError = {

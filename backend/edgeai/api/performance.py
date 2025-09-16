@@ -10,19 +10,73 @@ router = APIRouter()
 # Mock performance data
 mock_performance_data = []
 
-# Generate some mock historical data
-for i in range(100):
-    timestamp = datetime.now() - timedelta(minutes=i)
-    mock_performance_data.append({
-        "node_id": f"edge-{(i % 4) + 1}",
-        "timestamp": timestamp,
-        "cpu_usage": random.uniform(10, 90),
-        "memory_usage": random.uniform(20, 80),
-        "gpu_usage": random.uniform(0, 95),
-        "network_usage": random.uniform(0, 50),
-        "temperature": random.uniform(40, 80),
-        "power_consumption": random.uniform(50, 200)
-    })
+def generate_dynamic_performance_data():
+    """Generate realistic performance data with patterns and trends"""
+    performance_data = []
+    nodes = [f"edge-{i:02d}" for i in range(1, 21)]  # 20 nodes
+
+    for i in range(500):  # Generate more data points
+        timestamp = datetime.now() - timedelta(minutes=i)
+        node_id = random.choice(nodes)
+
+        # Create realistic patterns based on time of day
+        hour_of_day = timestamp.hour
+        is_business_hours = 9 <= hour_of_day <= 17
+        is_peak_hours = hour_of_day in [10, 11, 14, 15]  # Peak usage times
+
+        # Base load factors
+        base_cpu = 30 if is_business_hours else 15
+        base_memory = 40 if is_business_hours else 25
+        base_network = 20 if is_business_hours else 5
+
+        # Add peak hour multipliers
+        if is_peak_hours:
+            base_cpu += 25
+            base_memory += 20
+            base_network += 15
+
+        # Node-specific characteristics
+        node_num = int(node_id.split('-')[1])
+        if node_num <= 5:  # High-performance nodes
+            base_cpu += 10
+            base_memory += 15
+            base_gpu = 40
+        elif node_num <= 10:  # Medium-performance nodes
+            base_gpu = 25
+        else:  # Low-performance nodes
+            base_cpu -= 5
+            base_memory -= 10
+            base_gpu = 10
+
+        # Add random variations
+        cpu_usage = max(5, min(95, base_cpu + random.uniform(-15, 25)))
+        memory_usage = max(10, min(90, base_memory + random.uniform(-10, 20)))
+        gpu_usage = max(0, min(100, base_gpu + random.uniform(-20, 30)))
+        network_usage = max(0, min(80, base_network + random.uniform(-10, 25)))
+
+        # Temperature correlates with CPU usage
+        temp_base = 35 + (cpu_usage * 0.4) + random.uniform(-5, 5)
+        temperature = max(30, min(85, temp_base))
+
+        # Power consumption correlates with overall usage
+        power_base = 80 + (cpu_usage * 0.8) + (gpu_usage * 0.6) + random.uniform(-20, 20)
+        power_consumption = max(50, min(300, power_base))
+
+        performance_data.append({
+            "node_id": node_id,
+            "timestamp": timestamp,
+            "cpu_usage": round(cpu_usage, 2),
+            "memory_usage": round(memory_usage, 2),
+            "gpu_usage": round(gpu_usage, 2),
+            "network_usage": round(network_usage, 2),
+            "temperature": round(temperature, 2),
+            "power_consumption": round(power_consumption, 2)
+        })
+
+    return sorted(performance_data, key=lambda x: x["timestamp"], reverse=True)
+
+# Generate comprehensive mock performance data
+mock_performance_data = generate_dynamic_performance_data()
 
 @router.get("/metrics", response_model=List[PerformanceMetrics])
 async def get_performance_metrics(
@@ -306,3 +360,141 @@ async def get_system_health():
         health_status["overall"] = "warning"
     
     return health_status
+
+@router.get("/realtime")
+async def get_realtime_performance():
+    """
+    获取实时性能数据 - 模拟实时状态变化
+    """
+    nodes = [f"edge-{i:02d}" for i in range(1, 21)]
+    realtime_data = []
+
+    current_time = datetime.now()
+    is_business_hours = 9 <= current_time.hour <= 17
+    is_peak_hours = current_time.hour in [10, 11, 14, 15]
+
+    for node_id in nodes:
+        node_num = int(node_id.split('-')[1])
+
+        # Simulate different load patterns per node
+        base_load = 20 + (node_num * 2)  # Each node has slightly different baseline
+        if is_business_hours:
+            base_load += 25
+        if is_peak_hours:
+            base_load += 15
+
+        # Add some random variations for real-time feel
+        cpu_variation = random.uniform(-10, 15)
+        memory_variation = random.uniform(-8, 12)
+
+        # High-performance nodes (1-5) tend to have higher usage
+        if node_num <= 5:
+            cpu_usage = max(15, min(90, base_load + 20 + cpu_variation))
+            memory_usage = max(20, min(85, base_load + 15 + memory_variation))
+            gpu_usage = max(10, min(95, 50 + random.uniform(-20, 25)))
+        # Medium-performance nodes (6-10)
+        elif node_num <= 10:
+            cpu_usage = max(10, min(80, base_load + 10 + cpu_variation))
+            memory_usage = max(15, min(75, base_load + 10 + memory_variation))
+            gpu_usage = max(5, min(70, 35 + random.uniform(-15, 20)))
+        # Lower-performance nodes (11-20)
+        else:
+            cpu_usage = max(5, min(70, base_load + cpu_variation))
+            memory_usage = max(10, min(65, base_load + memory_variation))
+            gpu_usage = max(0, min(50, 20 + random.uniform(-10, 15)))
+
+        network_usage = max(0, min(60, base_load * 0.6 + random.uniform(-5, 15)))
+        temperature = max(35, min(80, 40 + (cpu_usage * 0.35) + random.uniform(-3, 3)))
+        power_consumption = max(60, min(280, 90 + (cpu_usage * 0.7) + (gpu_usage * 0.5)))
+
+        # Simulate some nodes having alerts
+        alerts = []
+        status = "healthy"
+
+        if cpu_usage > 85:
+            alerts.append("High CPU usage")
+            status = "warning"
+        if memory_usage > 80:
+            alerts.append("High memory usage")
+            status = "critical" if status != "warning" else status
+        if temperature > 75:
+            alerts.append("High temperature")
+            status = "warning" if status == "healthy" else status
+
+        realtime_data.append({
+            "node_id": node_id,
+            "timestamp": current_time.isoformat(),
+            "cpu_usage": round(cpu_usage, 1),
+            "memory_usage": round(memory_usage, 1),
+            "gpu_usage": round(gpu_usage, 1),
+            "network_usage": round(network_usage, 1),
+            "temperature": round(temperature, 1),
+            "power_consumption": round(power_consumption, 0),
+            "status": status,
+            "alerts": alerts,
+            "uptime": f"{random.randint(1, 30)}d {random.randint(0, 23)}h {random.randint(0, 59)}m"
+        })
+
+    # Calculate cluster-wide statistics
+    avg_cpu = sum(node["cpu_usage"] for node in realtime_data) / len(realtime_data)
+    avg_memory = sum(node["memory_usage"] for node in realtime_data) / len(realtime_data)
+    total_alerts = sum(len(node["alerts"]) for node in realtime_data)
+    healthy_nodes = len([node for node in realtime_data if node["status"] == "healthy"])
+
+    return {
+        "timestamp": current_time.isoformat(),
+        "cluster_stats": {
+            "total_nodes": len(realtime_data),
+            "healthy_nodes": healthy_nodes,
+            "nodes_with_alerts": len(realtime_data) - healthy_nodes,
+            "avg_cpu_usage": round(avg_cpu, 1),
+            "avg_memory_usage": round(avg_memory, 1),
+            "total_active_alerts": total_alerts
+        },
+        "nodes": realtime_data
+    }
+
+@router.get("/simulate")
+async def simulate_performance_event():
+    """
+    模拟性能事件 - 用于演示动态数据变化
+    """
+    events = [
+        {
+            "type": "cpu_spike",
+            "node_id": f"edge-{random.randint(1, 20):02d}",
+            "message": "CPU usage spiked to 92%",
+            "severity": "warning",
+            "duration": "2-3 minutes expected"
+        },
+        {
+            "type": "memory_leak",
+            "node_id": f"edge-{random.randint(1, 20):02d}",
+            "message": "Memory leak detected in inference service",
+            "severity": "critical",
+            "duration": "Restart required"
+        },
+        {
+            "type": "training_completed",
+            "node_id": f"edge-{random.randint(1, 20):02d}",
+            "message": "Model training completed successfully",
+            "severity": "info",
+            "duration": "N/A"
+        },
+        {
+            "type": "node_recovery",
+            "node_id": f"edge-{random.randint(1, 20):02d}",
+            "message": "Node performance normalized after optimization",
+            "severity": "info",
+            "duration": "N/A"
+        }
+    ]
+
+    event = random.choice(events)
+    event["timestamp"] = datetime.now().isoformat()
+    event["id"] = f"event-{random.randint(1000, 9999)}"
+
+    return {
+        "event": event,
+        "message": f"Simulated performance event: {event['type']}"
+    }
