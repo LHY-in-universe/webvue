@@ -6,6 +6,7 @@ class BaseResponse(BaseModel):
     success: bool
     message: Optional[str] = None
     error: Optional[str] = None
+    data: Optional[Any] = None
 
 class PaginationParams(BaseModel):
     page: int = 1

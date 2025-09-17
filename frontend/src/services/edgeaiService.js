@@ -7,6 +7,32 @@ import apiClient, { uploadWithProgress, downloadFile } from './apiClient.js'
 import { API_ENDPOINTS, WS_ENDPOINTS } from '@/config/api.js'
 
 /**
+ * API响应验证工具
+ */
+const validateApiResponse = (response, expectedFields = []) => {
+  if (!response || typeof response !== 'object') {
+    throw new Error('Invalid API response format')
+  }
+
+  // 检查必需字段
+  for (const field of expectedFields) {
+    if (!(field in response)) {
+      console.warn(`Missing expected field: ${field} in API response`)
+    }
+  }
+
+  return response
+}
+
+const validateProjectResponse = (project) => {
+  return validateApiResponse(project, ['id', 'name', 'type', 'status'])
+}
+
+const validateNodeResponse = (node) => {
+  return validateApiResponse(node, ['id', 'name', 'type', 'status'])
+}
+
+/**
  * 项目管理服务
  */
 export const projectService = {
@@ -17,7 +43,16 @@ export const projectService = {
    */
   async getProjects(params = {}) {
     const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.PROJECTS.LIST, { params })
-    return response.data
+    const data = response.data
+
+    // 验证响应格式
+    if (Array.isArray(data)) {
+      return data.map(validateProjectResponse)
+    } else if (data && Array.isArray(data.data)) {
+      return data.data.map(validateProjectResponse)
+    }
+
+    return data
   },
 
   /**
@@ -125,6 +160,17 @@ export const projectService = {
     const url = API_ENDPOINTS.EDGE_AI.PROJECTS.DETAIL.replace('{id}', projectId)
     const response = await apiClient.get(url)
     return response.data
+  },
+
+  /**
+   * 删除项目
+   * @param {string} projectId - 项目ID
+   * @returns {Promise<Object>} 删除结果
+   */
+  async deleteProject(projectId) {
+    const url = API_ENDPOINTS.EDGE_AI.PROJECTS.DETAIL.replace('{id}', projectId)
+    const response = await apiClient.delete(url)
+    return response.data
   }
 }
 
@@ -139,7 +185,16 @@ export const nodeService = {
    */
   async getNodes(params = {}) {
     const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.NODES.LIST, { params })
-    return response.data
+    const data = response.data
+
+    // 验证响应格式
+    if (Array.isArray(data)) {
+      return data.map(validateNodeResponse)
+    } else if (data && Array.isArray(data.data)) {
+      return data.data.map(validateNodeResponse)
+    }
+
+    return data
   },
 
   /**
