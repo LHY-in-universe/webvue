@@ -13,5 +13,11 @@
       "backend/main.py": {
         "runtime": "now-php@1.0.0"
       }
+    },
+    "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/backend/main.py"
     }
+  ]
   }
