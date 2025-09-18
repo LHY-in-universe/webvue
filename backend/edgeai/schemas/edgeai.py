@@ -44,31 +44,55 @@ class ModelType(str, Enum):
     TRANSFORMER = "transformer"
     LSTM = "lstm"
     GRU = "gru"
+    GEMMA = "Gemma"
+    OPENVLA = "OpenVLA"
+    LLAMA = "LLaMA"
+    QWEN = "Qwen"
+
+class TrainingStrategy(str, Enum):
+    SFT = "sft"
+    DPO = "dpo"
+    GRPO = "grpo"
+    IPO = "ipo"
+    KTO = "kto"
+
+class Protocol(str, Enum):
+    FEDAVG = "fedavg"
+    FEDYGI = "fedygi"
+    FEDADAM = "fedadam"
+    FEDAVGM = "fedavgm"
 
 class ProjectCreateRequest(BaseModel):
     name: str
     description: str
-    type: ProjectType
-    model_type: ModelType
-    hyperparameters: Optional[Dict[str, Any]] = None
-    target_nodes: Optional[List[str]] = None
+    model: str  # 与数据库table IP连接的字段
+    training_strategy: TrainingStrategy
+    protocol: Protocol
+    epochs: int
+    batch_size: int
+    learning_rate: float
+    node_ip: str  # 与数据库node table连接的字段
+    created_time: Optional[datetime] = None  # 建立时间
 
 class ProjectResponse(BaseModel):
     id: str
     name: str
     description: str
-    type: ProjectType
+    model: str
     status: ProjectStatus
     progress: float
     connected_nodes: int
     current_epoch: int
     total_epochs: int
-    model_type: ModelType
+    training_strategy: TrainingStrategy
+    protocol: Protocol
+    epochs: int
     batch_size: int
     learning_rate: float
-    created: str
+    node_ip: str
+    created_time: str
     last_update: str
-    metrics: Dict[str, float]
+    metrics: Optional[Dict[str, float]] = None
 
 class NodeResponse(BaseModel):
     id: str

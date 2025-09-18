@@ -411,7 +411,7 @@ async def assign_node_to_project(node_id: str, project_id: str):
 
     raise HTTPException(status_code=404, detail="Node not found")
 
-@router.get("/visualization/{project_id}")
+@router.get("/visualization/{project_id}/")
 async def get_visualization_nodes(project_id: str):
     """
     获取特定项目的可视化节点数据

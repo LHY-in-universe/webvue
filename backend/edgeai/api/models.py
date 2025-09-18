@@ -197,7 +197,7 @@ async def get_model(model_id: str):
 
     raise HTTPException(status_code=404, detail="Model not found")
 
-@router.get("/stats/overview")
+@router.get("/stats/overview/")
 async def get_model_stats():
     """
     获取模型统计信息

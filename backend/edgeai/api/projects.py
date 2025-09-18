@@ -7,7 +7,9 @@ from ..schemas.edgeai import (
     ProjectExportRequest,
     SystemStats,
     ProjectStatus,
-    ProjectType
+    ProjectType,
+    TrainingStrategy,
+    Protocol
 )
 from common.schemas.common import BaseResponse, PaginatedResponse
 import uuid
@@ -93,7 +95,7 @@ def generate_dynamic_projects():
         }
     ]
 
-    statuses = ["created", "training", "active", "paused", "completed", "idle"]
+    statuses = [ProjectStatus.CREATED, ProjectStatus.TRAINING, ProjectStatus.ACTIVE, ProjectStatus.PAUSED, ProjectStatus.COMPLETED, ProjectStatus.IDLE]
     projects = []
 
     for i, template in enumerate(project_templates):
@@ -103,16 +105,16 @@ def generate_dynamic_projects():
 
         # 动态状态和进度
         status = random.choice(statuses)
-        if status == "completed":
+        if status == ProjectStatus.COMPLETED:
             progress = 100.0
             current_epoch = random.randint(80, 150)
-        elif status == "training":
+        elif status == ProjectStatus.TRAINING:
             progress = random.uniform(10, 95)
             current_epoch = int(progress)
-        elif status == "active":
+        elif status == ProjectStatus.ACTIVE:
             progress = 100.0
             current_epoch = random.randint(100, 200)
-        elif status == "paused":
+        elif status == ProjectStatus.PAUSED:
             progress = random.uniform(20, 80)
             current_epoch = int(progress)
         else:  # created, idle
@@ -139,28 +141,26 @@ def generate_dynamic_projects():
             "id": f"proj-{str(i+1).zfill(3)}",
             "name": template["name"],
             "description": template["description"],
-            "type": template["type"],
-            "industry": template["industry"],
+            "model": random.choice(["Gemma", "OpenVLA", "LLaMA", "Qwen"]),
             "status": status,
             "progress": round(progress, 1),
             "connected_nodes": random.randint(3, 25),
             "current_epoch": current_epoch,
             "total_epochs": random.randint(100, 300),
-            "model_type": template["model_type"],
+            "training_strategy": random.choice([TrainingStrategy.SFT, TrainingStrategy.DPO, TrainingStrategy.GRPO, TrainingStrategy.IPO, TrainingStrategy.KTO]),
+            "protocol": random.choice([Protocol.FEDAVG, Protocol.FEDYGI, Protocol.FEDADAM, Protocol.FEDAVGM]),
+            "epochs": random.randint(100, 300),
             "batch_size": random.choice([16, 32, 64, 128]),
             "learning_rate": random.choice([0.0001, 0.0005, 0.001, 0.005, 0.01]),
-            "created": created_date.strftime("%Y-%m-%d"),
+            "node_ip": f"192.168.1.{random.randint(100, 254)}",
+            "created_time": created_date.strftime("%Y-%m-%d %H:%M:%S"),
             "last_update": last_update,
             "metrics": {
                 "accuracy": round(current_accuracy, 1),
                 "loss": round(random.uniform(0.05, 0.8), 3),
-                "f1_score": round(current_accuracy * random.uniform(0.85, 0.98), 1)
-            },
-            "estimated_completion": (datetime.now() + timedelta(hours=random.randint(1, 72))).strftime("%Y-%m-%d %H:%M"),
-            "resource_usage": {
-                "cpu_hours": random.randint(50, 500),
-                "gpu_hours": random.randint(20, 200),
-                "storage_gb": random.randint(10, 100)
+                "f1_score": round(current_accuracy * random.uniform(0.85, 0.98), 1),
+                "precision": round(current_accuracy * random.uniform(0.85, 0.95), 1),
+                "recall": round(current_accuracy * random.uniform(0.80, 0.95), 1)
             }
         }
         projects.append(project)
@@ -197,7 +197,7 @@ async def get_projects(
     
     return [ProjectResponse(**project) for project in filtered_projects]
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/{project_id}/", response_model=ProjectResponse)
 async def get_project(project_id: str):
     """
     获取特定项目详情
@@ -213,28 +213,38 @@ async def create_project(request: ProjectCreateRequest):
     """
     创建新项目
     """
+    from datetime import datetime
+
+    # 设置创建时间
+    created_time = request.created_time or datetime.now()
+
     new_project = {
         "id": f"proj-{uuid.uuid4().hex[:8]}",
         "name": request.name,
         "description": request.description,
-        "type": request.type.value,
+        "model": request.model,  # 与数据库table IP连接的字段
         "status": "created",
         "progress": 0.0,
         "connected_nodes": 0,
         "current_epoch": 0,
-        "total_epochs": 100,
-        "model_type": request.model_type.value,
-        "batch_size": 32,
-        "learning_rate": 0.001,
-        "created": "2024-01-15",
+        "total_epochs": request.epochs,
+        "training_strategy": request.training_strategy,
+        "protocol": request.protocol,
+        "epochs": request.epochs,
+        "batch_size": request.batch_size,
+        "learning_rate": request.learning_rate,
+        "node_ip": request.node_ip,  # 与数据库node table连接的字段
+        "created_time": created_time.strftime("%Y-%m-%d %H:%M:%S"),
         "last_update": "just now",
         "metrics": {
             "accuracy": 0.0,
             "loss": 0.0,
-            "f1_score": 0.0
+            "f1_score": 0.0,
+            "precision": 0.0,
+            "recall": 0.0
         }
     }
-    
+
     mock_projects.append(new_project)
     return ProjectResponse(**new_project)
 
@@ -580,22 +590,6 @@ async def get_import_history(limit: int = Query(default=20, le=100)):
         "showing": len(limited_history)
     }
 
-@router.delete("/{project_id}", response_model=BaseResponse)
-async def delete_project(project_id: str):
-    """
-    删除项目
-    """
-    global mock_projects
-    original_count = len(mock_projects)
-    mock_projects = [p for p in mock_projects if p["id"] != project_id]
-
-    if len(mock_projects) < original_count:
-        return BaseResponse(
-            success=True,
-            message="Project deleted successfully"
-        )
-    else:
-        raise HTTPException(status_code=404, detail="Project not found")
 
 @router.post("/load-from-url")
 async def load_project_from_url(request: dict):

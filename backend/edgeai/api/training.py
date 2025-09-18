@@ -247,7 +247,7 @@ async def stop_batch_training(project_ids: List[str]):
         "total_stopped": len([r for r in results if r["success"]])
     }
 
-@router.get("/config/{project_id}")
+@router.get("/config/{project_id}/")
 async def get_training_config(project_id: str):
     """
     获取特定项目的训练配置

@@ -75,12 +75,14 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
 
   // Actions
   const initializeStore = async () => {
-    // Load real data from API
+    // Load real data from API first
     await loadRealData()
-    
-    // Setup WebSocket connection if enabled
+
+    // Setup WebSocket connection if enabled with a delay to avoid immediate connection storm
     if (config.value.autoRefresh) {
-      connectWebSocket()
+      setTimeout(() => {
+        connectWebSocket()
+      }, 2000) // Wait 2 seconds before connecting WebSocket
     }
   }
   
@@ -310,7 +312,18 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   }
 
   const connectWebSocket = () => {
-    // Enable WebSocket in all modes, including development
+    // Check if we already have a healthy connection
+    if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+      console.log('EdgeAI WebSocket already connected, skipping...')
+      return
+    }
+
+    // Don't try to connect if we've exceeded retry limits
+    if (connectionRetries.value >= maxRetries) {
+      console.log('Max WebSocket retries reached, not attempting connection')
+      return
+    }
+
     console.log('EdgeAI WebSocket connecting...')
 
     // Close existing connection if any
@@ -321,7 +334,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
 
     try {
       // Use configurable WebSocket URL from API config
-      const wsUrl = `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000'}/api/edgeai/nodes/ws/control-1`
+      const wsUrl = `${import.meta.env.VITE_WS_BASE_URL || 'ws://127.0.0.1:8000'}/api/edgeai/nodes/ws/control-1`
       console.log('Connecting to WebSocket:', wsUrl)
 
       ws.value = new WebSocket(wsUrl)
@@ -330,7 +343,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
         isConnected.value = true
         connectionError.value = null
         connectionRetries.value = 0
-        console.log('EdgeAI WebSocket connected')
+        console.log('EdgeAI WebSocket connected successfully')
         lastUpdate.value = new Date()
       }
 
@@ -348,14 +361,17 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
         isConnected.value = false
         console.log(`EdgeAI WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`)
 
-        // Only retry if it wasn't a manual close and we haven't exceeded max retries
-        if (event.code !== 1000 && connectionRetries.value < maxRetries) {
-          const retryDelay = 3000 * Math.pow(2, connectionRetries.value) // Exponential backoff
-          console.log(`Retrying WebSocket connection in ${retryDelay}ms (attempt ${connectionRetries.value + 1}/${maxRetries})`)
+        // Only retry for unexpected disconnections (not manual close)
+        if (event.code !== 1000 && event.code !== 1001 && connectionRetries.value < maxRetries) {
+          // Increase retry delay significantly to reduce connection storm
+          const retryDelay = 5000 + (3000 * Math.pow(2, connectionRetries.value)) // Start at 5s, then exponential backoff
+          console.log(`Will retry WebSocket connection in ${retryDelay}ms (attempt ${connectionRetries.value + 1}/${maxRetries})`)
 
           setTimeout(() => {
-            connectionRetries.value++
-            connectWebSocket()
+            if (connectionRetries.value < maxRetries) { // Double-check before retry
+              connectionRetries.value++
+              connectWebSocket()
+            }
           }, retryDelay)
         } else if (connectionRetries.value >= maxRetries) {
           connectionError.value = 'WebSocket connection failed after multiple retries. Running in offline mode.'
@@ -373,13 +389,13 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
         })
       }
 
-      // Set a timeout for connection establishment
+      // Increase connection timeout to be more forgiving
       setTimeout(() => {
         if (ws.value && ws.value.readyState === WebSocket.CONNECTING) {
           console.warn('WebSocket connection timeout, closing...')
           ws.value.close()
         }
-      }, 10000) // 10 second timeout
+      }, 15000) // 15 second timeout
 
     } catch (error) {
       isConnected.value = false
@@ -455,36 +471,31 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const createProject = async (projectData) => {
     loading.value.projects = true
     try {
-      // Format data for API - only send required fields
-      const apiData = {
-        name: projectData.name,
-        description: projectData.description,
-        type: projectData.type || projectData.project_type || 'manufacturing',
-        model_type: projectData.modelType || projectData.model_type || 'cnn'
-      }
-
-      console.log('EdgeAI Store - Original projectData:', projectData)
-      console.log('EdgeAI Store - Sending apiData to backend:', apiData)
+      // Send complete project data to API
+      console.log('EdgeAI Store - Sending projectData to backend:', projectData)
 
       // Call real API to create project
-      const result = await edgeaiService.projects.createProject(apiData)
+      const result = await edgeaiService.projects.createProject(projectData)
       
       if (result) {
         const newProject = {
           id: result.id,
           name: result.name,
           description: result.description,
-          type: result.type || 'general',
+          model: result.model,
           status: result.status || 'created',
           progress: result.progress || 0,
           connectedNodes: result.connected_nodes || 0,
           currentEpoch: result.current_epoch || 0,
           totalEpochs: result.total_epochs || 100,
-          modelType: result.model_type || 'neural_network',
+          trainingStrategy: result.training_strategy,
+          protocol: result.protocol,
+          epochs: result.epochs,
           batchSize: result.batch_size || 32,
           learningRate: result.learning_rate || 0.001,
-          created: result.created_at,
-          lastUpdate: result.updated_at,
+          nodeIp: result.node_ip,
+          created: result.created_time,
+          lastUpdate: result.last_update,
           metrics: result.metrics || {
             accuracy: 0,
             loss: 0,

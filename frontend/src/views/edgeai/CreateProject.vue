@@ -5,8 +5,8 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center">
-            <button 
-              @click="goBack" 
+            <button
+              @click="goBack"
               class="mr-4 p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               <ArrowLeftIcon class="w-5 h-5" />
@@ -16,11 +16,11 @@
               Create New EdgeAI Project
             </h1>
           </div>
-          
+
           <div class="flex items-center space-x-4">
-            <Button 
-              @click="toggleTheme" 
-              variant="ghost" 
+            <Button
+              @click="toggleTheme"
+              variant="ghost"
               size="sm"
               iconOnly
               :leftIcon="themeStore.isDark ? SunIcon : MoonIcon"
@@ -39,63 +39,45 @@
 
         <form @submit.prevent="createProject" class="p-6 space-y-6">
           <!-- Basic Information -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="grid grid-cols-1 gap-6">
             <Input
               v-model="projectData.name"
-              label="Project Name"
+              label="Project Name *"
               placeholder="Enter project name"
               required
               :error="errors.name"
             />
 
-            <div class="space-y-2">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Project Type
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Project Description *
               </label>
-              <select
-                v-model="projectData.type"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              >
-                <option value="manufacturing">Manufacturing</option>
-                <option value="healthcare">Healthcare</option>
-                <option value="finance">Finance</option>
-                <option value="retail">Retail</option>
-                <option value="transportation">Transportation</option>
-                <option value="research">Research</option>
-                <option value="general">General</option>
-              </select>
+              <textarea
+                v-model="projectData.description"
+                rows="3"
+                placeholder="Describe your EdgeAI project and its objectives"
+                :class="[
+                  'w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none',
+                  errors.description ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                ]"
+              ></textarea>
+              <p v-if="errors.description" class="mt-1 text-sm text-red-600 dark:text-red-400">
+                {{ errors.description }}
+              </p>
             </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Project Description *
-            </label>
-            <textarea
-              v-model="projectData.description"
-              rows="3"
-              placeholder="Describe your EdgeAI project and its objectives"
-              :class="[
-                'w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none',
-                errors.description ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-              ]"
-            ></textarea>
-            <p v-if="errors.description" class="mt-1 text-sm text-red-600 dark:text-red-400">
-              {{ errors.description }}
-            </p>
           </div>
 
           <!-- Model Configuration -->
           <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Model Configuration</h3>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Model Type
+                  Model *
                 </label>
-                <select 
-                  v-model="projectData.modelType" 
+                <select
+                  v-model="projectData.model"
                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="Gemma">Gemma</option>
@@ -103,14 +85,15 @@
                   <option value="LLaMA">LLaMA</option>
                   <option value="Qwen">Qwen</option>
                 </select>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Connected to database table IP</p>
               </div>
 
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Training Strategy
+                  Training Strategy *
                 </label>
                 <select
-                  v-model="projectData.trainingStrategy"
+                  v-model="projectData.training_strategy"
                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="sft">SFT (Supervised Fine-Tuning)</option>
@@ -120,10 +103,12 @@
                   <option value="kto">KTO (Kahneman-Tversky Optimization)</option>
                 </select>
               </div>
-              
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mt-4">
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Protocol
+                  Protocol *
                 </label>
                 <select
                   v-model="projectData.protocol"
@@ -135,15 +120,18 @@
                   <option value="fedavgm">FedAvgM (Federated Averaging with Momentum)</option>
                 </select>
               </div>
-
-
             </div>
+          </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+          <!-- Training Configuration -->
+          <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Training Configuration</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Input
                 v-model.number="projectData.epochs"
                 type="number"
-                label="Training Epochs"
+                label="Epochs *"
                 placeholder="100"
                 min="1"
                 max="1000"
@@ -152,26 +140,26 @@
               />
 
               <Input
-                v-model.number="projectData.batchSize"
+                v-model.number="projectData.batch_size"
                 type="number"
-                label="Batch Size"
+                label="Batch Size *"
                 placeholder="32"
                 min="1"
                 max="512"
                 required
-                :error="errors.batchSize"
+                :error="errors.batch_size"
               />
 
               <Input
-                v-model.number="projectData.learningRate"
+                v-model.number="projectData.learning_rate"
                 type="number"
                 step="0.0001"
-                label="Learning Rate"
+                label="Learning Rate *"
                 placeholder="0.001"
                 min="0.0001"
                 max="1"
                 required
-                :error="errors.learningRate"
+                :error="errors.learning_rate"
               />
             </div>
           </div>
@@ -179,124 +167,29 @@
           <!-- Node Configuration -->
           <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Node Configuration</h3>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <div class="grid grid-cols-1 gap-6">
               <Input
-                v-model.number="projectData.targetNodes"
-                type="number"
-                label="Target Node Count"
-                placeholder="5"
-                min="1"
-                max="50"
+                v-model="projectData.node_ip"
+                label="Node IP Address *"
+                placeholder="192.168.1.100"
                 required
-                :error="errors.targetNodes"
+                :error="errors.node_ip"
               />
-
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Resource Requirements
-                </label>
-                <select 
-                  v-model="projectData.resourceLevel" 
-                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="low">Low (CPU: 2 cores, RAM: 4GB)</option>
-                  <option value="medium">Medium (CPU: 4 cores, RAM: 8GB)</option>
-                  <option value="high">High (CPU: 8 cores, RAM: 16GB)</option>
-                  <option value="gpu">GPU Required (GPU: 1x, RAM: 16GB)</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Auto-scaling Configuration -->
-            <div class="mt-4">
-              <div class="flex items-center space-x-3">
-                <input
-                  id="autoScaling"
-                  v-model="projectData.autoScaling"
-                  type="checkbox"
-                  class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                />
-                <label for="autoScaling" class="text-sm text-gray-700 dark:text-gray-300">
-                  Enable auto-scaling based on workload
-                </label>
-              </div>
-              <div v-if="projectData.autoScaling" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  v-model.number="projectData.minNodes"
-                  type="number"
-                  label="Min Nodes"
-                  placeholder="1"
-                  min="1"
-                  size="sm"
-                  :error="errors.minNodes"
-                />
-                <Input
-                  v-model.number="projectData.maxNodes"
-                  type="number"
-                  label="Max Nodes"
-                  placeholder="10"
-                  min="1"
-                  size="sm"
-                  :error="errors.maxNodes"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Advanced Settings -->
-          <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Advanced Settings</h3>
-            
-            <div class="space-y-4">
-              <div class="flex items-center space-x-3">
-                <input
-                  id="enableMonitoring"
-                  v-model="projectData.enableMonitoring"
-                  type="checkbox"
-                  class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                />
-                <label for="enableMonitoring" class="text-sm text-gray-700 dark:text-gray-300">
-                  Enable real-time monitoring and alerts
-                </label>
-              </div>
-
-              <div class="flex items-center space-x-3">
-                <input
-                  id="dataEncryption"
-                  v-model="projectData.dataEncryption"
-                  type="checkbox"
-                  class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                />
-                <label for="dataEncryption" class="text-sm text-gray-700 dark:text-gray-300">
-                  Enable data encryption in transit and at rest
-                </label>
-              </div>
-
-              <div class="flex items-center space-x-3">
-                <input
-                  id="checkpointing"
-                  v-model="projectData.checkpointing"
-                  type="checkbox"
-                  class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                />
-                <label for="checkpointing" class="text-sm text-gray-700 dark:text-gray-300">
-                  Enable automatic checkpointing and recovery
-                </label>
-              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 -mt-4">Connected to database node table</p>
             </div>
           </div>
 
           <!-- Action Buttons -->
           <div class="flex justify-end space-x-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <Button 
+            <Button
               @click="goBack"
               variant="outline"
               type="button"
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               type="submit"
               variant="primary"
               :loading="creating"
@@ -312,53 +205,42 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useThemeStore } from '@/stores/theme'
-import { useUIStore } from '@/stores/ui'
-import { useEdgeAIStore } from '@/stores/edgeai'
-import Button from '@/components/ui/Button.vue'
+import { ComputerDesktopIcon, ArrowLeftIcon, SunIcon, MoonIcon } from '@heroicons/vue/24/outline'
 import Input from '@/components/ui/Input.vue'
-import { 
-  ComputerDesktopIcon,
-  ArrowLeftIcon,
-  SunIcon,
-  MoonIcon
-} from '@heroicons/vue/24/outline'
+import Button from '@/components/ui/Button.vue'
+import { useEdgeAIStore } from '@/stores/edgeai.js'
+import { useUIStore } from '@/stores/ui.js'
+import { useThemeStore } from '@/stores/theme.js'
 
-const router = useRouter()
-const themeStore = useThemeStore()
-const uiStore = useUIStore()
+// Stores
 const edgeaiStore = useEdgeAIStore()
+const uiStore = useUIStore()
+const themeStore = useThemeStore()
+const router = useRouter()
 
+// Reactive state
 const creating = ref(false)
 const errors = ref({})
 
 const projectData = ref({
   // Basic Information
   name: '',
-  type: 'manufacturing',
   description: '',
 
   // Model Configuration
-  modelType: 'Gemma',
-  trainingStrategy: 'sft',
+  model: 'Gemma',  // 与数据库table IP连接的字段
+  training_strategy: 'sft',
   protocol: 'fedavg',
+
+  // Training Configuration
   epochs: 100,
-  batchSize: 32,
-  learningRate: 0.001,
+  batch_size: 32,
+  learning_rate: 0.001,
 
   // Node Configuration
-  targetNodes: 5,
-  resourceLevel: 'medium',
-  autoScaling: false,
-  minNodes: 1,
-  maxNodes: 10,
-
-  // Advanced Settings
-  enableMonitoring: true,
-  dataEncryption: true,
-  checkpointing: true
+  node_ip: ''  // 与数据库node table连接的字段
 })
 
 const toggleTheme = (event) => {
@@ -390,66 +272,32 @@ const createProject = async () => {
       return
     }
 
-    if (projectData.value.batchSize < 1 || projectData.value.batchSize > 512) {
-      errors.value.batchSize = 'Batch size must be between 1 and 512'
+    if (projectData.value.batch_size < 1 || projectData.value.batch_size > 512) {
+      errors.value.batch_size = 'Batch size must be between 1 and 512'
       return
     }
 
-    if (projectData.value.learningRate < 0.0001 || projectData.value.learningRate > 1) {
-      errors.value.learningRate = 'Learning rate must be between 0.0001 and 1'
+    if (projectData.value.learning_rate < 0.0001 || projectData.value.learning_rate > 1) {
+      errors.value.learning_rate = 'Learning rate must be between 0.0001 and 1'
       return
     }
 
-    if (projectData.value.targetNodes < 1 || projectData.value.targetNodes > 50) {
-      errors.value.targetNodes = 'Target nodes must be between 1 and 50'
+    if (!projectData.value.node_ip.trim()) {
+      errors.value.node_ip = 'Node IP address is required'
       return
     }
 
-    if (projectData.value.autoScaling) {
-      if (projectData.value.minNodes < 1 || projectData.value.minNodes > projectData.value.maxNodes) {
-        errors.value.minNodes = 'Min nodes must be at least 1 and not exceed max nodes'
-        return
-      }
-      if (projectData.value.maxNodes < projectData.value.minNodes) {
-        errors.value.maxNodes = 'Max nodes must be at least equal to min nodes'
-        return
-      }
-    }
-
-    // Build comprehensive JSON payload
+    // Build payload matching backend API
     const payload = {
-      // Basic project information
       name: projectData.value.name.trim(),
-      project_type: projectData.value.type,
       description: projectData.value.description.trim(),
-
-      // Model configuration
-      model_type: projectData.value.modelType,
-      training_strategy: projectData.value.trainingStrategy,
+      model: projectData.value.model,
+      training_strategy: projectData.value.training_strategy,
       protocol: projectData.value.protocol,
-
-      // Training parameters
-      total_epochs: projectData.value.epochs,
-      batch_size: projectData.value.batchSize,
-      learning_rate: projectData.value.learningRate,
-
-      // Node configuration
-      target_nodes: projectData.value.targetNodes,
-      resource_level: projectData.value.resourceLevel,
-
-      // Auto-scaling configuration
-      auto_scaling: projectData.value.autoScaling,
-      min_nodes: projectData.value.autoScaling ? projectData.value.minNodes : projectData.value.targetNodes,
-      max_nodes: projectData.value.autoScaling ? projectData.value.maxNodes : projectData.value.targetNodes,
-
-      // Advanced settings
-      enable_monitoring: projectData.value.enableMonitoring,
-      data_encryption: projectData.value.dataEncryption,
-      checkpointing: projectData.value.checkpointing,
-
-      // Metadata
-      created_at: new Date().toISOString(),
-      status: 'created'
+      epochs: projectData.value.epochs,
+      batch_size: projectData.value.batch_size,
+      learning_rate: projectData.value.learning_rate,
+      node_ip: projectData.value.node_ip.trim()
     }
 
     console.log('Creating project with payload:', JSON.stringify(payload, null, 2))
@@ -489,4 +337,9 @@ const createProject = async () => {
     creating.value = false
   }
 }
+
+// Initialize data on component mount
+onMounted(() => {
+  // Any initialization logic if needed
+})
 </script>
