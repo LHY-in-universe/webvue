@@ -97,7 +97,7 @@ def generate_dynamic_logs():
     users = ["admin", "researcher", "engineer", "analyst", "operator"]
 
     logs = []
-    for i in range(500):
+    for i in range(50):
         scenario = random.choice(detailed_log_scenarios)
         message = scenario["message"]
 

@@ -1,30 +1,47 @@
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from typing import List, Dict, Any
+from sqlalchemy.orm import Session
 from ..schemas.edgeai import TrainingMetrics
 from common.schemas.common import BaseResponse
+from database.edgeai import get_db, User, Project, Model, Node
 import asyncio
 import json
 
 router = APIRouter()
 
-# Mock training sessions
+# Active training sessions (kept in memory for real-time tracking)
 active_training_sessions = {}
 
 @router.post("/start", response_model=BaseResponse)
-async def start_training(project_id: str, node_ids: List[str] = None):
+async def start_training(project_id: str, node_ids: List[str] = None, db: Session = Depends(get_db)):
     """
     开始训练
     """
     try:
+        # Verify project exists in database
+        try:
+            project_id_int = int(project_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+        project = db.query(Project).filter(Project.id == project_id_int).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Update project status to training
+        project.status = "training"
+        project.progress = 0.0
+        db.commit()
+
         session_id = f"training_{project_id}_{len(active_training_sessions)}"
-        
+
         active_training_sessions[session_id] = {
             "project_id": project_id,
             "node_ids": node_ids or [],
             "status": "running",
             "progress": 0.0,
             "current_epoch": 0,
-            "total_epochs": 100,
+            "total_epochs": project.epoches,
             "metrics": {
                 "accuracy": 0.0,
                 "loss": 1.0,
@@ -248,118 +265,31 @@ async def stop_batch_training(project_ids: List[str]):
     }
 
 @router.get("/config/{project_id}/")
-async def get_training_config(project_id: str):
+async def get_training_config(project_id: str, db: Session = Depends(get_db)):
     """
     获取特定项目的训练配置
     """
-    # 模拟训练配置数据
-    training_configs = {
-        "proj-001": {
-            "ai_model": "Smart Manufacturing CNN",
-            "strategy": "Federated Learning",
-            "protocol": "FedAvg",
-            "target_accuracy": "≥95%",
-            "estimated_completion": "2 hours",
-            "model_architecture": {
-                "type": "cnn",
-                "layers": [
-                    {"type": "conv2d", "filters": 32, "kernel_size": 3, "activation": "relu"},
-                    {"type": "maxpooling2d", "pool_size": 2},
-                    {"type": "conv2d", "filters": 64, "kernel_size": 3, "activation": "relu"},
-                    {"type": "maxpooling2d", "pool_size": 2},
-                    {"type": "flatten"},
-                    {"type": "dense", "units": 128, "activation": "relu"},
-                    {"type": "dropout", "rate": 0.5},
-                    {"type": "dense", "units": 10, "activation": "softmax"}
-                ]
-            },
-            "hyperparameters": {
-                "batch_size": 32,
-                "learning_rate": 0.001,
-                "total_epochs": 100,
-                "optimizer": "adam",
-                "loss_function": "categorical_crossentropy"
-            },
-            "federated_config": {
-                "min_clients": 3,
-                "max_clients": 10,
-                "rounds": 100,
-                "client_fraction": 0.8,
-                "local_epochs": 5
-            }
-        },
-        "proj-002": {
-            "ai_model": "Traffic Flow RNN",
-            "strategy": "Distributed Training",
-            "protocol": "AllReduce",
-            "target_accuracy": "≥90%",
-            "estimated_completion": "3 hours",
-            "model_architecture": {
-                "type": "rnn",
-                "layers": [
-                    {"type": "lstm", "units": 64, "return_sequences": True},
-                    {"type": "dropout", "rate": 0.3},
-                    {"type": "lstm", "units": 32, "return_sequences": False},
-                    {"type": "dropout", "rate": 0.3},
-                    {"type": "dense", "units": 16, "activation": "relu"},
-                    {"type": "dense", "units": 4, "activation": "softmax"}
-                ]
-            },
-            "hyperparameters": {
-                "batch_size": 64,
-                "learning_rate": 0.0001,
-                "total_epochs": 150,
-                "optimizer": "rmsprop",
-                "loss_function": "sparse_categorical_crossentropy"
-            },
-            "distributed_config": {
-                "num_workers": 4,
-                "sync_mode": "synchronous",
-                "gradient_compression": True
-            }
-        },
-        "proj-003": {
-            "ai_model": "Medical Diagnosis Transformer",
-            "strategy": "Secure Aggregation",
-            "protocol": "SecAgg",
-            "target_accuracy": "≥98%",
-            "estimated_completion": "5 hours",
-            "model_architecture": {
-                "type": "transformer",
-                "layers": [
-                    {"type": "multi_head_attention", "heads": 8, "d_model": 512},
-                    {"type": "layer_normalization"},
-                    {"type": "feed_forward", "d_ff": 2048},
-                    {"type": "layer_normalization"},
-                    {"type": "global_average_pooling"},
-                    {"type": "dense", "units": 256, "activation": "relu"},
-                    {"type": "dropout", "rate": 0.4},
-                    {"type": "dense", "units": 3, "activation": "softmax"}
-                ]
-            },
-            "hyperparameters": {
-                "batch_size": 16,
-                "learning_rate": 0.0005,
-                "total_epochs": 200,
-                "optimizer": "adamw",
-                "loss_function": "categorical_crossentropy"
-            },
-            "security_config": {
-                "privacy_budget": 1.0,
-                "noise_multiplier": 1.3,
-                "max_grad_norm": 1.0,
-                "secure_aggregation": True
-            }
-        }
-    }
+    # Verify project exists and get its configuration from database
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    # 默认配置
-    default_config = {
-        "ai_model": "EdgeAI Neural Network",
-        "strategy": "Federated Learning",
-        "protocol": "FedAvg",
-        "target_accuracy": "≥85%",
-        "estimated_completion": "1.5 hours",
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Get related models for this project
+    project_models = db.query(Model).filter(Model.project_id == project_id_int).all()
+    model_name = project_models[0].name if project_models else "Default AI Model"
+
+    # Build configuration from database project data
+    config = {
+        "ai_model": model_name,
+        "strategy": project.strategy or "Federated Learning",
+        "protocol": project.protocol or "FedAvg",
+        "target_accuracy": "≥85%",  # Could be stored in project or model
+        "estimated_completion": f"{project.epoches // 50} hours",  # Estimate based on epochs
         "model_architecture": {
             "type": "neural_network",
             "layers": [
@@ -372,26 +302,23 @@ async def get_training_config(project_id: str):
             ]
         },
         "hyperparameters": {
-            "batch_size": 32,
-            "learning_rate": 0.001,
-            "total_epochs": 100,
+            "batch_size": project.batch_size,
+            "learning_rate": project.learning_rate,
+            "total_epochs": project.epoches,
             "optimizer": "adam",
             "loss_function": "categorical_crossentropy"
         },
         "federated_config": {
             "min_clients": 2,
             "max_clients": 8,
-            "rounds": 50,
+            "rounds": project.epoches // 2,  # Estimate rounds based on epochs
             "client_fraction": 0.6,
             "local_epochs": 3
         }
     }
 
-    # 返回特定项目配置或默认配置
-    config = training_configs.get(project_id, default_config)
-
     return {
         "project_id": project_id,
         "config": config,
-        "last_updated": "2024-01-15T10:30:00Z"
+        "last_updated": project.updated_time.isoformat() if project.updated_time else project.created_time.isoformat()
     }

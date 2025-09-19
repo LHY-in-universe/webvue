@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
+from sqlalchemy.orm import Session
 from ..schemas.edgeai import (
     ProjectCreateRequest,
     ProjectResponse,
@@ -12,15 +13,15 @@ from ..schemas.edgeai import (
     Protocol
 )
 from common.schemas.common import BaseResponse, PaginatedResponse
+from database.edgeai import get_db, User, Project, Model, Node
 import uuid
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
-# Mock projects database with expanded data
-import random
-from datetime import datetime, timedelta
+# Mock data generation removed - now using database
 
-def generate_dynamic_projects():
+def generate_dynamic_projects_OLD():
     """生成动态项目数据"""
     project_templates = [
         {
@@ -167,86 +168,146 @@ def generate_dynamic_projects():
 
     return projects
 
-# 生成初始项目数据
-mock_projects = generate_dynamic_projects()
+# Mock data removed - now using database
 
 @router.get("/", response_model=List[ProjectResponse])
 async def get_projects(
     status: Optional[ProjectStatus] = None,
     project_type: Optional[ProjectType] = None,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
 ):
     """
     获取项目列表
     支持按状态、类型和搜索关键词过滤
     """
-    filtered_projects = mock_projects
-    
+    query = db.query(Project)
+
     if status:
-        filtered_projects = [p for p in filtered_projects if p["status"] == status.value]
-    
+        query = query.filter(Project.status == status.value)
+
     if project_type:
-        filtered_projects = [p for p in filtered_projects if p["type"] == project_type.value]
-    
+        query = query.filter(Project.strategy == project_type.value)
+
     if search:
-        search_lower = search.lower()
-        filtered_projects = [
-            p for p in filtered_projects 
-            if search_lower in p["name"].lower() or search_lower in p["description"].lower()
-        ]
-    
-    return [ProjectResponse(**project) for project in filtered_projects]
+        search_term = f"%{search}%"
+        query = query.filter(
+            (Project.name.ilike(search_term)) |
+            (Project.description.ilike(search_term))
+        )
+
+    projects = query.all()
+
+    # Convert database projects to response format
+    result = []
+    for project in projects:
+        project_response = ProjectResponse(
+            id=str(project.id),
+            name=project.name,
+            description=project.description,
+            model="",  # Will be filled from related models
+            status=ProjectStatus.CREATED if not project.status or project.status not in [e.value for e in ProjectStatus] else ProjectStatus(project.status),
+            progress=project.progress,
+            connected_nodes=db.query(Node).filter(Node.project_id == project.id).count(),
+            current_epoch=0,  # Could be calculated from training status
+            total_epochs=project.epoches,
+            training_strategy=TrainingStrategy.SFT if not project.strategy or project.strategy not in [e.value for e in TrainingStrategy] else TrainingStrategy(project.strategy),
+            protocol=Protocol.FEDAVG if not project.protocol or project.protocol not in [e.value for e in Protocol] else Protocol(project.protocol),
+            epochs=project.epoches,
+            batch_size=project.batch_size,
+            learning_rate=project.learning_rate,
+            node_ip="",  # Could be from related nodes
+            created_time=project.created_time.isoformat() if project.created_time else "",
+            last_update=project.updated_time.isoformat() if project.updated_time else "",
+            metrics={}
+        )
+        result.append(project_response)
+
+    return result
 
 @router.get("/{project_id}/", response_model=ProjectResponse)
-async def get_project(project_id: str):
+async def get_project(project_id: str, db: Session = Depends(get_db)):
     """
     获取特定项目详情
     """
-    for project in mock_projects:
-        if project["id"] == project_id:
-            return ProjectResponse(**project)
-    
-    raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Get related data
+    connected_nodes = db.query(Node).filter(Node.project_id == project.id).count()
+
+    return ProjectResponse(
+        id=str(project.id),
+        name=project.name,
+        description=project.description,
+        model="",  # Will be filled from related models
+        status=ProjectStatus.CREATED if not project.status or project.status not in [e.value for e in ProjectStatus] else ProjectStatus(project.status),
+        progress=project.progress,
+        connected_nodes=connected_nodes,
+        current_epoch=0,  # Could be calculated from training status
+        total_epochs=project.epoches,
+        training_strategy=TrainingStrategy.SFT if not project.strategy or project.strategy not in [e.value for e in TrainingStrategy] else TrainingStrategy(project.strategy),
+        protocol=Protocol.FEDAVG if not project.protocol or project.protocol not in [e.value for e in Protocol] else Protocol(project.protocol),
+        epochs=project.epoches,
+        batch_size=project.batch_size,
+        learning_rate=project.learning_rate,
+        node_ip="",  # Could be from related nodes
+        created_time=project.created_time.isoformat() if project.created_time else "",
+        last_update=project.updated_time.isoformat() if project.updated_time else "",
+        metrics={}
+    )
 
 @router.post("/", response_model=ProjectResponse)
-async def create_project(request: ProjectCreateRequest):
+async def create_project(request: ProjectCreateRequest, db: Session = Depends(get_db)):
     """
     创建新项目
     """
-    from datetime import datetime
+    # Create new project in database
+    new_project = Project(
+        user_id=1,  # TODO: Get from authenticated user
+        name=request.name,
+        description=request.description,
+        strategy=request.training_strategy.value,
+        protocol=request.protocol.value,
+        epoches=request.epochs,
+        learning_rate=request.learning_rate,
+        batch_size=request.batch_size,
+        status="created",
+        progress=0.0,
+        task_id=f"task-{uuid.uuid4().hex[:8]}"
+    )
 
-    # 设置创建时间
-    created_time = request.created_time or datetime.now()
+    db.add(new_project)
+    db.commit()
+    db.refresh(new_project)
 
-    new_project = {
-        "id": f"proj-{uuid.uuid4().hex[:8]}",
-        "name": request.name,
-        "description": request.description,
-        "model": request.model,  # 与数据库table IP连接的字段
-        "status": "created",
-        "progress": 0.0,
-        "connected_nodes": 0,
-        "current_epoch": 0,
-        "total_epochs": request.epochs,
-        "training_strategy": request.training_strategy,
-        "protocol": request.protocol,
-        "epochs": request.epochs,
-        "batch_size": request.batch_size,
-        "learning_rate": request.learning_rate,
-        "node_ip": request.node_ip,  # 与数据库node table连接的字段
-        "created_time": created_time.strftime("%Y-%m-%d %H:%M:%S"),
-        "last_update": "just now",
-        "metrics": {
-            "accuracy": 0.0,
-            "loss": 0.0,
-            "f1_score": 0.0,
-            "precision": 0.0,
-            "recall": 0.0
-        }
-    }
-
-    mock_projects.append(new_project)
-    return ProjectResponse(**new_project)
+    return ProjectResponse(
+        id=str(new_project.id),
+        name=new_project.name,
+        description=new_project.description,
+        model=request.model,
+        status=ProjectStatus.CREATED,
+        progress=0.0,
+        connected_nodes=0,
+        current_epoch=0,
+        total_epochs=new_project.epoches,
+        training_strategy=TrainingStrategy(new_project.strategy),
+        protocol=Protocol(new_project.protocol),
+        epochs=new_project.epoches,
+        batch_size=new_project.batch_size,
+        learning_rate=new_project.learning_rate,
+        node_ip=request.node_ip,
+        created_time=new_project.created_time.isoformat() if new_project.created_time else "",
+        last_update=new_project.updated_time.isoformat() if new_project.updated_time else "",
+        metrics={}
+    )
 
 @router.put("/{project_id}", response_model=ProjectResponse)
 async def update_project(project_id: str, request: ProjectCreateRequest):
@@ -351,21 +412,30 @@ async def export_project(project_id: str, request: ProjectExportRequest):
     raise HTTPException(status_code=404, detail="Project not found")
 
 @router.get("/stats/overview", response_model=SystemStats)
-async def get_system_stats():
+async def get_system_stats(db: Session = Depends(get_db)):
     """
     获取系统统计信息
     """
-    total_projects = len(mock_projects)
-    active_projects = len([p for p in mock_projects if p["status"] in ["active", "training"]])
-    
+    total_projects = db.query(Project).count()
+    active_projects = db.query(Project).filter(
+        Project.status.in_(["active", "training"])
+    ).count()
+
+    total_nodes = db.query(Node).count()
+    online_nodes = db.query(Node).filter(Node.state == "online").count()
+    training_nodes = db.query(Node).filter(Node.state == "training").count()
+    error_nodes = db.query(Node).filter(Node.state == "error").count()
+
+    completion_rate = round((active_projects / total_projects * 100) if total_projects > 0 else 0, 2)
+
     return SystemStats(
         total_projects=total_projects,
         active_projects=active_projects,
-        total_nodes=12,  # Mock data
-        online_nodes=8,
-        training_nodes=3,
-        error_nodes=1,
-        completion_rate=round((active_projects / total_projects * 100) if total_projects > 0 else 0, 2)
+        total_nodes=total_nodes,
+        online_nodes=online_nodes,
+        training_nodes=training_nodes,
+        error_nodes=error_nodes,
+        completion_rate=completion_rate
     )
 
 @router.post("/{project_id}/duplicate", response_model=BaseResponse)

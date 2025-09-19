@@ -1,14 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
+from sqlalchemy.orm import Session
 from ..schemas.edgeai import TaskRequest, TaskResponse
 from common.schemas.common import BaseResponse
+from database.edgeai import get_db, User, Project, Model, Node
 from datetime import datetime, timedelta
 import uuid
+import random
 
 router = APIRouter()
-
-# Mock tasks database with expanded variety
-import random
 
 def generate_dynamic_tasks():
     """生成动态任务数据"""

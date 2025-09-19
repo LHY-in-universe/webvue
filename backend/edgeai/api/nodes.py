@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from typing import List, Optional
+from sqlalchemy.orm import Session
 from ..schemas.edgeai import (
     NodeResponse,
     NodeOperationRequest,
@@ -7,14 +8,13 @@ from ..schemas.edgeai import (
     NodeType
 )
 from common.schemas.common import BaseResponse
+from database.edgeai import get_db, User, Project, Model, Node
 import asyncio
 import json
-
-router = APIRouter()
-
-# Mock nodes database with expanded geographic diversity
 import random
 from datetime import datetime, timedelta
+
+router = APIRouter()
 
 def generate_dynamic_nodes():
     """生成动态节点数据"""
@@ -160,24 +160,50 @@ mock_nodes = generate_dynamic_nodes()
 async def get_nodes(
     status: Optional[NodeStatus] = None,
     node_type: Optional[NodeType] = None,
-    project: Optional[str] = None
+    project: Optional[str] = None,
+    db: Session = Depends(get_db)
 ):
     """
     获取节点列表
     支持按状态、类型和项目过滤
     """
-    filtered_nodes = mock_nodes
-    
+    query = db.query(Node)
+
     if status:
-        filtered_nodes = [n for n in filtered_nodes if n["status"] == status.value]
-    
-    if node_type:
-        filtered_nodes = [n for n in filtered_nodes if n["type"] == node_type.value]
-    
+        query = query.filter(Node.state == status.value)
+
     if project:
-        filtered_nodes = [n for n in filtered_nodes if n["project"] == project]
-    
-    return [NodeResponse(**node) for node in filtered_nodes]
+        try:
+            project_id = int(project)
+            query = query.filter(Node.project_id == project_id)
+        except ValueError:
+            # If project is not a valid ID, ignore the filter
+            pass
+
+    nodes = query.all()
+
+    # Convert database nodes to response format
+    result = []
+    for node in nodes:
+        node_response = NodeResponse(
+            id=str(node.id),
+            name=node.name,
+            type=NodeType.EDGE,  # Default type
+            status=NodeStatus(node.state) if node.state in [s.value for s in NodeStatus] else NodeStatus.OFFLINE,
+            project=str(node.project_id) if node.project_id else None,
+            location=node.path_ipv4 or "Unknown",
+            cpu_usage=random.uniform(10, 80),  # Mock data for now
+            memory_usage=random.uniform(20, 90),
+            gpu_usage=random.uniform(0, 100) if node.gpu else 0,
+            progress=node.progress,
+            current_epoch=None,
+            total_epochs=None,
+            last_seen=node.last_updated_time.isoformat() if node.last_updated_time else "",
+            connections=[]
+        )
+        result.append(node_response)
+
+    return result
 
 @router.get("/{node_id}", response_model=NodeResponse)
 async def get_node(node_id: str):
@@ -372,21 +398,25 @@ async def node_websocket(websocket: WebSocket, node_id: str):
                 if node["gpu_usage"] > 0:
                     node["gpu_usage"] = max(60, min(95, node["gpu_usage"] + (0.4 - 0.1)))
             
-            # 发送更新数据
-            await websocket.send_text(json.dumps({
-                "type": "node_update",
-                "node_id": node_id,
-                "data": {
-                    "status": node["status"],
-                    "cpu_usage": node["cpu_usage"],
-                    "memory_usage": node["memory_usage"],
-                    "gpu_usage": node["gpu_usage"],
-                    "progress": node["progress"],
-                    "current_epoch": node["current_epoch"],
-                    "total_epochs": node["total_epochs"],
-                    "last_seen": node["last_seen"]
-                }
-            }))
+            # 发送更新数据，检查连接状态
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "node_update",
+                    "node_id": node_id,
+                    "data": {
+                        "status": node["status"],
+                        "cpu_usage": node["cpu_usage"],
+                        "memory_usage": node["memory_usage"],
+                        "gpu_usage": node["gpu_usage"],
+                        "progress": node["progress"],
+                        "current_epoch": node["current_epoch"],
+                        "total_epochs": node["total_epochs"],
+                        "last_seen": node["last_seen"]
+                    }
+                }))
+            except Exception:
+                # WebSocket已关闭，退出循环
+                break
             
             await asyncio.sleep(2)  # 每2秒发送一次更新
             
@@ -394,7 +424,10 @@ async def node_websocket(websocket: WebSocket, node_id: str):
         print(f"WebSocket disconnected for node {node_id}")
     except Exception as e:
         print(f"WebSocket error: {e}")
-        await websocket.close()
+        try:
+            await websocket.close()
+        except Exception:
+            pass  # 连接可能已经关闭
 
 @router.post("/{node_id}/assign-project")
 async def assign_node_to_project(node_id: str, project_id: str):
