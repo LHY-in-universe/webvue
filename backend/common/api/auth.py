@@ -1,14 +1,35 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
-from ..schemas.auth import LoginRequest, AuthResponse, UserResponse, UpdatePreferencesRequest
+from sqlalchemy.orm import Session
+from passlib.context import CryptContext
+from ..schemas.auth import LoginRequest, RegisterRequest, AuthResponse, UserResponse, UpdatePreferencesRequest
 from ..schemas.common import BaseResponse
+
+# Import EdgeAI database components
+import sys
+import os
+from pathlib import Path
+root_dir = Path(__file__).parent.parent.parent.parent
+sys.path.append(str(root_dir))
+
+from database.edgeai.database import SessionLocal, get_db
+from database.edgeai.models import User
 
 router = APIRouter()
 
-# Mock user database (in production, use real database)
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+# Mock fallback users (for demo purposes)
 mock_users = {
     "admin": {
-        "id": 1,
+        "id": 999,
         "username": "admin",
         "email": "admin@opentmp.com",
         "password": "admin123",
@@ -24,20 +45,131 @@ mock_users = {
     }
 }
 
-@router.post("/login", response_model=AuthResponse)
-async def login(request: LoginRequest):
+@router.post("/register", response_model=AuthResponse)
+async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """
-    用户登录接口
-    支持快速登录和完整登录
+    用户注册接口
     """
     try:
-        # 模拟用户验证
+        # 验证密码匹配
+        request.validate_passwords_match()
+
+        # 检查邮箱是否已存在
+        existing_user = db.query(User).filter(User.email == request.email).first()
+        if existing_user:
+            return AuthResponse(
+                success=False,
+                error="邮箱已被注册"
+            )
+
+        # 生成用户名（如果没有提供）
+        username = request.username or request.email.split('@')[0]
+
+        # 创建新用户
+        hashed_password = hash_password(request.password)
+        new_user = User(
+            name=request.name,
+            email=request.email,
+            password=hashed_password
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        # 生成token
+        token = f"edgeai_token_{new_user.id}_{request.module}"
+
+        # 构建用户响应
+        user_response = UserResponse(
+            id=new_user.id,
+            username=username,
+            email=new_user.email,
+            module=request.module,
+            user_type="client",
+            preferences={
+                "theme": "auto",
+                "auto_theme": True,
+                "language": "zh",
+                "notifications": True
+            },
+            created_at=new_user.created_time.isoformat() if new_user.created_time else "",
+            last_login=new_user.created_time.isoformat() if new_user.created_time else ""
+        )
+
+        return AuthResponse(
+            success=True,
+            user=user_response,
+            token=token
+        )
+
+    except ValueError as e:
+        return AuthResponse(
+            success=False,
+            error=str(e)
+        )
+    except Exception as e:
+        db.rollback()
+        return AuthResponse(
+            success=False,
+            error=f"注册失败: {str(e)}"
+        )
+
+@router.post("/login", response_model=AuthResponse)
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """
+    用户登录接口
+    支持用户名或邮箱登录
+    """
+    try:
+        # 首先尝试从EdgeAI数据库查找用户
+        user = None
+
+        # 尝试通过邮箱查找
+        if request.email:
+            user = db.query(User).filter(User.email == request.email).first()
+
+        # 如果没有找到，尝试通过用户名匹配邮箱
+        if not user and request.username:
+            # 检查用户名是否是邮箱格式
+            if '@' in request.username:
+                user = db.query(User).filter(User.email == request.username).first()
+            else:
+                # 尝试匹配名字
+                user = db.query(User).filter(User.name == request.username).first()
+
+        if user and request.password:
+            # 验证密码
+            if verify_password(request.password, user.password):
+                token = f"edgeai_token_{user.id}_{request.module}"
+
+                user_response = UserResponse(
+                    id=user.id,
+                    username=user.name,
+                    email=user.email,
+                    module=request.module,
+                    user_type="client",
+                    preferences={
+                        "theme": "auto",
+                        "auto_theme": True,
+                        "language": "zh",
+                        "notifications": True
+                    },
+                    created_at=user.created_time.isoformat() if user.created_time else "",
+                    last_login=user.updated_time.isoformat() if user.updated_time else ""
+                )
+
+                return AuthResponse(
+                    success=True,
+                    user=user_response,
+                    token=token
+                )
+
+        # 如果数据库中没有找到，回退到mock用户（为了兼容性）
         if request.username in mock_users:
             user_data = mock_users[request.username]
-            
-            # 模拟生成token
             token = f"mock_token_{user_data['id']}_{request.module}"
-            
+
             user_response = UserResponse(
                 id=user_data["id"],
                 username=user_data["username"],
@@ -48,52 +180,19 @@ async def login(request: LoginRequest):
                 created_at=user_data["created_at"],
                 last_login=user_data["last_login"]
             )
-            
+
             return AuthResponse(
                 success=True,
                 user=user_response,
                 token=token
             )
-        else:
-            # 创建新用户（快速登录）
-            new_user_id = len(mock_users) + 1
-            new_user = {
-                "id": new_user_id,
-                "username": request.username,
-                "email": request.email or f"{request.username}@example.com",
-                "password": request.password or "default123",
-                "user_type": "client",
-                "preferences": {
-                    "theme": "auto",
-                    "auto_theme": True,
-                    "language": "zh",
-                    "notifications": True
-                },
-                "created_at": "2024-01-15T10:30:00Z",
-                "last_login": "2024-01-15T10:30:00Z"
-            }
-            
-            mock_users[request.username] = new_user
-            
-            token = f"mock_token_{new_user_id}_{request.module}"
-            
-            user_response = UserResponse(
-                id=new_user["id"],
-                username=new_user["username"],
-                email=new_user["email"],
-                module=request.module,
-                user_type=new_user["user_type"],
-                preferences=new_user["preferences"],
-                created_at=new_user["created_at"],
-                last_login=new_user["last_login"]
-            )
-            
-            return AuthResponse(
-                success=True,
-                user=user_response,
-                token=token
-            )
-            
+
+        # 登录失败
+        return AuthResponse(
+            success=False,
+            error="用户名/邮箱或密码错误"
+        )
+
     except Exception as e:
         return AuthResponse(
             success=False,

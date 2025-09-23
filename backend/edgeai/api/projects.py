@@ -288,6 +288,26 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
     db.commit()
     db.refresh(new_project)
 
+    # Create nodes for the project
+    created_nodes = []
+    for node_data in request.nodes:
+        new_node = Node(
+            user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
+            project_id=new_project.id,
+            name=node_data.name or f"Node {node_data.ip}",
+            path_ipv4=node_data.ip,
+            state="idle",  # 使用idle而不是offline
+            role="worker",  # 使用worker而不是edge
+            progress=0.0,
+            cpu="",  # 使用字符串而不是数字
+            gpu="",  # 使用字符串而不是数字
+            memory=""  # 使用字符串而不是数字
+        )
+        db.add(new_node)
+        created_nodes.append(new_node)
+
+    db.commit()
+
     return ProjectResponse(
         id=str(new_project.id),
         name=new_project.name,
@@ -295,7 +315,7 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
         model=request.model,
         status=ProjectStatus.CREATED,
         progress=0.0,
-        connected_nodes=0,
+        connected_nodes=len(created_nodes),
         current_epoch=0,
         total_epochs=new_project.epoches,
         training_strategy=TrainingStrategy(new_project.strategy),
@@ -303,113 +323,237 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
         epochs=new_project.epoches,
         batch_size=new_project.batch_size,
         learning_rate=new_project.learning_rate,
-        node_ip=request.node_ip,
+        node_ip="",  # Multiple nodes now, so this field is empty
         created_time=new_project.created_time.isoformat() if new_project.created_time else "",
         last_update=new_project.updated_time.isoformat() if new_project.updated_time else "",
         metrics={}
     )
 
 @router.put("/{project_id}", response_model=ProjectResponse)
-async def update_project(project_id: str, request: ProjectCreateRequest):
+async def update_project(project_id: str, request: ProjectCreateRequest, db: Session = Depends(get_db)):
     """
     更新项目信息
     """
-    for i, project in enumerate(mock_projects):
-        if project["id"] == project_id:
-            updated_project = {
-                **project,
-                "name": request.name,
-                "description": request.description,
-                "type": request.type.value,
-                "model_type": request.model_type.value,
-                "last_update": "just now"
-            }
-            mock_projects[i] = updated_project
-            return ProjectResponse(**updated_project)
-    
-    raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-@router.delete("/{project_id}", response_model=BaseResponse)
-async def delete_project(project_id: str):
-    """
-    删除项目
-    """
-    global mock_projects
-    original_count = len(mock_projects)
-    mock_projects = [p for p in mock_projects if p["id"] != project_id]
-    
-    if len(mock_projects) < original_count:
-        return BaseResponse(
-            success=True,
-            message="Project deleted successfully"
-        )
-    else:
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    # Update project fields
+    project.name = request.name
+    project.description = request.description
+    project.strategy = request.type.value
+    project.updated_time = datetime.now()
+
+    db.commit()
+    db.refresh(project)
+
+    return ProjectResponse(
+        id=str(project.id),
+        name=project.name,
+        description=project.description,
+        model="",
+        status=ProjectStatus.CREATED if not project.status or project.status not in [e.value for e in ProjectStatus] else ProjectStatus(project.status),
+        type=ProjectType.COMPUTER_VISION,
+        model_type=request.model_type,
+        progress=project.progress or 0.0,
+        total_epochs=project.epoches,
+        training_strategy=TrainingStrategy(project.strategy),
+        protocol=Protocol(project.protocol),
+        epochs=project.epoches,
+        batch_size=project.batch_size,
+        learning_rate=project.learning_rate,
+        node_ip="",
+        created_time=project.created_time.isoformat() if project.created_time else "",
+        last_update=project.updated_time.isoformat() if project.updated_time else "",
+        metrics={}
+    )
+
+@router.delete("/{project_id}", response_model=BaseResponse)
+async def delete_project(project_id: str, db: Session = Depends(get_db)):
+    """
+    删除项目及其相关数据
+    """
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # 删除项目关联的节点
+    project_nodes = db.query(Node).filter(Node.project_id == project_id_int).all()
+    for node in project_nodes:
+        db.delete(node)
+    
+    # 删除项目关联的模型
+    project_models = db.query(Model).filter(Model.project_id == project_id_int).all()
+    for model in project_models:
+        db.delete(model)
+    
+    # 删除项目本身
+    db.delete(project)
+    db.commit()
+
+    return BaseResponse(
+        success=True,
+        message=f"Project '{project.name}' and all related data deleted successfully"
+    )
+
 @router.post("/import", response_model=BaseResponse)
-async def import_project(request: ProjectImportRequest):
+async def import_project(request: ProjectImportRequest, db: Session = Depends(get_db)):
     """
     导入项目
     """
     try:
-        project_id = f"proj-{uuid.uuid4().hex[:8]}"
-        
-        imported_project = {
-            "id": project_id,
-            "name": request.project_data.get("name", "Imported Project"),
-            "description": request.project_data.get("description", "Imported from external source"),
-            "type": request.project_data.get("type", "manufacturing"),
-            "status": "imported",
-            "progress": 0.0,
-            "connected_nodes": 0,
-            "current_epoch": 0,
-            "total_epochs": 100,
-            "model_type": request.project_data.get("model_type", "cnn"),
-            "batch_size": 32,
-            "learning_rate": 0.001,
-            "created": "2024-01-15",
-            "last_update": "just now",
-            "metrics": {
-                "accuracy": 0.0,
-                "loss": 0.0,
-                "f1_score": 0.0
-            }
-        }
-        
-        mock_projects.append(imported_project)
-        
+        new_project = Project(
+            name=request.project_data.get("name", "Imported Project (db)"),
+            description=request.project_data.get("description", "Imported from external source"),
+            strategy=request.project_data.get("type", "Computer Vision"),
+            protocol="HTTP",
+            epoches=100,
+            learning_rate=0.001,
+            batch_size=32,
+            status="created",
+            progress=0.0,
+            task_id=f"task_{uuid.uuid4().hex[:8]}",
+            user_id=1  # Default to admin user
+        )
+
+        db.add(new_project)
+        db.commit()
+        db.refresh(new_project)
+
         return BaseResponse(
             success=True,
-            message=f"Project imported successfully: {project_id}"
+            message=f"Project imported successfully: {new_project.id}"
         )
     except Exception as e:
+        db.rollback()
         return BaseResponse(
             success=False,
             error=str(e)
         )
 
 @router.post("/{project_id}/export", response_model=BaseResponse)
-async def export_project(project_id: str, request: ProjectExportRequest):
+async def export_project(project_id: str, request: ProjectExportRequest, db: Session = Depends(get_db)):
     """
     导出项目
     """
-    for project in mock_projects:
-        if project["id"] == project_id:
-            export_data = {
-                **project,
-                "exported_at": "2024-01-15T10:30:00Z",
-                "export_format": request.format,
-                "include_models": request.include_models,
-                "include_data": request.include_data
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    export_data = {
+        "id": str(project.id),
+        "name": project.name,
+        "description": project.description,
+        "strategy": project.strategy,
+        "protocol": project.protocol,
+        "status": project.status,
+        "progress": project.progress,
+        "exported_at": datetime.now().isoformat(),
+        "export_format": request.format,
+        "include_models": request.include_models,
+        "include_data": request.include_data
+    }
+
+    return BaseResponse(
+        success=True,
+        message="Project exported successfully",
+        data=export_data
+    )
+
+@router.get("/{project_id}/visualization")
+async def get_project_visualization(project_id: str, db: Session = Depends(get_db)):
+    """
+    获取项目的完整可视化数据，包括项目详情、关联的模型和节点
+    """
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # 获取关联的模型
+    models = db.query(Model).filter(Model.project_id == project.id).all()
+
+    # 获取关联的节点
+    nodes = db.query(Node).filter(Node.project_id == project.id).all()
+
+    # 构建可视化数据
+    visualization_data = {
+        "project": {
+            "id": str(project.id),
+            "name": project.name,
+            "description": project.description,
+            "status": project.status,
+            "progress": project.progress,
+            "strategy": project.strategy,
+            "protocol": project.protocol,
+            "epochs": project.epoches,
+            "batch_size": project.batch_size,
+            "learning_rate": project.learning_rate,
+            "created_time": project.created_time.isoformat() if project.created_time else None,
+            "updated_time": project.updated_time.isoformat() if project.updated_time else None
+        },
+        "models": [
+            {
+                "id": str(model.id),
+                "name": model.name,
+                "description": model.description,
+                "status": model.status,
+                "progress": model.progress,
+                "accuracy": model.accuracy,
+                "loss": model.loss,
+                "version": model.version,
+                "size": model.size,
+                "file_path": model.file_path,
+                "class_config": model.class_config,
+                "created_time": model.created_time.isoformat() if model.created_time else None,
+                "updated_time": model.updated_time.isoformat() if model.updated_time else None
             }
-            
-            return BaseResponse(
-                success=True,
-                message="Project exported successfully",
-                data=export_data
-            )
-    
-    raise HTTPException(status_code=404, detail="Project not found")
+            for model in models
+        ],
+        "nodes": [
+            {
+                "id": str(node.id),
+                "name": node.name,
+                "path_ipv4": node.path_ipv4,
+                "state": node.state,
+                "role": node.role,
+                "progress": node.progress,
+                "cpu": node.cpu,
+                "gpu": node.gpu,
+                "memory": node.memory,
+                "created_time": node.created_time.isoformat() if node.created_time else None,
+                "last_updated_time": node.last_updated_time.isoformat() if node.last_updated_time else None
+            }
+            for node in nodes
+        ],
+        "summary": {
+            "total_models": len(models),
+            "total_nodes": len(nodes),
+            "training_nodes": len([n for n in nodes if n.state == "training"]),
+            "active_models": len([m for m in models if m.status in ["training", "trained"]])
+        }
+    }
+
+    return visualization_data
 
 @router.get("/stats/overview", response_model=SystemStats)
 async def get_system_stats(db: Session = Depends(get_db)):
@@ -439,83 +583,110 @@ async def get_system_stats(db: Session = Depends(get_db)):
     )
 
 @router.post("/{project_id}/duplicate", response_model=BaseResponse)
-async def duplicate_project(project_id: str):
+async def duplicate_project(project_id: str, db: Session = Depends(get_db)):
     """
     复制项目
     """
-    for project in mock_projects:
-        if project["id"] == project_id:
-            new_project = {
-                **project,
-                "id": f"proj-{uuid.uuid4().hex[:8]}",
-                "name": f"{project['name']} (Copy)",
-                "status": "created",
-                "progress": 0.0,
-                "current_epoch": 0,
-                "connected_nodes": 0,
-                "created": "2024-01-15",
-                "last_update": "just now",
-                "metrics": {
-                    "accuracy": 0.0,
-                    "loss": 0.0,
-                    "f1_score": 0.0
-                }
-            }
-            mock_projects.append(new_project)
-            return BaseResponse(
-                success=True,
-                message=f"Project duplicated successfully: {new_project['id']}"
-            )
-    
-    raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    original_project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not original_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    new_project = Project(
+        name=f"{original_project.name} (Copy) (db)",
+        description=original_project.description,
+        strategy=original_project.strategy,
+        protocol=original_project.protocol,
+        epoches=original_project.epoches,
+        learning_rate=original_project.learning_rate,
+        batch_size=original_project.batch_size,
+        status="created",
+        progress=0.0,
+        task_id=f"task_{uuid.uuid4().hex[:8]}",
+        user_id=original_project.user_id
+    )
+
+    db.add(new_project)
+    db.commit()
+    db.refresh(new_project)
+
+    return BaseResponse(
+        success=True,
+        message=f"Project duplicated successfully: {new_project.id}"
+    )
 
 @router.post("/{project_id}/start", response_model=BaseResponse)
-async def start_project(project_id: str):
+async def start_project(project_id: str, db: Session = Depends(get_db)):
     """
     启动项目
     """
-    for project in mock_projects:
-        if project["id"] == project_id:
-            project["status"] = "training"
-            project["last_update"] = "just now"
-            return BaseResponse(
-                success=True,
-                message=f"Project {project_id} started successfully"
-            )
-    
-    raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project.status = "training"
+    project.updated_time = datetime.now()
+    db.commit()
+
+    return BaseResponse(
+        success=True,
+        message=f"Project {project_id} started successfully"
+    )
 
 @router.post("/{project_id}/pause", response_model=BaseResponse)
-async def pause_project(project_id: str):
+async def pause_project(project_id: str, db: Session = Depends(get_db)):
     """
     暂停项目
     """
-    for project in mock_projects:
-        if project["id"] == project_id:
-            project["status"] = "paused"
-            project["last_update"] = "just now"
-            return BaseResponse(
-                success=True,
-                message=f"Project {project_id} paused successfully"
-            )
-    
-    raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project.status = "paused"
+    project.updated_time = datetime.now()
+    db.commit()
+
+    return BaseResponse(
+        success=True,
+        message=f"Project {project_id} paused successfully"
+    )
 
 @router.post("/{project_id}/stop", response_model=BaseResponse)
-async def stop_project(project_id: str):
+async def stop_project(project_id: str, db: Session = Depends(get_db)):
     """
     停止项目
     """
-    for project in mock_projects:
-        if project["id"] == project_id:
-            project["status"] = "idle"
-            project["last_update"] = "just now"
-            return BaseResponse(
-                success=True,
-                message=f"Project {project_id} stopped successfully"
-            )
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    raise HTTPException(status_code=404, detail="Project not found")
+    project = db.query(Project).filter(Project.id == project_id_int).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project.status = "idle"
+    project.updated_time = datetime.now()
+    db.commit()
+
+    return BaseResponse(
+        success=True,
+        message=f"Project {project_id} stopped successfully"
+    )
 
 @router.get("/templates")
 async def get_project_templates():

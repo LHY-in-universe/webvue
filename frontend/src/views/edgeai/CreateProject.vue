@@ -166,17 +166,52 @@
 
           <!-- Node Configuration -->
           <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Node Configuration</h3>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-medium text-gray-900 dark:text-white">Node Configuration</h3>
+              <Button
+                @click="addNode"
+                variant="outline"
+                size="sm"
+                class="flex items-center space-x-2"
+              >
+                <PlusIcon class="w-4 h-4" />
+                <span>Add Node</span>
+              </Button>
+            </div>
 
-            <div class="grid grid-cols-1 gap-6">
-              <Input
-                v-model="projectData.node_ip"
-                label="Node IP Address *"
-                placeholder="192.168.1.100"
-                required
-                :error="errors.node_ip"
-              />
-              <p class="text-xs text-gray-500 dark:text-gray-400 -mt-4">Connected to database node table</p>
+            <div class="space-y-4">
+              <div
+                v-for="(node, index) in projectData.nodes"
+                :key="index"
+                class="flex items-end space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+              >
+                <div class="flex-1">
+                  <Input
+                    v-model="node.ip"
+                    :label="`Node ${index + 1} IP Address *`"
+                    placeholder="192.168.1.100"
+                    required
+                    :error="errors[`node_${index}`]"
+                  />
+                </div>
+                <div class="flex-1">
+                  <Input
+                    v-model="node.name"
+                    :label="`Node ${index + 1} Name`"
+                    placeholder="Node Name (Optional)"
+                  />
+                </div>
+                <Button
+                  @click="removeNode(index)"
+                  variant="ghost"
+                  size="sm"
+                  class="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+                  :disabled="projectData.nodes.length === 1"
+                >
+                  <TrashIcon class="w-4 h-4" />
+                </Button>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Connected to database node table</p>
             </div>
           </div>
 
@@ -207,7 +242,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ComputerDesktopIcon, ArrowLeftIcon, SunIcon, MoonIcon } from '@heroicons/vue/24/outline'
+import { ComputerDesktopIcon, ArrowLeftIcon, SunIcon, MoonIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
 import { useEdgeAIStore } from '@/stores/edgeai.js'
@@ -240,7 +275,12 @@ const projectData = ref({
   learning_rate: 0.001,
 
   // Node Configuration
-  node_ip: ''  // 与数据库node table连接的字段
+  nodes: [
+    {
+      ip: '',
+      name: ''
+    }
+  ]  // 与数据库node table连接的字段
 })
 
 const toggleTheme = (event) => {
@@ -249,6 +289,20 @@ const toggleTheme = (event) => {
 
 const goBack = () => {
   router.push('/edgeai/dashboard')
+}
+
+// Node management methods
+const addNode = () => {
+  projectData.value.nodes.push({
+    ip: '',
+    name: ''
+  })
+}
+
+const removeNode = (index) => {
+  if (projectData.value.nodes.length > 1) {
+    projectData.value.nodes.splice(index, 1)
+  }
 }
 
 const createProject = async () => {
@@ -282,8 +336,17 @@ const createProject = async () => {
       return
     }
 
-    if (!projectData.value.node_ip.trim()) {
-      errors.value.node_ip = 'Node IP address is required'
+    // Validate nodes
+    let hasValidNodes = false
+    projectData.value.nodes.forEach((node, index) => {
+      if (!node.ip.trim()) {
+        errors.value[`node_${index}`] = 'Node IP address is required'
+      } else {
+        hasValidNodes = true
+      }
+    })
+    
+    if (!hasValidNodes) {
       return
     }
 
@@ -297,7 +360,11 @@ const createProject = async () => {
       epochs: projectData.value.epochs,
       batch_size: projectData.value.batch_size,
       learning_rate: projectData.value.learning_rate,
-      node_ip: projectData.value.node_ip.trim()
+      nodes: projectData.value.nodes.filter(node => node.ip.trim()).map(node => ({
+        ip: node.ip.trim(),
+        name: node.name.trim() || `Node ${node.ip}`,
+        description: node.description.trim() || ''
+      }))
     }
 
     console.log('Creating project with payload:', JSON.stringify(payload, null, 2))

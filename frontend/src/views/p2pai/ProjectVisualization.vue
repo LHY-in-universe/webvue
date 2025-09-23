@@ -746,7 +746,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useP2PAIStore } from '@/stores/p2pai'
 import { useApiOptimization } from '@/composables/useApiOptimization'
-import p2paiService from '@/services/p2paiService'
+import edgeaiService from '@/services/edgeaiService'
 import performanceMonitor from '@/utils/performanceMonitor'
 import {
   ArrowLeftIcon,
@@ -1169,58 +1169,85 @@ const privacyLevel = computed(() => {
   return levels[projectType.value] || 'Standard'
 })
 
-// Load project visualization data from API
+// Load project visualization data from EdgeAI API
 const loadProjectVisualizationData = async () => {
-  const pageMonitor = performanceMonitor.monitorPageLoad('P2PAIProjectVisualization')
+  const pageMonitor = performanceMonitor.monitorPageLoad('EdgeAIProjectVisualization')
   loading.value = true
   error.value = null
-  
+
   try {
     const projectIdValue = projectId.value
-    
-    // Load project details, training metrics, and network data in parallel
-    const [projectResult, trainingResult, networkResult] = await Promise.all([
-      cachedApiCall(`p2pai-project-${projectIdValue}`, 
-        () => p2paiService.projects.getProject(projectIdValue), 
-        2 * 60 * 1000
-      ),
-      cachedApiCall(`p2pai-training-${projectIdValue}`, 
-        () => p2paiService.training.getTrainingMetrics(projectIdValue), 
-        30 * 1000 // Cache for 30 seconds for real-time updates
-      ),
-      cachedApiCall(`p2pai-network-${projectIdValue}`, 
-        () => p2paiService.nodes.getNetworkVisualization(projectIdValue), 
-        30 * 1000
-      )
-    ])
 
-    // Update training data with real API results
-    if (trainingResult) {
-      localTrainingData.value = {
-        rounds: trainingResult.rounds || [],
-        accuracy: trainingResult.accuracy || [],
-        loss: trainingResult.loss || [],
-        cpu: trainingResult.cpu_usage || [],
-        gpu: trainingResult.gpu_usage || [],
-        memory: trainingResult.memory_usage || []
-      }
+    // Load complete project visualization data from EdgeAI database
+    const visualizationData = await cachedApiCall(
+      `edgeai-visualization-${projectIdValue}`,
+      () => edgeaiService.projects.getProjectVisualization(projectIdValue),
+      30 * 1000 // Cache for 30 seconds for real-time updates
+    )
+
+    console.log('EdgeAI Visualization Data:', visualizationData)
+
+    // Update project info with database data
+    if (visualizationData.project) {
+      // The project name should now have (db) suffix
+      projectDisplayName.value = visualizationData.project.name
+      projectSubtitle.value = visualizationData.project.description
     }
 
-    // Update training state
-    if (trainingResult && trainingResult.current_state) {
-      trainingState.value = {
-        status: trainingResult.current_state.status || 'idle',
-        currentRound: trainingResult.current_state.current_round || 0,
-        totalRounds: trainingResult.current_state.total_rounds || 100,
-        startTime: trainingResult.current_state.start_time || null,
-        endTime: trainingResult.current_state.end_time || null
+    // Update node data with real database nodes
+    if (visualizationData.nodes && visualizationData.nodes.length > 0) {
+      // Transform database nodes to visualization format
+      const nodeVisualizationData = visualizationData.nodes.map((node, index) => ({
+        id: node.id,
+        name: node.name, // This should have (db) suffix
+        label: node.name,
+        type: node.role || 'worker',
+        status: node.state, // Should be 'training' for most nodes
+        progress: node.progress || 0,
+        cpu: node.cpu || 'Unknown',
+        gpu: node.gpu || 'None',
+        memory: node.memory || 'Unknown',
+        ip: node.path_ipv4 || '',
+        x: 100 + (index % 3) * 200, // Simple layout
+        y: 100 + Math.floor(index / 3) * 150
+      }))
+
+      // Update network data for visualization
+      networkData.value = {
+        nodes: nodeVisualizationData,
+        links: [], // Could be enhanced with actual relationships
+        summary: {
+          totalNodes: visualizationData.summary.total_nodes,
+          trainingNodes: visualizationData.summary.training_nodes,
+          totalModels: visualizationData.summary.total_models,
+          activeModels: visualizationData.summary.active_models
+        }
       }
-      isTraining.value = trainingState.value.status === 'training'
+
+      console.log('Updated network data with database nodes:', networkData.value)
+    }
+
+    // Update model data
+    if (visualizationData.models && visualizationData.models.length > 0) {
+      console.log('Models from database:', visualizationData.models)
+      // Models data can be used for additional displays if needed
+    }
+
+    // Set training state based on project status
+    if (visualizationData.project) {
+      trainingState.value = {
+        status: visualizationData.project.status || 'idle',
+        currentRound: Math.floor(visualizationData.project.progress || 0),
+        totalRounds: visualizationData.project.epochs || 100,
+        startTime: visualizationData.project.created_time,
+        endTime: null
+      }
+      isTraining.value = visualizationData.project.status === 'training' || visualizationData.project.status === 'active'
     }
 
     pageMonitor.end({ success: true, projectType: projectType.value })
   } catch (err) {
-    console.error('Failed to load project visualization data:', err)
+    console.error('Failed to load EdgeAI project visualization data:', err)
     error.value = err.message || 'Failed to load project visualization data'
     pageMonitor.end({ success: false, error: err.message })
   } finally {

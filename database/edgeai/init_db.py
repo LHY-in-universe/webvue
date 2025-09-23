@@ -65,7 +65,7 @@ def init_database():
             admin_user = created_users[0]
             projects_data = [
                 {
-                    "name": "Image Recognition Model",
+                    "name": "1Image Recognition Model (db)",
                     "description": "A deep learning model for image classification",
                     "strategy": "Computer Vision",
                     "protocol": "HTTP",
@@ -78,7 +78,7 @@ def init_database():
                     "user_id": admin_user.id
                 },
                 {
-                    "name": "NLP Sentiment Analysis",
+                    "name": "2NLP Sentiment Analysis (db)",
                     "description": "Natural language processing for sentiment analysis",
                     "strategy": "Natural Language Processing",
                     "protocol": "gRPC",
@@ -113,7 +113,7 @@ def init_database():
             if created_projects:
                 models_data = [
                     {
-                        "name": "ResNet-50 Custom",
+                        "name": "21ResNet-50 Custom (db)",
                         "description": "Custom ResNet-50 model for image classification",
                         "file_path": "/models/resnet50_custom.pth",
                         "version": "1.0.0",
@@ -127,7 +127,7 @@ def init_database():
                         "project_id": created_projects[0].id
                     },
                     {
-                        "name": "BERT Base",
+                        "name": "21BERT Base (db)",
                         "description": "BERT base model for sentiment analysis",
                         "file_path": "/models/bert_base.bin",
                         "version": "1.1.0",
@@ -158,7 +158,7 @@ def init_database():
                 # Create sample nodes
                 nodes_data = [
                     {
-                        "name": "GPU Training Node 1",
+                        "name": "22GPU Training Node 1 (db)",
                         "path_ipv4": "192.168.1.101",
                         "progress": 45.0,
                         "state": "training",
@@ -169,11 +169,71 @@ def init_database():
                         "user_id": admin_user.id,
                         "project_id": created_projects[0].id
                     },
+                                        {
+                        "name": "122GPU Training Node 1 (db)",
+                        "path_ipv4": "192.168.1.101",
+                        "progress": 45.0,
+                        "state": "training",
+                        "role": "trainer",
+                        "cpu": "Intel i9-12900K",
+                        "gpu": "RTX 4090 24GB",
+                        "memory": "32GB DDR4",
+                        "user_id": admin_user.id,
+                        "project_id": created_projects[0].id
+                    },
+                                        {
+                        "name": "2122GPU Training Node 1 (db)",
+                        "path_ipv4": "192.168.1.101",
+                        "progress": 45.0,
+                        "state": "training",
+                        "role": "trainer",
+                        "cpu": "Intel i9-12900K",
+                        "gpu": "RTX 4090 24GB",
+                        "memory": "32GB DDR4",
+                        "user_id": admin_user.id,
+                        "project_id": created_projects[0].id
+                    },
+                                        {
+                        "name": "222222GPU Training Node 1 (db)",
+                        "path_ipv4": "192.168.1.101",
+                        "progress": 45.0,
+                        "state": "training",
+                        "role": "trainer",
+                        "cpu": "Intel i9-12900K",
+                        "gpu": "RTX 4090 24GB",
+                        "memory": "32GB DDR4",
+                        "user_id": admin_user.id,
+                        "project_id": created_projects[0].id
+                    },
+                                        {
+                        "name": "322GPU Training Node 1 (db)",
+                        "path_ipv4": "192.168.1.101",
+                        "progress": 45.0,
+                        "state": "training",
+                        "role": "trainer",
+                        "cpu": "Intel i9-12900K",
+                        "gpu": "RTX 4090 24GB",
+                        "memory": "32GB DDR4",
+                        "user_id": admin_user.id,
+                        "project_id": created_projects[1].id
+                    },
+                                        {
+                        "name": "3422GPU Training Node 1 (db)",
+                        "path_ipv4": "192.168.1.101",
+                        "progress": 45.0,
+                        "state": "training",
+                        "role": "trainer",
+                        "cpu": "Intel i9-12900K",
+                        "gpu": "RTX 4090 24GB",
+                        "memory": "32GB DDR4",
+                        "user_id": admin_user.id,
+                        "project_id": created_projects[1].id
+                    },
                     {
-                        "name": "CPU Processing Node 1",
+                        "name": "11CPU Processing Node 1 (db)",
                         "path_ipv4": "192.168.1.102",
                         "progress": 30.0,
-                        "state": "processing",
+                        "state": "training",
                         "role": "worker",
                         "cpu": "AMD Ryzen 7 5800X",
                         "gpu": "",

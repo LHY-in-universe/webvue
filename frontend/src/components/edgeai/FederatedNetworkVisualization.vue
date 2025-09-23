@@ -302,17 +302,30 @@ const nodePositions = ref(new Map())
 // 根据节点ID稳定分配位置的函数
 const getStablePositionIndex = (nodeId, nodeType) => {
   if (nodeType === 'training') {
-    // 从节点ID提取数字，如 'training-01' -> 1
-    const match = nodeId.match(/training-(\d+)/)
+    // 支持多种节点ID格式：'training-01', 'node-7', 'training-node-3' 等
+    let match = nodeId.match(/training-(\d+)/)
+    if (!match) {
+      match = nodeId.match(/node-(\d+)/)
+    }
+    if (!match) {
+      match = nodeId.match(/(\d+)/)
+    }
     if (match) {
       const nodeNumber = parseInt(match[1])
       return (nodeNumber - 1) % FIXED_NODE_POSITIONS.length
     }
   } else if (['model', 'control'].includes(nodeType)) {
-    // 控制节点稳定分配
-    if (nodeId === 'model-1') return 0
-    if (nodeId === 'model-2') return 1  
-    if (nodeId === 'backup-control') return 2
+    // 控制节点稳定分配 - 支持多种ID格式
+    if (nodeId === 'model-1' || nodeId.includes('model-1')) return 0
+    if (nodeId === 'model-2' || nodeId.includes('model-2')) return 1
+    if (nodeId === 'backup-control' || nodeId.includes('backup')) return 2
+
+    // 提取数字作为fallback
+    const match = nodeId.match(/(\d+)/)
+    if (match) {
+      const nodeNumber = parseInt(match[1])
+      return nodeNumber % CONTROL_NODE_POSITIONS.length
+    }
   }
   return 0
 }

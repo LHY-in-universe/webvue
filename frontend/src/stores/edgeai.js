@@ -703,6 +703,46 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
     }
   }
 
+  const deleteNode = async (nodeId) => {
+    loading.value.operations = true
+    try {
+      const result = await edgeaiService.nodes.deleteNode(nodeId)
+      
+      if (result && result.success !== false) {
+        // Remove node from local state
+        nodes.value = nodes.value.filter(n => n.id !== nodeId)
+        return { success: true }
+      } else {
+        return { success: false, error: result?.error || 'Failed to delete node' }
+      }
+    } catch (error) {
+      console.error('Failed to delete node:', error)
+      return { success: false, error: error.message }
+    } finally {
+      loading.value.operations = false
+    }
+  }
+
+  const batchDeleteNodes = async (nodeIds) => {
+    loading.value.operations = true
+    try {
+      const result = await edgeaiService.nodes.batchDeleteNodes(nodeIds)
+      
+      if (result && result.success !== false) {
+        // Remove deleted nodes from local state
+        nodes.value = nodes.value.filter(n => !nodeIds.includes(n.id))
+        return { success: true, message: result.message }
+      } else {
+        return { success: false, error: result?.error || 'Failed to delete nodes' }
+      }
+    } catch (error) {
+      console.error('Failed to batch delete nodes:', error)
+      return { success: false, error: error.message }
+    } finally {
+      loading.value.operations = false
+    }
+  }
+
   const exportNodes = async (exportParams = {}) => {
     loading.value.operations = true
     try {
@@ -840,6 +880,8 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
     stopNodeTraining,
     restartNode,
     addNode,
+    deleteNode,
+    batchDeleteNodes,
     connectToNode,
     disconnectFromNode,
     exportNodes,

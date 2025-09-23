@@ -26,6 +26,7 @@ export const API_ENDPOINTS = {
   // 认证相关
   AUTH: {
     LOGIN: '/api/common/auth/login',
+    REGISTER: '/api/common/auth/register',
     LOGOUT: '/api/common/auth/logout',
     USER: '/api/common/auth/user',
     PREFERENCES: '/api/common/auth/user/{id}/preferences'
@@ -104,16 +105,19 @@ export const API_ENDPOINTS = {
       STOP: '/api/edgeai/projects/{id}/stop/',
       TEMPLATES: '/api/edgeai/projects/templates/',
       IMPORT_HISTORY: '/api/edgeai/projects/import-history/',
-      LOAD_FROM_URL: '/api/edgeai/projects/load-from-url/'
+      LOAD_FROM_URL: '/api/edgeai/projects/load-from-url/',
+      VISUALIZATION: '/api/edgeai/projects/{id}/visualization'
     },
 
     // 节点管理
     NODES: {
       LIST: '/api/edgeai/nodes/',
+      DETAIL: '/api/edgeai/nodes/{id}',
       OPERATION: '/api/edgeai/nodes/{id}/operation/',
       START_TRAINING: '/api/edgeai/nodes/{id}/start-training/',
       STOP_TRAINING: '/api/edgeai/nodes/{id}/stop-training/',
       VISUALIZATION: '/api/edgeai/nodes/visualization/{projectId}/',
+      BATCH_DELETE: '/api/edgeai/nodes/batch',
       WS: '/api/edgeai/nodes/ws/{id}'
     },
 

@@ -716,6 +716,69 @@
       :anchor-position="modalAnchorPosition"
       @close="closeNodeModal"
     />
+
+    <!-- Add Node Modal -->
+    <div
+      v-if="showAddNodeModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click.self="closeAddNodeModal"
+    >
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add New Node</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400">Add a new training node to the project</p>
+        </div>
+        
+        <form @submit.prevent="submitAddNode" class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Node IP Address *
+            </label>
+            <input
+              v-model="newNodeData.ip"
+              type="text"
+              placeholder="192.168.1.100"
+              required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              :class="{ 'border-red-500': addNodeErrors.ip }"
+            />
+            <p v-if="addNodeErrors.ip" class="mt-1 text-sm text-red-600 dark:text-red-400">
+              {{ addNodeErrors.ip }}
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Node Name
+            </label>
+            <input
+              v-model="newNodeData.name"
+              type="text"
+              placeholder="Node Name (Optional)"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+
+          <div class="flex justify-end space-x-3 pt-4">
+            <Button
+              @click="closeAddNodeModal"
+              variant="outline"
+              type="button"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              :loading="addingNode"
+              class="bg-green-600 hover:bg-green-700 focus:ring-green-500"
+            >
+              Add Node
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -961,51 +1024,7 @@ const loadVisualizationData = async () => {
     // Update nodes data
     const nodesList = nodesResult?.nodes || nodesResult || []
 
-    // Always ensure we have at least some control nodes for visualization
-    const defaultControlNodes = [
-      {
-        id: 'model-1',
-        name: 'Global Model Server',
-        type: 'model',
-        status: 'online',
-        role: 'Coordinator',
-        user: 'System',
-        ipAddress: '192.168.1.100',
-        connectedNodes: '12 nodes',
-        trainingProgress: 0,
-        resources: { cpu: 45, memory: '2.1', gpu: 80 },
-        lastHeartbeat: 'Just now',
-        priority: 10
-      },
-      {
-        id: 'model-2',
-        name: 'Backup Model Server',
-        type: 'model',
-        status: 'online',
-        role: 'Backup',
-        user: 'System',
-        ipAddress: '192.168.1.101',
-        connectedNodes: '8 nodes',
-        trainingProgress: 0,
-        resources: { cpu: 35, memory: '1.8', gpu: 65 },
-        lastHeartbeat: '2 sec ago',
-        priority: 9
-      },
-      {
-        id: 'backup-control',
-        name: 'Coordinator Node',
-        type: 'control',
-        status: 'online',
-        role: 'Coordinator',
-        user: 'System',
-        ipAddress: '192.168.1.102',
-        connectedNodes: '15 nodes',
-        trainingProgress: 0,
-        resources: { cpu: 55, memory: '3.2', gpu: 0 },
-        lastHeartbeat: '1 sec ago',
-        priority: 8
-      }
-    ]
+    // 只使用数据库中的真实数据
 
     if (Array.isArray(nodesList) && nodesList.length > 0) {
       // Map API data to our format with validation
@@ -1020,7 +1039,7 @@ const loadVisualizationData = async () => {
           user: node.user || 'System',
           ipAddress: node.ip_address || 'Unknown',
           connectedNodes: node.connected_nodes || '0 nodes',
-          trainingProgress: node.training_progress || 0,
+          trainingProgress: node.progress || 0,
           resources: {
             cpu: node.resources?.cpu || Math.floor(Math.random() * 50) + 20,
             memory: node.resources?.memory || (Math.random() * 2 + 0.5).toFixed(1),
@@ -1030,31 +1049,12 @@ const loadVisualizationData = async () => {
           priority: node.priority || 1
         }))
 
-      // Combine control nodes with training nodes
-      allFederatedNodes.value = [...defaultControlNodes, ...mappedNodes]
+      // 只使用数据库中的真实节点数据
+      allFederatedNodes.value = mappedNodes
     } else {
-      // If no data from API, create some sample training nodes
-      console.warn('No node data from API, creating sample nodes')
-      const sampleTrainingNodes = Array.from({ length: 8 }, (_, i) => ({
-        id: `training-${String(i + 1).padStart(2, '0')}`,
-        name: ['Manufacturing Node', 'Weather Station', 'Hospital Network', 'Smart City Hub', 'IoT Gateway', 'Research Lab', 'Entertainment Hub', 'Transport Hub'][i],
-        type: 'training',
-        status: Math.random() > 0.3 ? 'training' : 'idle',
-        role: 'Participant',
-        user: 'System',
-        ipAddress: `192.168.1.${110 + i}`,
-        connectedNodes: `${Math.floor(Math.random() * 5) + 1} nodes`,
-        trainingProgress: Math.random() * 100,
-        resources: {
-          cpu: Math.floor(Math.random() * 50) + 30,
-          memory: (Math.random() * 2 + 1).toFixed(1),
-          gpu: Math.floor(Math.random() * 40) + 40
-        },
-        lastHeartbeat: `${Math.floor(Math.random() * 10) + 1} sec ago`,
-        priority: Math.floor(Math.random() * 5) + 1
-      }))
-
-      allFederatedNodes.value = [...defaultControlNodes, ...sampleTrainingNodes]
+      // If no data from API, show empty state
+      console.warn('No node data from API, showing empty state')
+      allFederatedNodes.value = []
     }
 
     console.log('Loaded nodes data:', allFederatedNodes.value.length, 'total nodes')
@@ -1102,7 +1102,7 @@ const loadNodesData = async () => {
         user: node.user || 'System',
         ipAddress: node.ip_address || 'Unknown',
         connectedNodes: node.connected_nodes || '0 nodes',
-        trainingProgress: node.training_progress || 0,
+        trainingProgress: node.progress || 0,
         resources: {
           cpu: node.resources?.cpu || 0,
           memory: node.resources?.memory || '0.0',
@@ -1166,7 +1166,8 @@ const displayedNodes = computed(() => {
   const limitedTrainingNodes = activeTrainingNodes.slice(0, 15)
 
   const result = [...controlNodes, ...limitedTrainingNodes]
-  console.log('DisplayedNodes result:', result.length, 'nodes:', result.map(n => ({ id: n.id, type: n.type, name: n.name })))
+  console.log('DisplayedNodes result:', result.length, 'nodes:', result.map(n => ({ id: n.id, type: n.type, name: n.name, status: n.status })))
+  console.log('Control nodes:', controlNodes.length, 'Training nodes:', limitedTrainingNodes.length)
 
   return result
 })
@@ -1301,24 +1302,13 @@ const previousPage = () => {
 }
 
 const addNode = () => {
-  // Add a new training node to the pool
-  const newNodeId = `training-${String(allFederatedNodes.value.filter(n => n.type === 'training').length + 1).padStart(2, '0')}`
-  const newNode = {
-    id: newNodeId,
-    name: `Training Node ${String(allFederatedNodes.value.filter(n => n.type === 'training').length + 1).padStart(2, '0')}`,
-    type: 'training',
-    status: 'idle',
-    trainingProgress: 0,
-    resources: {
-      cpu: Math.floor(Math.random() * 30) + 20,
-      memory: (Math.random() * 1.5 + 0.5).toFixed(1),
-      gpu: Math.floor(Math.random() * 30) + 30
-    },
-    lastHeartbeat: 'Just connected',
-    priority: Math.floor(Math.random() * 5)
+  // 重置表单数据
+  newNodeData.value = {
+    ip: '',
+    name: ''
   }
-  allFederatedNodes.value.push(newNode)
-  console.log('New node added:', newNode)
+  addNodeErrors.value = {}
+  showAddNodeModal.value = true
 }
 
 const startTraining = () => {
@@ -1474,6 +1464,15 @@ const isModalVisible = ref(false)
 const modalSelectedNode = ref(null)
 const modalAnchorPosition = ref({ x: 0, y: 0 })
 
+// 添加节点模态框状态
+const showAddNodeModal = ref(false)
+const addingNode = ref(false)
+const newNodeData = ref({
+  ip: '',
+  name: ''
+})
+const addNodeErrors = ref({})
+
 // Event handlers
 const handleNodeClick = (node) => {
   if (!node || !node.id) {
@@ -1509,6 +1508,69 @@ const closeNodeModal = () => {
   setTimeout(() => {
     modalSelectedNode.value = null
   }, 300)
+}
+
+// 添加节点模态框控制方法
+const closeAddNodeModal = () => {
+  showAddNodeModal.value = false
+  newNodeData.value = {
+    ip: '',
+    name: ''
+  }
+  addNodeErrors.value = {}
+}
+
+// IP地址验证函数（与CreateProject.vue保持一致）
+const validateIPAddress = (ip) => {
+  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
+  return ipRegex.test(ip)
+}
+
+// 提交添加节点
+const submitAddNode = async () => {
+  addNodeErrors.value = {}
+  
+  // 验证IP地址
+  if (!newNodeData.value.ip.trim()) {
+    addNodeErrors.value.ip = 'IP address is required'
+    return
+  }
+  
+  if (!validateIPAddress(newNodeData.value.ip.trim())) {
+    addNodeErrors.value.ip = 'Please enter a valid IP address'
+    return
+  }
+  
+  addingNode.value = true
+  
+  try {
+    const projectId = route.params.projectId
+    const nodeData = {
+      ip: newNodeData.value.ip.trim(),
+      name: newNodeData.value.name.trim() || `Node ${newNodeData.value.ip}`
+    }
+    
+    // 调用API添加节点到数据库
+    const result = await edgeaiService.nodes.addNode(nodeData, projectId)
+    
+    if (result) {
+      console.log('Node added successfully:', result)
+      
+      // 关闭模态框
+      closeAddNodeModal()
+      
+      // 刷新节点数据
+      await loadNodesData()
+      
+      // 显示成功消息
+      alert('节点添加成功！')
+    }
+  } catch (error) {
+    console.error('Failed to add node:', error)
+    addNodeErrors.value.ip = error.message || 'Failed to add node. Please try again.'
+  } finally {
+    addingNode.value = false
+  }
 }
 
 // 处理表格中的详情按钮点击

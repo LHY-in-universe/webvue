@@ -20,13 +20,59 @@ export const useAuthStore = defineStore('auth', () => {
   const getCurrentModule = computed(() => currentModule.value)
 
   // Actions
-  const login = async (credentials, moduleType) => {
+  const register = async (credentials, moduleType) => {
     const { notifications } = useNotifications()
-    
+
     try {
       loading.value = true
       error.value = null
-      
+
+      // 调用注册API
+      const response = await authService.register({
+        name: credentials.name,
+        email: credentials.email,
+        password: credentials.password,
+        confirmPassword: credentials.confirmPassword,
+        username: credentials.username,
+        module: moduleType
+      })
+
+      // 处理响应数据
+      if (response.success) {
+        user.value = response.user
+        token.value = response.token
+        isAuthenticated.value = true
+        currentModule.value = moduleType
+
+        // Persist to localStorage
+        localStorage.setItem('auth-token', response.token)
+        localStorage.setItem('isAuthenticated', 'true')
+        localStorage.setItem('currentModule', moduleType)
+        localStorage.setItem('user', JSON.stringify(response.user))
+
+        notifications.success('注册成功')
+        return { success: true, data: response }
+      } else {
+        error.value = response.error || '注册失败'
+        notifications.error(error.value)
+        return { success: false, error: error.value }
+      }
+    } catch (apiError) {
+      error.value = apiError.error || '注册失败，请检查网络连接'
+      notifications.error(error.value)
+      return { success: false, error: error.value }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const login = async (credentials, moduleType) => {
+    const { notifications } = useNotifications()
+
+    try {
+      loading.value = true
+      error.value = null
+
       // 调用真实API
       const response = await authService.login({
         username: credentials.username,
@@ -34,20 +80,20 @@ export const useAuthStore = defineStore('auth', () => {
         password: credentials.password,
         module: moduleType
       })
-      
+
       // 处理响应数据
       if (response.success) {
         user.value = response.user
         token.value = response.token
         isAuthenticated.value = true
         currentModule.value = moduleType
-        
+
         // Persist to localStorage
         localStorage.setItem('auth-token', response.token)
         localStorage.setItem('isAuthenticated', 'true')
         localStorage.setItem('currentModule', moduleType)
         localStorage.setItem('user', JSON.stringify(response.user))
-        
+
         notifications.success('登录成功')
         return { success: true, data: response }
       } else {
@@ -250,6 +296,7 @@ export const useAuthStore = defineStore('auth', () => {
     getUserAutoThemePreference,
     
     // Actions
+    register,
     login,
     quickLogin,
     logout,

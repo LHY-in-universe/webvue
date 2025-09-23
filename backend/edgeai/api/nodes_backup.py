@@ -5,8 +5,7 @@ from ..schemas.edgeai import (
     NodeResponse,
     NodeOperationRequest,
     NodeStatus,
-    NodeType,
-    NodeCreateRequest
+    NodeType
 )
 from common.schemas.common import BaseResponse
 from database.edgeai import get_db, User, Project, Model, Node
@@ -445,70 +444,6 @@ async def assign_node_to_project(node_id: str, project_id: str):
 
     raise HTTPException(status_code=404, detail="Node not found")
 
-@router.delete("/{node_id}", response_model=BaseResponse)
-async def delete_node(node_id: str, db: Session = Depends(get_db)):
-    """
-    删除节点
-    """
-    try:
-        node_id_int = int(node_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid node ID format")
-
-    # 从数据库删除节点
-    node = db.query(Node).filter(Node.id == node_id_int).first()
-    if not node:
-        raise HTTPException(status_code=404, detail="Node not found")
-
-    db.delete(node)
-    db.commit()
-
-    return BaseResponse(
-        success=True,
-        message=f"Node {node_id} deleted successfully"
-    )
-
-@router.delete("/batch", response_model=BaseResponse)
-async def batch_delete_nodes(node_ids: List[str], db: Session = Depends(get_db)):
-    """
-    批量删除节点
-    """
-    deleted_count = 0
-    failed_count = 0
-    errors = []
-
-    for node_id in node_ids:
-        try:
-            node_id_int = int(node_id)
-            node = db.query(Node).filter(Node.id == node_id_int).first()
-            
-            if node:
-                db.delete(node)
-                deleted_count += 1
-            else:
-                failed_count += 1
-                errors.append(f"Node {node_id} not found")
-        except ValueError:
-            failed_count += 1
-            errors.append(f"Invalid node ID format: {node_id}")
-        except Exception as e:
-            failed_count += 1
-            errors.append(f"Error deleting node {node_id}: {str(e)}")
-
-    db.commit()
-
-    if failed_count > 0:
-        return BaseResponse(
-            success=False,
-            message=f"Batch delete completed with errors. Deleted: {deleted_count}, Failed: {failed_count}",
-            error="; ".join(errors)
-        )
-    else:
-        return BaseResponse(
-            success=True,
-            message=f"Successfully deleted {deleted_count} node(s)"
-        )
-
 @router.get("/visualization/{project_id}/")
 async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)):
     """
@@ -581,7 +516,117 @@ async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)
             "accuracy": model.accuracy,
             "version": model.version
         })
+        {
+            "id": "model-2",
+            "name": "Backup Model Server",
+            "type": "model",
+            "status": "online",
+            "role": "Backup Aggregator",
+            "user": "System Administrator",
+            "ip_address": "192.168.1.101",
+            "connected_nodes": "8 nodes",
+            "last_heartbeat": "2 seconds ago",
+            "resources": {
+                "cpu": 35,
+                "memory": "6.2",
+                "gpu": 0
+            },
+            "priority": 9
+        },
+        {
+            "id": "backup-control",
+            "name": "Coordination Center",
+            "type": "control",
+            "status": "online",
+            "role": "Network Coordinator",
+            "user": "Network Admin",
+            "ip_address": "192.168.1.102",
+            "connected_nodes": "23 nodes",
+            "last_heartbeat": "1 second ago",
+            "resources": {
+                "cpu": 25,
+                "memory": "4.1",
+                "gpu": 0
+            },
+            "priority": 8
+        }
+    ]
 
+    # 训练节点（根据项目动态生成）
+    training_node_templates = [
+        {"base_name": "Manufacturing Edge", "location": "Factory Floor", "specialty": "Quality Control"},
+        {"base_name": "Logistics Hub", "location": "Distribution Center", "specialty": "Inventory Management"},
+        {"base_name": "Retail Analytics", "location": "Store Network", "specialty": "Customer Behavior"},
+        {"base_name": "Smart City Node", "location": "Urban Infrastructure", "specialty": "Traffic Management"},
+        {"base_name": "Healthcare Terminal", "location": "Medical Center", "specialty": "Diagnostic Imaging"},
+        {"base_name": "Financial Edge", "location": "Banking System", "specialty": "Fraud Detection"},
+        {"base_name": "IoT Gateway", "location": "Sensor Network", "specialty": "Environmental Monitoring"},
+        {"base_name": "Mobile Edge", "location": "Base Station", "specialty": "Network Optimization"},
+        {"base_name": "Research Lab", "location": "University", "specialty": "Model Training"},
+        {"base_name": "Cloud Edge", "location": "Data Center", "specialty": "Distributed Computing"},
+        {"base_name": "Agricultural Node", "location": "Smart Farm", "specialty": "Crop Monitoring"},
+        {"base_name": "Energy Grid", "location": "Power Station", "specialty": "Load Balancing"},
+        {"base_name": "Transportation Hub", "location": "Port Authority", "specialty": "Logistics Tracking"},
+        {"base_name": "Emergency Response", "location": "Public Safety", "specialty": "Incident Detection"},
+        {"base_name": "Entertainment System", "location": "Media Center", "specialty": "Content Recommendation"},
+        {"base_name": "Security Monitor", "location": "Surveillance Network", "specialty": "Threat Detection"},
+        {"base_name": "Weather Station", "location": "Meteorological Center", "specialty": "Climate Prediction"},
+        {"base_name": "Autonomous Vehicle", "location": "Transport Network", "specialty": "Route Optimization"},
+        {"base_name": "Space Station", "location": "Orbital Platform", "specialty": "Satellite Communication"},
+        {"base_name": "Deep Sea Monitor", "location": "Ocean Research", "specialty": "Marine Analytics"}
+    ]
+
+    # 生成20个训练节点
+    import random
+    for i in range(20):
+        template = training_node_templates[i % len(training_node_templates)]
+        node_id = f"training-{str(i+1).zfill(2)}"
+
+        # 随机状态分配
+        statuses = ["training", "idle", "completed"]
+        weights = [0.6, 0.3, 0.1]  # 60% training, 30% idle, 10% completed
+        status = random.choices(statuses, weights=weights)[0]
+
+        # 根据状态设置资源使用率
+        if status == "training":
+            cpu_usage = random.randint(60, 95)
+            memory_usage = round(random.uniform(3.0, 8.0), 1)
+            gpu_usage = random.randint(70, 95)
+            training_progress = random.randint(1, 99)
+        elif status == "completed":
+            cpu_usage = random.randint(15, 30)
+            memory_usage = round(random.uniform(1.0, 3.0), 1)
+            gpu_usage = random.randint(0, 10)
+            training_progress = 100
+        else:  # idle
+            cpu_usage = random.randint(10, 25)
+            memory_usage = round(random.uniform(0.5, 2.0), 1)
+            gpu_usage = 0
+            training_progress = random.randint(0, 30)
+
+        training_node = {
+            "id": node_id,
+            "name": f"{template['base_name']} {str(i+1).zfill(2)}",
+            "type": "training",
+            "status": status,
+            "role": "Training Participant",
+            "user": f"Edge User {i+1}",
+            "ip_address": f"192.168.{2 + i//100}.{i%100 + 1}",
+            "connected_nodes": "3 nodes",
+            "training_progress": training_progress,
+            "last_heartbeat": f"{random.randint(1, 30)} seconds ago",
+            "resources": {
+                "cpu": cpu_usage,
+                "memory": str(memory_usage),
+                "gpu": gpu_usage
+            },
+            "priority": random.randint(1, 5),
+            "specialty": template["specialty"],
+            "location": template["location"]
+        }
+        visualization_nodes.append(training_node)
+
+    # 合并控制节点和训练节点
     # 合并所有节点
     all_nodes = control_nodes + visualization_nodes
 
@@ -599,66 +644,3 @@ async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)
         },
         "last_updated": project.updated_time.isoformat() if project.updated_time else project.created_time.isoformat()
     }
-
-@router.post("/", response_model=NodeResponse)
-async def create_node(
-    node_data: NodeCreateRequest,
-    project_id: Optional[int] = None,
-    db: Session = Depends(get_db)
-):
-    """
-    创建新节点
-    """
-    try:
-        # 检查IP地址是否已存在
-        existing_node = db.query(Node).filter(Node.path_ipv4 == node_data.ip).first()
-        if existing_node:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Node with IP address {node_data.ip} already exists"
-            )
-        
-        # 创建新节点
-        new_node = Node(
-            user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
-            project_id=project_id,  # 关联到指定项目
-            path_ipv4=node_data.ip,
-            name=node_data.name or f"Node {node_data.ip}",
-            state="idle",  # 默认为空闲状态
-            role="worker",  # 默认为工作节点
-            progress=0.0,
-            cpu="",
-            gpu="",
-            memory=""
-        )
-        
-        db.add(new_node)
-        db.commit()
-        db.refresh(new_node)
-        
-        # 返回节点响应
-        return NodeResponse(
-            id=str(new_node.id),
-            name=new_node.name,
-            type="edge",  # 默认为边缘节点类型
-            status=new_node.state,
-            project=None,  # 新创建的节点暂时不关联项目
-            location="Unknown",
-            cpu_usage=0.0,
-            memory_usage=0.0,
-            gpu_usage=0.0,
-            progress=new_node.progress,
-            current_epoch=None,
-            total_epochs=None,
-            last_seen=datetime.now().isoformat(),
-            connections=[]
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create node: {str(e)}"
-        )

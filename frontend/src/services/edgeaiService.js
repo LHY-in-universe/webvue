@@ -171,6 +171,17 @@ export const projectService = {
     const url = API_ENDPOINTS.EDGE_AI.PROJECTS.DETAIL.replace('{id}', projectId)
     const response = await apiClient.delete(url)
     return response.data
+  },
+
+  /**
+   * 获取项目可视化数据
+   * @param {string} projectId - 项目ID
+   * @returns {Promise<Object>} 项目可视化数据
+   */
+  async getProjectVisualization(projectId) {
+    const url = API_ENDPOINTS.EDGE_AI.PROJECTS.VISUALIZATION.replace('{id}', projectId)
+    const response = await apiClient.get(url)
+    return response.data
   }
 }
 
@@ -235,10 +246,12 @@ export const nodeService = {
   /**
    * 添加新节点
    * @param {Object} nodeData - 节点数据
+   * @param {number} projectId - 项目ID
    * @returns {Promise<Object>} 添加结果
    */
-  async addNode(nodeData) {
-    const response = await apiClient.post(API_ENDPOINTS.EDGE_AI.NODES.LIST, nodeData)
+  async addNode(nodeData, projectId = null) {
+    const params = projectId ? { project_id: projectId } : {}
+    const response = await apiClient.post(API_ENDPOINTS.EDGE_AI.NODES.LIST, nodeData, { params })
     return response.data
   },
 
@@ -345,6 +358,29 @@ export const nodeService = {
     }
 
     return ws
+  },
+
+  /**
+   * 删除节点
+   * @param {string} nodeId - 节点ID
+   * @returns {Promise<Object>} 删除结果
+   */
+  async deleteNode(nodeId) {
+    const url = API_ENDPOINTS.EDGE_AI.NODES.DETAIL.replace('{id}', nodeId)
+    const response = await apiClient.delete(url)
+    return response.data
+  },
+
+  /**
+   * 批量删除节点
+   * @param {Array} nodeIds - 节点ID数组
+   * @returns {Promise<Object>} 批量删除结果
+   */
+  async batchDeleteNodes(nodeIds) {
+    const response = await apiClient.delete(API_ENDPOINTS.EDGE_AI.NODES.BATCH_DELETE, {
+      data: nodeIds
+    })
+    return response.data
   },
 
   /**

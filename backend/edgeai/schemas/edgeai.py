@@ -62,6 +62,10 @@ class Protocol(str, Enum):
     FEDADAM = "fedadam"
     FEDAVGM = "fedavgm"
 
+class NodeCreateRequest(BaseModel):
+    ip: str
+    name: Optional[str] = None
+
 class ProjectCreateRequest(BaseModel):
     name: str
     description: str
@@ -71,7 +75,7 @@ class ProjectCreateRequest(BaseModel):
     epochs: int
     batch_size: int
     learning_rate: float
-    node_ip: str  # 与数据库node table连接的字段
+    nodes: List[NodeCreateRequest]  # 与数据库node table连接的字段，支持多个节点
     created_time: Optional[datetime] = None  # 建立时间
 
 class ProjectResponse(BaseModel):

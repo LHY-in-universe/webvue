@@ -20,6 +20,19 @@ class LoginRequest(BaseModel):
     password: Optional[str] = None
     module: ModuleType
 
+class RegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    confirm_password: str
+    username: Optional[str] = None
+    module: ModuleType
+
+    def validate_passwords_match(self):
+        if self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self
+
 class UserResponse(BaseModel):
     id: int
     username: str

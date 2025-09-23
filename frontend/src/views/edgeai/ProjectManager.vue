@@ -302,6 +302,100 @@
         </div>
       </div>
     </Modal>
+
+    <!-- Project Menu Modal -->
+    <Modal
+      :isOpen="showProjectMenuModal"
+      @close="showProjectMenuModal = false"
+      title="Project Actions"
+      size="sm"
+    >
+      <div class="space-y-4">
+        <div class="text-center">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            {{ selectedProject?.name }}
+          </h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Choose an action for this project
+          </p>
+        </div>
+        
+        <div class="space-y-2">
+          <Button
+            @click="duplicateProject(selectedProject)"
+            variant="outline"
+            size="sm"
+            class="w-full justify-start"
+            :leftIcon="DocumentDuplicateIcon"
+          >
+            Duplicate Project
+          </Button>
+          
+          <Button
+            @click="exportProject(selectedProject)"
+            variant="outline"
+            size="sm"
+            class="w-full justify-start"
+            :leftIcon="ArrowDownTrayIcon"
+          >
+            Export Project
+          </Button>
+          
+          <Button
+            @click="showDeleteConfirmation(selectedProject)"
+            variant="outline"
+            size="sm"
+            class="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+            :leftIcon="TrashIcon"
+          >
+            Delete Project
+          </Button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Delete Confirmation Modal -->
+    <Modal
+      :isOpen="showDeleteModal"
+      @close="showDeleteModal = false"
+      title="Delete Project"
+      size="sm"
+    >
+      <div class="space-y-4">
+        <div class="text-center">
+          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+            <TrashIcon class="h-6 w-6 text-red-600 dark:text-red-400" />
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Delete Project
+          </h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Are you sure you want to delete <strong>{{ projectToDelete?.name }}</strong>? 
+            This action cannot be undone and will delete all associated nodes and data.
+          </p>
+        </div>
+        
+        <div class="flex space-x-3">
+          <Button
+            @click="showDeleteModal = false"
+            variant="outline"
+            size="sm"
+            class="flex-1"
+          >
+            Cancel
+          </Button>
+          <Button
+            @click="confirmDeleteProject"
+            variant="primary"
+            size="sm"
+            class="flex-1 bg-red-600 hover:bg-red-700 focus:ring-red-500"
+            :loading="deletingProject"
+          >
+            Delete
+          </Button>
+        </div>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -317,7 +411,7 @@ import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import Modal from '@/components/ui/Modal.vue'
-import {
+import { 
   ArrowLeftIcon,
   FolderIcon,
   PlusIcon,
@@ -329,7 +423,9 @@ import {
   MagnifyingGlassIcon,
   ArrowPathIcon,
   ArrowDownTrayIcon,
-  EllipsisVerticalIcon
+  EllipsisVerticalIcon,
+  DocumentDuplicateIcon,
+  TrashIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -345,6 +441,10 @@ const statusFilter = ref('')
 const typeFilter = ref('')
 const selectedProject = ref(null)
 const showDetailsModal = ref(false)
+const showProjectMenuModal = ref(false)
+const showDeleteModal = ref(false)
+const projectToDelete = ref(null)
+const deletingProject = ref(false)
 
 // Computed properties using EdgeAI store
 const projects = computed(() => edgeaiStore.projects)
@@ -452,11 +552,9 @@ const showProjectDetails = (project) => {
 }
 
 const showProjectMenu = (project) => {
-  uiStore.addNotification({
-    type: 'info',
-    title: 'Project Menu',
-    message: `Project menu for ${project.name} will be available soon.`
-  })
+  // 设置当前选中的项目
+  selectedProject.value = project
+  showProjectMenuModal.value = true
 }
 
 const toggleProjectStatus = async (project) => {
@@ -620,6 +718,69 @@ const getProgressBarColor = (status) => {
 onMounted(() => {
   edgeaiStore.initializeStore()
 })
+
+// Project menu actions
+const duplicateProject = (project) => {
+  showProjectMenuModal.value = false
+  uiStore.addNotification({
+    type: 'info',
+    title: 'Duplicate Project',
+    message: `Duplicating ${project.name} will be available soon.`
+  })
+}
+
+const exportProject = (project) => {
+  showProjectMenuModal.value = false
+  uiStore.addNotification({
+    type: 'info',
+    title: 'Export Project',
+    message: `Exporting ${project.name} will be available soon.`
+  })
+}
+
+const showDeleteConfirmation = (project) => {
+  projectToDelete.value = project
+  showProjectMenuModal.value = false
+  showDeleteModal.value = true
+}
+
+const confirmDeleteProject = async () => {
+  if (!projectToDelete.value) return
+  
+  deletingProject.value = true
+  
+  try {
+    const result = await edgeaiService.projects.deleteProject(projectToDelete.value.id)
+    
+    if (result && result.success) {
+      // 从本地状态中移除项目
+      const projectIndex = projects.value.findIndex(p => p.id === projectToDelete.value.id)
+      if (projectIndex !== -1) {
+        projects.value.splice(projectIndex, 1)
+      }
+      
+      uiStore.addNotification({
+        type: 'success',
+        title: 'Project Deleted',
+        message: `${projectToDelete.value.name} has been deleted successfully.`
+      })
+      
+      showDeleteModal.value = false
+      projectToDelete.value = null
+    } else {
+      throw new Error(result?.error || 'Failed to delete project')
+    }
+  } catch (error) {
+    console.error('Failed to delete project:', error)
+    uiStore.addNotification({
+      type: 'error',
+      title: 'Delete Failed',
+      message: error.message || 'Failed to delete project. Please try again.'
+    })
+  } finally {
+    deletingProject.value = false
+  }
+}
 
 onUnmounted(() => {
   edgeaiStore.cleanup()
