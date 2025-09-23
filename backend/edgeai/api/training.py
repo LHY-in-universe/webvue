@@ -1,16 +1,21 @@
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from ..schemas.edgeai import TrainingMetrics
+from ..schemas.edgeai import TrainingMetrics, TrainRequest, TrainingParameters, TrainingResponse
 from common.schemas.common import BaseResponse
 from database.edgeai import get_db, User, Project, Model, Node
 import asyncio
 import json
+import httpx
+import uuid
 
 router = APIRouter()
 
 # Active training sessions (kept in memory for real-time tracking)
 active_training_sessions = {}
+
+# Test API Configuration
+TEST_API_BASE_URL = "http://localhost:6677"  # Update with actual test API URL
 
 @router.post("/start", response_model=BaseResponse)
 async def start_training(project_id: str, node_ids: List[str] = None, db: Session = Depends(get_db)):
@@ -283,13 +288,13 @@ async def get_training_config(project_id: str, db: Session = Depends(get_db)):
     project_models = db.query(Model).filter(Model.project_id == project_id_int).all()
     model_name = project_models[0].name if project_models else "Default AI Model"
 
-    # Build configuration from database project data
+    # Build configuration from database project data (使用合并后的字段)
     config = {
         "ai_model": model_name,
-        "strategy": project.strategy or "Federated Learning",
-        "protocol": project.protocol or "FedAvg",
+        "training_alg": project.training_alg,
+        "fed_alg": project.fed_alg,
         "target_accuracy": "≥85%",  # Could be stored in project or model
-        "estimated_completion": f"{project.epoches // 50} hours",  # Estimate based on epochs
+        "estimated_completion": f"{project.total_epochs // 50} hours",  # Estimate based on total_epochs
         "model_architecture": {
             "type": "neural_network",
             "layers": [
@@ -303,17 +308,27 @@ async def get_training_config(project_id: str, db: Session = Depends(get_db)):
         },
         "hyperparameters": {
             "batch_size": project.batch_size,
-            "learning_rate": project.learning_rate,
-            "total_epochs": project.epoches,
+            "lr": project.lr,
+            "total_epochs": project.total_epochs,
+            "num_rounds": project.num_rounds,
             "optimizer": "adam",
             "loss_function": "categorical_crossentropy"
         },
         "federated_config": {
-            "min_clients": 2,
-            "max_clients": 8,
-            "rounds": project.epoches // 2,  # Estimate rounds based on epochs
+            "secure_aggregation": project.secure_aggregation,
+            "num_computers": project.num_computers,
+            "threshold": project.threshold,
+            "num_clients": project.num_clients,
+            "sample_clients": project.sample_clients,
+            "max_steps": project.max_steps,
+            "rounds": project.num_rounds,
             "client_fraction": 0.6,
             "local_epochs": 3
+        },
+        "model_dataset_config": {
+            "model_name_or_path": project.model_name_or_path,
+            "dataset_name": project.dataset_name,
+            "dataset_sample": project.dataset_sample
         }
     }
 
@@ -322,3 +337,163 @@ async def get_training_config(project_id: str, db: Session = Depends(get_db)):
         "config": config,
         "last_updated": project.updated_time.isoformat() if project.updated_time else project.created_time.isoformat()
     }
+
+@router.post("/start-with-api", response_model=TrainingResponse)
+async def start_training_with_api(project_id: str, db: Session = Depends(get_db)):
+    """
+    Start training using the test API format
+    """
+    try:
+        # Verify project exists in database
+        try:
+            project_id_int = int(project_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+        project = db.query(Project).filter(Project.id == project_id_int).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Build training parameters from project data (使用合并后的字段)
+        training_params = TrainingParameters(
+            training_alg=project.training_alg,
+            fed_alg=project.fed_alg,
+            secure_aggregation=project.secure_aggregation,
+            num_computers=project.num_computers,
+            threshold=project.threshold,
+            num_rounds=project.num_rounds,
+            num_clients=project.num_clients,
+            sample_clients=project.sample_clients,
+            max_steps=project.max_steps,
+            lr=project.lr,
+            model_name_or_path=project.model_name_or_path,
+            dataset_name=project.dataset_name,
+            dataset_sample=project.dataset_sample
+        )
+
+        train_request = TrainRequest(parameters=training_params)
+
+        # Call the test API
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{TEST_API_BASE_URL}/train",
+                json=train_request.model_dump(),
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.status_code == 200:
+                # Get task ID from response
+                task_id = response.json() if isinstance(response.json(), str) else str(uuid.uuid4())
+
+                # Update project with task ID and status
+                project.task_id = task_id
+                project.status = "training"
+                project.progress = 0.0
+                db.commit()
+
+                # Store in active sessions for monitoring
+                active_training_sessions[task_id] = {
+                    "project_id": project_id,
+                    "task_id": task_id,
+                    "status": "running",
+                    "progress": 0.0,
+                    "started_at": "2024-01-15T10:30:00Z"
+                }
+
+                return TrainingResponse(
+                    task_id=task_id,
+                    status="started",
+                    message=f"Training started successfully for project {project.name}"
+                )
+            elif response.status_code == 422:
+                # Validation error from test API
+                error_detail = response.json().get("detail", "Validation error")
+                raise HTTPException(status_code=422, detail=f"Training API validation error: {error_detail}")
+            else:
+                raise HTTPException(status_code=500, detail=f"Training API error: {response.status_code}")
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=500, detail="Training API timeout")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Training API connection error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/status/{task_id}")
+async def get_training_status(task_id: str):
+    """
+    Get training status from test API
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{TEST_API_BASE_URL}/tasks/{task_id}")
+
+            if response.status_code == 200:
+                status = response.json() if isinstance(response.json(), str) else "unknown"
+                return {"task_id": task_id, "status": status}
+            elif response.status_code == 422:
+                error_detail = response.json().get("detail", "Validation error")
+                raise HTTPException(status_code=422, detail=f"API validation error: {error_detail}")
+            else:
+                raise HTTPException(status_code=500, detail=f"API error: {response.status_code}")
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=500, detail="API timeout")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"API connection error: {str(e)}")
+
+@router.delete("/stop/{task_id}")
+async def stop_training_task(task_id: str, db: Session = Depends(get_db)):
+    """
+    Stop training task using test API
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.delete(f"{TEST_API_BASE_URL}/tasks/{task_id}")
+
+            if response.status_code == 200:
+                message = response.json() if isinstance(response.json(), str) else "Task stopped"
+
+                # Update local project status
+                project = db.query(Project).filter(Project.task_id == task_id).first()
+                if project:
+                    project.status = "paused"
+                    db.commit()
+
+                # Remove from active sessions
+                active_training_sessions.pop(task_id, None)
+
+                return {"task_id": task_id, "message": message}
+            elif response.status_code == 422:
+                error_detail = response.json().get("detail", "Validation error")
+                raise HTTPException(status_code=422, detail=f"API validation error: {error_detail}")
+            else:
+                raise HTTPException(status_code=500, detail=f"API error: {response.status_code}")
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=500, detail="API timeout")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"API connection error: {str(e)}")
+
+@router.get("/monitor/{task_id}")
+async def get_training_monitor(task_id: str):
+    """
+    Get training progress from test API
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{TEST_API_BASE_URL}/monitor/{task_id}")
+
+            if response.status_code == 200:
+                monitor_data = response.json() if isinstance(response.json(), str) else "No monitor data"
+                return {"task_id": task_id, "monitor_data": monitor_data}
+            elif response.status_code == 422:
+                error_detail = response.json().get("detail", "Validation error")
+                raise HTTPException(status_code=422, detail=f"API validation error: {error_detail}")
+            else:
+                raise HTTPException(status_code=500, detail=f"API error: {response.status_code}")
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=500, detail="API timeout")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"API connection error: {str(e)}")

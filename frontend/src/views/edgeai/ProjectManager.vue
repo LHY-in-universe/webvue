@@ -204,6 +204,15 @@
                 {{ project.status === 'training' ? 'Pause' : 'Start' }}
               </Button>
               <Button
+                @click.stop="startTrainingWithAPI(project)"
+                variant="primary"
+                size="xs"
+                class="flex-1 bg-blue-600 hover:bg-blue-700"
+                :disabled="project.status === 'training'"
+              >
+                Train API
+              </Button>
+              <Button
                 @click.stop="viewVisualization(project)"
                 variant="outline"
                 size="xs"
@@ -296,6 +305,70 @@
               <div class="flex justify-between">
                 <span class="text-gray-500">F1 Score:</span>
                 <span class="font-medium">{{ selectedProject.metrics?.f1Score || 0 }}%</span>
+              </div>
+            </div>
+
+            <!-- Training Configuration Section -->
+            <div class="mt-6">
+              <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Training Configuration</h4>
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 text-sm">
+                <div class="space-y-3">
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Training Algorithm:</span>
+                    <span class="capitalize">{{ selectedProject.training_alg || 'sft' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Federated Algorithm:</span>
+                    <span class="capitalize">{{ selectedProject.fed_alg || 'fedavg' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Secure Aggregation:</span>
+                    <span class="capitalize">{{ selectedProject.secure_aggregation || 'shamir_threshold' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Total Epochs:</span>
+                    <span>{{ selectedProject.total_epochs || 100 }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Fed Rounds:</span>
+                    <span>{{ selectedProject.num_rounds || 10 }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Batch Size:</span>
+                    <span>{{ selectedProject.batch_size || 32 }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Learning Rate:</span>
+                    <span class="font-mono">{{ selectedProject.lr || '1e-4' }}</span>
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Model Path:</span>
+                    <span class="font-mono text-xs">{{ selectedProject.model_name_or_path || 'sshleifer/tiny-gpt2' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Dataset:</span>
+                    <span class="font-mono text-xs">{{ selectedProject.dataset_name || 'vicgalle/alpaca-gpt4' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Dataset Sample:</span>
+                    <span>{{ selectedProject.dataset_sample || 50 }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Computers:</span>
+                    <span>{{ selectedProject.num_computers || 3 }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Clients:</span>
+                    <span>{{ selectedProject.num_clients || 2 }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500">Max Steps:</span>
+                    <span>{{ selectedProject.max_steps || 100 }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -746,25 +819,25 @@ const showDeleteConfirmation = (project) => {
 
 const confirmDeleteProject = async () => {
   if (!projectToDelete.value) return
-  
+
   deletingProject.value = true
-  
+
   try {
     const result = await edgeaiService.projects.deleteProject(projectToDelete.value.id)
-    
+
     if (result && result.success) {
       // 从本地状态中移除项目
       const projectIndex = projects.value.findIndex(p => p.id === projectToDelete.value.id)
       if (projectIndex !== -1) {
         projects.value.splice(projectIndex, 1)
       }
-      
+
       uiStore.addNotification({
         type: 'success',
         title: 'Project Deleted',
         message: `${projectToDelete.value.name} has been deleted successfully.`
       })
-      
+
       showDeleteModal.value = false
       projectToDelete.value = null
     } else {
@@ -779,6 +852,77 @@ const confirmDeleteProject = async () => {
     })
   } finally {
     deletingProject.value = false
+  }
+}
+
+// New function to start training with test API
+const startTrainingWithAPI = async (project) => {
+  const monitor = performanceMonitor.startTimer('EdgeAIAPITrainingStart')
+
+  try {
+    const response = await fetch(`/api/edgeai/training/start-with-api?project_id=${project.id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const result = await response.json()
+
+    if (response.ok && result.task_id) {
+      // Update project status locally
+      project.status = 'training'
+      project.task_id = result.task_id
+
+      uiStore.addNotification({
+        type: 'success',
+        title: 'Training Started',
+        message: `Training started via API for ${project.name}. Task ID: ${result.task_id}`,
+        actions: [
+          {
+            label: 'Monitor',
+            handler: () => monitorTrainingProgress(result.task_id)
+          }
+        ]
+      })
+
+      monitor.end({ success: true, taskId: result.task_id })
+    } else {
+      throw new Error(result.detail || result.message || 'Failed to start training')
+    }
+  } catch (error) {
+    console.error('Failed to start training with API:', error)
+    uiStore.addNotification({
+      type: 'error',
+      title: 'Training Start Failed',
+      message: error.message || `Failed to start training for ${project.name} via API.`
+    })
+    monitor.end({ success: false, error: error.message })
+  }
+}
+
+// Function to monitor training progress
+const monitorTrainingProgress = async (taskId) => {
+  try {
+    const response = await fetch(`/api/edgeai/training/monitor/${taskId}`)
+    const result = await response.json()
+
+    if (response.ok) {
+      uiStore.addNotification({
+        type: 'info',
+        title: 'Training Monitor',
+        message: `Monitor data: ${result.monitor_data}`
+      })
+    } else {
+      throw new Error(result.detail || 'Failed to get monitor data')
+    }
+  } catch (error) {
+    console.error('Failed to monitor training:', error)
+    uiStore.addNotification({
+      type: 'error',
+      title: 'Monitor Failed',
+      message: error.message || 'Failed to get training monitor data.'
+    })
   }
 }
 

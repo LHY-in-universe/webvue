@@ -8,9 +8,7 @@ from ..schemas.edgeai import (
     ProjectExportRequest,
     SystemStats,
     ProjectStatus,
-    ProjectType,
-    TrainingStrategy,
-    Protocol
+    ProjectType
 )
 from common.schemas.common import BaseResponse, PaginatedResponse
 from database.edgeai import get_db, User, Project, Model, Node
@@ -187,7 +185,7 @@ async def get_projects(
         query = query.filter(Project.status == status.value)
 
     if project_type:
-        query = query.filter(Project.strategy == project_type.value)
+        query = query.filter(Project.training_alg == project_type.value)
 
     if search:
         search_term = f"%{search}%"
@@ -207,15 +205,34 @@ async def get_projects(
             description=project.description,
             model="",  # Will be filled from related models
             status=ProjectStatus.CREATED if not project.status or project.status not in [e.value for e in ProjectStatus] else ProjectStatus(project.status),
-            progress=project.progress,
+            progress=project.progress or 0.0,
             connected_nodes=db.query(Node).filter(Node.project_id == project.id).count(),
             current_epoch=0,  # Could be calculated from training status
-            total_epochs=project.epoches,
-            training_strategy=TrainingStrategy.SFT if not project.strategy or project.strategy not in [e.value for e in TrainingStrategy] else TrainingStrategy(project.strategy),
-            protocol=Protocol.FEDAVG if not project.protocol or project.protocol not in [e.value for e in Protocol] else Protocol(project.protocol),
-            epochs=project.epoches,
-            batch_size=project.batch_size,
-            learning_rate=project.learning_rate,
+
+            # 统一的训练参数
+            training_alg=project.training_alg or "sft",
+            fed_alg=project.fed_alg or "fedavg",
+            secure_aggregation=project.secure_aggregation or "shamir_threshold",
+
+            # 训练配置
+            total_epochs=project.total_epochs or 100,
+            num_rounds=project.num_rounds or 10,
+            batch_size=project.batch_size or 32,
+            lr=project.lr or "1e-4",
+
+            # 高级训练参数
+            num_computers=project.num_computers or 3,
+            threshold=project.threshold or 2,
+            num_clients=project.num_clients or 2,
+            sample_clients=project.sample_clients or 2,
+            max_steps=project.max_steps or 100,
+
+            # 模型和数据集配置
+            model_name_or_path=project.model_name_or_path or "sshleifer/tiny-gpt2",
+            dataset_name=project.dataset_name or "vicgalle/alpaca-gpt4",
+            dataset_sample=project.dataset_sample or 50,
+
+            # 其他信息
             node_ip="",  # Could be from related nodes
             created_time=project.created_time.isoformat() if project.created_time else "",
             last_update=project.updated_time.isoformat() if project.updated_time else "",
@@ -249,15 +266,34 @@ async def get_project(project_id: str, db: Session = Depends(get_db)):
         description=project.description,
         model="",  # Will be filled from related models
         status=ProjectStatus.CREATED if not project.status or project.status not in [e.value for e in ProjectStatus] else ProjectStatus(project.status),
-        progress=project.progress,
+        progress=project.progress or 0.0,
         connected_nodes=connected_nodes,
         current_epoch=0,  # Could be calculated from training status
-        total_epochs=project.epoches,
-        training_strategy=TrainingStrategy.SFT if not project.strategy or project.strategy not in [e.value for e in TrainingStrategy] else TrainingStrategy(project.strategy),
-        protocol=Protocol.FEDAVG if not project.protocol or project.protocol not in [e.value for e in Protocol] else Protocol(project.protocol),
-        epochs=project.epoches,
-        batch_size=project.batch_size,
-        learning_rate=project.learning_rate,
+
+        # 统一的训练参数
+        training_alg=project.training_alg or "sft",
+        fed_alg=project.fed_alg or "fedavg",
+        secure_aggregation=project.secure_aggregation or "shamir_threshold",
+
+        # 训练配置
+        total_epochs=project.total_epochs or 100,
+        num_rounds=project.num_rounds or 10,
+        batch_size=project.batch_size or 32,
+        lr=project.lr or "1e-4",
+
+        # 高级训练参数
+        num_computers=project.num_computers or 3,
+        threshold=project.threshold or 2,
+        num_clients=project.num_clients or 2,
+        sample_clients=project.sample_clients or 2,
+        max_steps=project.max_steps or 100,
+
+        # 模型和数据集配置
+        model_name_or_path=project.model_name_or_path or "sshleifer/tiny-gpt2",
+        dataset_name=project.dataset_name or "vicgalle/alpaca-gpt4",
+        dataset_sample=project.dataset_sample or 50,
+
+        # 其他信息
         node_ip="",  # Could be from related nodes
         created_time=project.created_time.isoformat() if project.created_time else "",
         last_update=project.updated_time.isoformat() if project.updated_time else "",
@@ -269,16 +305,36 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
     """
     创建新项目
     """
-    # Create new project in database
+    # Create new project in database (使用合并后的字段)
     new_project = Project(
         user_id=1,  # TODO: Get from authenticated user
         name=request.name,
         description=request.description,
-        strategy=request.training_strategy.value,
-        protocol=request.protocol.value,
-        epoches=request.epochs,
-        learning_rate=request.learning_rate,
+
+        # 统一的训练参数
+        training_alg=request.training_alg,
+        fed_alg=request.fed_alg,
+        secure_aggregation=request.secure_aggregation,
+
+        # 训练配置
+        total_epochs=request.total_epochs,
+        num_rounds=request.num_rounds,
         batch_size=request.batch_size,
+        lr=request.lr,
+
+        # 高级训练参数
+        num_computers=request.num_computers,
+        threshold=request.threshold,
+        num_clients=request.num_clients,
+        sample_clients=request.sample_clients,
+        max_steps=request.max_steps,
+
+        # 模型和数据集配置
+        model_name_or_path=request.model_name_or_path,
+        dataset_name=request.dataset_name,
+        dataset_sample=request.dataset_sample,
+
+        # 项目状态
         status="created",
         progress=0.0,
         task_id=f"task-{uuid.uuid4().hex[:8]}"
@@ -317,12 +373,31 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
         progress=0.0,
         connected_nodes=len(created_nodes),
         current_epoch=0,
-        total_epochs=new_project.epoches,
-        training_strategy=TrainingStrategy(new_project.strategy),
-        protocol=Protocol(new_project.protocol),
-        epochs=new_project.epoches,
+
+        # 统一的训练参数
+        training_alg=new_project.training_alg,
+        fed_alg=new_project.fed_alg,
+        secure_aggregation=new_project.secure_aggregation,
+
+        # 训练配置
+        total_epochs=new_project.total_epochs,
+        num_rounds=new_project.num_rounds,
         batch_size=new_project.batch_size,
-        learning_rate=new_project.learning_rate,
+        lr=new_project.lr,
+
+        # 高级训练参数
+        num_computers=new_project.num_computers,
+        threshold=new_project.threshold,
+        num_clients=new_project.num_clients,
+        sample_clients=new_project.sample_clients,
+        max_steps=new_project.max_steps,
+
+        # 模型和数据集配置
+        model_name_or_path=new_project.model_name_or_path,
+        dataset_name=new_project.dataset_name,
+        dataset_sample=new_project.dataset_sample,
+
+        # 其他信息
         node_ip="",  # Multiple nodes now, so this field is empty
         created_time=new_project.created_time.isoformat() if new_project.created_time else "",
         last_update=new_project.updated_time.isoformat() if new_project.updated_time else "",

@@ -67,33 +67,17 @@
             </div>
           </div>
 
-          <!-- Model Configuration -->
+          <!-- Training Algorithm Configuration -->
           <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Model Configuration</h3>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Training Algorithm Configuration</h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Model *
+                  Training Algorithm *
                 </label>
                 <select
-                  v-model="projectData.model"
-                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="Gemma">Gemma</option>
-                  <option value="OpenVLA">OpenVLA</option>
-                  <option value="LLaMA">LLaMA</option>
-                  <option value="Qwen">Qwen</option>
-                </select>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Connected to database table IP</p>
-              </div>
-
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Training Strategy *
-                </label>
-                <select
-                  v-model="projectData.training_strategy"
+                  v-model="projectData.training_alg"
                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="sft">SFT (Supervised Fine-Tuning)</option>
@@ -103,15 +87,13 @@
                   <option value="kto">KTO (Kahneman-Tversky Optimization)</option>
                 </select>
               </div>
-            </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mt-4">
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Protocol *
+                  Federated Algorithm *
                 </label>
                 <select
-                  v-model="projectData.protocol"
+                  v-model="projectData.fed_alg"
                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="fedavg">FedAvg (Federated Averaging)</option>
@@ -120,23 +102,48 @@
                   <option value="fedavgm">FedAvgM (Federated Averaging with Momentum)</option>
                 </select>
               </div>
+
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Secure Aggregation *
+                </label>
+                <select
+                  v-model="projectData.secure_aggregation"
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="shamir_threshold">Shamir Threshold</option>
+                  <option value="none">None</option>
+                  <option value="simple">Simple</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <!-- Training Configuration -->
+          <!-- Basic Training Configuration -->
           <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Training Configuration</h3>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Basic Training Configuration</h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Input
-                v-model.number="projectData.epochs"
+                v-model.number="projectData.total_epochs"
                 type="number"
-                label="Epochs *"
+                label="Total Epochs *"
                 placeholder="100"
                 min="1"
                 max="1000"
                 required
-                :error="errors.epochs"
+                :error="errors.total_epochs"
+              />
+
+              <Input
+                v-model.number="projectData.num_rounds"
+                type="number"
+                label="Fed Rounds *"
+                placeholder="10"
+                min="1"
+                max="100"
+                required
+                :error="errors.num_rounds"
               />
 
               <Input
@@ -151,15 +158,112 @@
               />
 
               <Input
-                v-model.number="projectData.learning_rate"
-                type="number"
-                step="0.0001"
+                v-model="projectData.lr"
                 label="Learning Rate *"
-                placeholder="0.001"
-                min="0.0001"
-                max="1"
+                placeholder="1e-4"
                 required
-                :error="errors.learning_rate"
+                :error="errors.lr"
+              />
+            </div>
+          </div>
+
+          <!-- Model and Dataset Configuration -->
+          <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Model and Dataset Configuration</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Model Selection *
+                </label>
+                <select
+                  v-model="projectData.model"
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="Gemma">Gemma</option>
+                  <option value="OpenVLA">OpenVLA</option>
+                  <option value="LLaMA">LLaMA</option>
+                  <option value="Qwen">Qwen</option>
+                </select>
+              </div>
+
+              <Input
+                v-model="projectData.model_name_or_path"
+                label="Model Path *"
+                placeholder="sshleifer/tiny-gpt2"
+                required
+                :error="errors.model_name_or_path"
+              />
+
+              <Input
+                v-model="projectData.dataset_name"
+                label="Dataset Name *"
+                placeholder="vicgalle/alpaca-gpt4"
+                required
+                :error="errors.dataset_name"
+              />
+
+              <Input
+                v-model.number="projectData.dataset_sample"
+                type="number"
+                label="Dataset Sample *"
+                placeholder="50"
+                min="1"
+                max="1000"
+                required
+                :error="errors.dataset_sample"
+              />
+            </div>
+          </div>
+
+          <!-- Advanced Federated Learning Parameters -->
+          <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Advanced Federated Learning Parameters</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Input
+                v-model.number="projectData.num_computers"
+                type="number"
+                label="Number of Computers"
+                placeholder="3"
+                min="1"
+                max="10"
+              />
+
+              <Input
+                v-model.number="projectData.threshold"
+                type="number"
+                label="Threshold"
+                placeholder="2"
+                min="1"
+                max="10"
+              />
+
+              <Input
+                v-model.number="projectData.num_clients"
+                type="number"
+                label="Number of Clients"
+                placeholder="2"
+                min="1"
+                max="10"
+              />
+
+              <Input
+                v-model.number="projectData.sample_clients"
+                type="number"
+                label="Sample Clients"
+                placeholder="2"
+                min="1"
+                max="10"
+              />
+
+              <Input
+                v-model.number="projectData.max_steps"
+                type="number"
+                label="Max Steps"
+                placeholder="100"
+                min="1"
+                max="10000"
               />
             </div>
           </div>
@@ -265,14 +369,30 @@ const projectData = ref({
   description: '',
 
   // Model Configuration
-  model: 'Gemma',  // 与数据库table IP连接的字段
-  training_strategy: 'sft',
-  protocol: 'fedavg',
+  model: 'Gemma',
 
-  // Training Configuration
-  epochs: 100,
+  // 统一的训练参数 (合并后的字段)
+  training_alg: 'sft',                    // 原 training_strategy
+  fed_alg: 'fedavg',                      // 原 protocol
+  secure_aggregation: 'shamir_threshold',
+
+  // 训练配置
+  total_epochs: 100,                      // 原 epochs，重命名为total_epochs
+  num_rounds: 10,                         // 联邦学习轮次
   batch_size: 32,
-  learning_rate: 0.001,
+  lr: '1e-4',                            // 原 learning_rate，改为String类型
+
+  // 模型和数据集配置
+  model_name_or_path: 'sshleifer/tiny-gpt2',
+  dataset_name: 'vicgalle/alpaca-gpt4',
+  dataset_sample: 50,
+
+  // 高级联邦学习参数
+  num_computers: 3,
+  threshold: 2,
+  num_clients: 2,
+  sample_clients: 2,
+  max_steps: 100,
 
   // Node Configuration
   nodes: [
@@ -280,7 +400,7 @@ const projectData = ref({
       ip: '',
       name: ''
     }
-  ]  // 与数据库node table连接的字段
+  ]
 })
 
 const toggleTheme = (event) => {
@@ -321,8 +441,13 @@ const createProject = async () => {
       return
     }
 
-    if (projectData.value.epochs < 1 || projectData.value.epochs > 1000) {
-      errors.value.epochs = 'Epochs must be between 1 and 1000'
+    if (projectData.value.total_epochs < 1 || projectData.value.total_epochs > 1000) {
+      errors.value.total_epochs = 'Total epochs must be between 1 and 1000'
+      return
+    }
+
+    if (projectData.value.num_rounds < 1 || projectData.value.num_rounds > 100) {
+      errors.value.num_rounds = 'Number of rounds must be between 1 and 100'
       return
     }
 
@@ -331,8 +456,23 @@ const createProject = async () => {
       return
     }
 
-    if (projectData.value.learning_rate < 0.0001 || projectData.value.learning_rate > 1) {
-      errors.value.learning_rate = 'Learning rate must be between 0.0001 and 1'
+    if (!projectData.value.lr || projectData.value.lr.trim() === '') {
+      errors.value.lr = 'Learning rate is required'
+      return
+    }
+
+    if (!projectData.value.model_name_or_path || projectData.value.model_name_or_path.trim() === '') {
+      errors.value.model_name_or_path = 'Model path is required'
+      return
+    }
+
+    if (!projectData.value.dataset_name || projectData.value.dataset_name.trim() === '') {
+      errors.value.dataset_name = 'Dataset name is required'
+      return
+    }
+
+    if (projectData.value.dataset_sample < 1 || projectData.value.dataset_sample > 1000) {
+      errors.value.dataset_sample = 'Dataset sample must be between 1 and 1000'
       return
     }
 
@@ -350,20 +490,38 @@ const createProject = async () => {
       return
     }
 
-    // Build payload matching backend API
+    // Build payload matching backend API (使用合并后的字段)
     const payload = {
       name: projectData.value.name.trim(),
       description: projectData.value.description.trim(),
       model: projectData.value.model,
-      training_strategy: projectData.value.training_strategy,
-      protocol: projectData.value.protocol,
-      epochs: projectData.value.epochs,
+
+      // 统一的训练参数
+      training_alg: projectData.value.training_alg,
+      fed_alg: projectData.value.fed_alg,
+      secure_aggregation: projectData.value.secure_aggregation,
+
+      // 训练配置
+      total_epochs: projectData.value.total_epochs,
+      num_rounds: projectData.value.num_rounds,
       batch_size: projectData.value.batch_size,
-      learning_rate: projectData.value.learning_rate,
+      lr: projectData.value.lr,
+
+      // 模型和数据集配置
+      model_name_or_path: projectData.value.model_name_or_path,
+      dataset_name: projectData.value.dataset_name,
+      dataset_sample: projectData.value.dataset_sample,
+
+      // 高级联邦学习参数
+      num_computers: projectData.value.num_computers,
+      threshold: projectData.value.threshold,
+      num_clients: projectData.value.num_clients,
+      sample_clients: projectData.value.sample_clients,
+      max_steps: projectData.value.max_steps,
+
       nodes: projectData.value.nodes.filter(node => node.ip.trim()).map(node => ({
         ip: node.ip.trim(),
-        name: node.name.trim() || `Node ${node.ip}`,
-        description: node.description.trim() || ''
+        name: node.name.trim() || `Node ${node.ip}`
       }))
     }
 

@@ -49,18 +49,9 @@ class ModelType(str, Enum):
     LLAMA = "LLaMA"
     QWEN = "Qwen"
 
-class TrainingStrategy(str, Enum):
-    SFT = "sft"
-    DPO = "dpo"
-    GRPO = "grpo"
-    IPO = "ipo"
-    KTO = "kto"
-
-class Protocol(str, Enum):
-    FEDAVG = "fedavg"
-    FEDYGI = "fedygi"
-    FEDADAM = "fedadam"
-    FEDAVGM = "fedavgm"
+# 训练算法选项 (不再使用枚举，直接使用字符串以提高灵活性)
+# Available training algorithms: "sft", "dpo", "grpo", "ipo", "kto"
+# Available federated algorithms: "fedavg", "fedygi", "fedadam", "fedavgm"
 
 class NodeCreateRequest(BaseModel):
     ip: str
@@ -70,12 +61,31 @@ class ProjectCreateRequest(BaseModel):
     name: str
     description: str
     model: str  # 与数据库table IP连接的字段
-    training_strategy: TrainingStrategy
-    protocol: Protocol
-    epochs: int
-    batch_size: int
-    learning_rate: float
     nodes: List[NodeCreateRequest]  # 与数据库node table连接的字段，支持多个节点
+
+    # 统一的训练参数 (合并后的字段)
+    training_alg: str = "sft"           # 合并 training_strategy
+    fed_alg: str = "fedavg"             # 合并 protocol
+    secure_aggregation: str = "shamir_threshold"
+
+    # 训练配置
+    total_epochs: int = 100             # 合并 epochs，重命名为total_epochs
+    num_rounds: int = 10                # 联邦学习轮次
+    batch_size: int = 32
+    lr: str = "1e-4"                    # 合并 learning_rate，统一使用String类型
+
+    # 高级训练参数
+    num_computers: int = 3
+    threshold: int = 2
+    num_clients: int = 2
+    sample_clients: int = 2
+    max_steps: int = 100
+
+    # 模型和数据集配置
+    model_name_or_path: str = "sshleifer/tiny-gpt2"
+    dataset_name: str = "vicgalle/alpaca-gpt4"
+    dataset_sample: int = 50
+
     created_time: Optional[datetime] = None  # 建立时间
 
 class ProjectResponse(BaseModel):
@@ -87,12 +97,31 @@ class ProjectResponse(BaseModel):
     progress: float
     connected_nodes: int
     current_epoch: int
-    total_epochs: int
-    training_strategy: TrainingStrategy
-    protocol: Protocol
-    epochs: int
+
+    # 统一的训练参数 (合并后的字段)
+    training_alg: str                   # 原 training_strategy
+    fed_alg: str                        # 原 protocol
+    secure_aggregation: str
+
+    # 训练配置
+    total_epochs: int                   # 原 epochs，重命名为total_epochs
+    num_rounds: int                     # 联邦学习轮次
     batch_size: int
-    learning_rate: float
+    lr: str                             # 原 learning_rate，改为String类型
+
+    # 高级训练参数
+    num_computers: int
+    threshold: int
+    num_clients: int
+    sample_clients: int
+    max_steps: int
+
+    # 模型和数据集配置
+    model_name_or_path: str
+    dataset_name: str
+    dataset_sample: int
+
+    # 其他信息
     node_ip: str
     created_time: str
     last_update: str
@@ -181,3 +210,27 @@ class TaskResponse(BaseModel):
     progress: float
     assigned_nodes: List[str]
     config: Dict[str, Any]
+
+# Test API Training Schemas
+class TrainingParameters(BaseModel):
+    training_alg: str = "sft"
+    fed_alg: str = "fedavg"
+    secure_aggregation: str = "shamir_threshold"
+    num_computers: int = 3
+    threshold: int = 2
+    num_rounds: int = 10
+    num_clients: int = 2
+    sample_clients: int = 2
+    max_steps: int = 100
+    lr: str = "1e-4"
+    model_name_or_path: str = "sshleifer/tiny-gpt2"
+    dataset_name: str = "vicgalle/alpaca-gpt4"
+    dataset_sample: int = 50
+
+class TrainRequest(BaseModel):
+    parameters: TrainingParameters
+
+class TrainingResponse(BaseModel):
+    task_id: str
+    status: str
+    message: Optional[str] = None
