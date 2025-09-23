@@ -55,4 +55,27 @@ logs/
 *.sqlite3
 
 # Node modules (if any)
+node_modules/# See https://github.com/github/gitignore/blob/main/Node.gitignore
 node_modules/
+.dist/
+dist/
+.vscode/
+.idea/
+.DS_Store
+.env
+.env.*
+*.log
+coverage/
+.venv/
+__pycache__/
+*.pyc
+.temp/
+.cache/
+.sass-cache/
+.npm/
+.yarn/
+*.local
+*.sqlite
+*.db
+frontend/.vite/
+frontend/.cache/

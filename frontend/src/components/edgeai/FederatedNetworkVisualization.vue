@@ -274,6 +274,7 @@ const validNodes = computed(() => {
   })
 
   console.log(`validNodes: filtered ${filtered.length} valid nodes from ${props.nodes.length} total`)
+  console.log('validNodes details:', filtered.map(n => ({ id: n.id, name: n.name, type: n.type })))
   return filtered
 })
 
@@ -286,14 +287,27 @@ const FIXED_NODE_POSITIONS = [
   // 第三层扇形 (外圈) - 错开Y坐标避免标签重叠
   { x: 140, y: 540 }, { x: 380, y: 570 }, { x: 620, y: 590 }, { x: 780, y: 610 }, { x: 1020, y: 570 }, { x: 1260, y: 540 },
   // 最外层 - 底部中心下移
-  { x: 700, y: 640 }
+  { x: 700, y: 640 },
+  // 扩展位置 - 支持更多节点
+  { x: 200, y: 300 }, { x: 1200, y: 300 }, { x: 200, y: 500 }, { x: 1200, y: 500 },
+  { x: 100, y: 400 }, { x: 1300, y: 400 }, { x: 100, y: 600 }, { x: 1300, y: 600 },
+  { x: 300, y: 200 }, { x: 1100, y: 200 }, { x: 300, y: 700 }, { x: 1100, y: 700 },
+  { x: 50, y: 300 }, { x: 1350, y: 300 }, { x: 50, y: 500 }, { x: 1350, y: 500 },
+  { x: 150, y: 350 }, { x: 1250, y: 350 }, { x: 150, y: 650 }, { x: 1250, y: 650 }
 ]
 
 // Control nodes at the center/top of the fan (优化控制节点位置)
 const CONTROL_NODE_POSITIONS = [
   { x: 480, y: 130 },  // 左侧控制中心
   { x: 700, y: 100 },  // 中央控制中心
-  { x: 920, y: 130 }   // 右侧控制中心
+  { x: 920, y: 130 },  // 右侧控制中心
+  // 扩展控制节点位置
+  { x: 300, y: 150 },  // 左扩展
+  { x: 1100, y: 150 }, // 右扩展
+  { x: 600, y: 80 },   // 中左
+  { x: 800, y: 80 },   // 中右
+  { x: 200, y: 200 },  // 最左
+  { x: 1200, y: 200 }  // 最右
 ]
 
 // Node position tracking
@@ -302,17 +316,13 @@ const nodePositions = ref(new Map())
 // 根据节点ID稳定分配位置的函数
 const getStablePositionIndex = (nodeId, nodeType) => {
   if (nodeType === 'training') {
-    // 从节点ID提取数字，如 'training-01' -> 1
-    const match = nodeId.match(/training-(\d+)/)
-    if (match) {
-      const nodeNumber = parseInt(match[1])
-      return (nodeNumber - 1) % FIXED_NODE_POSITIONS.length
-    }
+    // 训练节点稳定分配 - 使用IP地址的哈希值
+    const hash = nodeId.split('.').reduce((acc, part) => acc + parseInt(part), 0)
+    return hash % FIXED_NODE_POSITIONS.length
   } else if (['model', 'control'].includes(nodeType)) {
-    // 控制节点稳定分配
-    if (nodeId === 'model-1') return 0
-    if (nodeId === 'model-2') return 1  
-    if (nodeId === 'backup-control') return 2
+    // 控制节点稳定分配 - 使用IP地址的哈希值
+    const hash = nodeId.split('.').reduce((acc, part) => acc + parseInt(part), 0)
+    return hash % CONTROL_NODE_POSITIONS.length
   }
   return 0
 }

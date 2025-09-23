@@ -67,58 +67,112 @@
             </div>
           </div>
 
-          <!-- Model Configuration -->
+          <!-- Model Configuration (aligned with Training Settings form) -->
           <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Model Configuration</h3>
 
+            <!-- Row 1: training_alg / fed_alg -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-2">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Model *
-                </label>
-                <select
-                  v-model="projectData.model"
-                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="Gemma">Gemma</option>
-                  <option value="OpenVLA">OpenVLA</option>
-                  <option value="LLaMA">LLaMA</option>
-                  <option value="Qwen">Qwen</option>
-                </select>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Connected to database table IP</p>
-              </div>
-
-              <div class="space-y-2">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Training Strategy *
-                </label>
-                <select
-                  v-model="projectData.training_strategy"
-                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Training Algorithm (training_alg)</label>
+                <select v-model="projectData.training_alg"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
                   <option value="sft">SFT (Supervised Fine-Tuning)</option>
-                  <option value="dpo">DPO (Direct Preference Optimization)</option>
-                  <option value="grpo">GRPO (Generalized RPO)</option>
-                  <option value="ipo">IPO (Identity Policy Optimization)</option>
-                  <option value="kto">KTO (Kahneman-Tversky Optimization)</option>
+                  <option value="dpo">DPO</option>
+                  <option value="ppo">PPO</option>
+                </select>
+              </div>
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Federated Algorithm (fed_alg)</label>
+                <select v-model="projectData.fed_alg"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                  <option value="fedavg">FedAvg</option>
+                  <option value="fedprox">FedProx</option>
+                  <option value="fedadam">FedAdam</option>
                 </select>
               </div>
             </div>
 
+            <!-- Row 2: secure_aggregation / num_computers -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Secure Aggregation (secure_aggregation)</label>
+                <select v-model="projectData.secure_aggregation"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                  <option value="shamir_threshold">Shamir Threshold</option>
+                  <option value="paillier">Paillier</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Num Computers (num_computers)</label>
+                <input v-model.number="projectData.num_computers" type="number" min="1" max="100"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+            </div>
+
+            <!-- Row 3: threshold / num_rounds -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Threshold (threshold)</label>
+                <input v-model.number="projectData.threshold" type="number" min="1" :max="projectData.num_computers || 100"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rounds (num_rounds)</label>
+                <input v-model.number="projectData.num_rounds" type="number" min="1" max="1000"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+            </div>
+
+            <!-- Row 4: num_clients / sample_clients -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Num Clients (num_clients)</label>
+                <input v-model.number="projectData.num_clients" type="number" min="1" max="100"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Sample Clients (sample_clients)</label>
+                <input v-model.number="projectData.sample_clients" type="number" min="1" :max="projectData.num_clients || 100"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+            </div>
+
+            <!-- Row 5: max_steps / lr -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Steps (max_steps)</label>
+                <input v-model.number="projectData.max_steps" type="number" min="1" max="10000"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Learning Rate (lr)</label>
+                <input v-model="projectData.lr" type="text" placeholder="1e-4"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+            </div>
+
+            <!-- Row 6: model_name_or_path / dataset_name -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Model Path (model_name_or_path)</label>
+                <input v-model="projectData.model_name_or_path" type="text" placeholder="sshleifer/tiny-gpt2"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Dataset Name (dataset_name)</label>
+                <input v-model="projectData.dataset_name" type="text" placeholder="vicgalle/alpaca-gpt4"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+              </div>
+            </div>
+
+            <!-- Row 7: dataset_sample -->
             <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mt-4">
               <div class="space-y-2">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Protocol *
-                </label>
-                <select
-                  v-model="projectData.protocol"
-                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="fedavg">FedAvg (Federated Averaging)</option>
-                  <option value="fedygi">FedYgi (Federated YGI)</option>
-                  <option value="fedadam">FedAdam (Federated Adam)</option>
-                  <option value="fedavgm">FedAvgM (Federated Averaging with Momentum)</option>
-                </select>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Dataset Sample (dataset_sample)</label>
+                <input v-model.number="projectData.dataset_sample" type="number" min="1" max="100000"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500" />
               </div>
             </div>
           </div>
@@ -229,10 +283,20 @@ const projectData = ref({
   name: '',
   description: '',
 
-  // Model Configuration
-  model: 'Gemma',  // 与数据库table IP连接的字段
-  training_strategy: 'sft',
-  protocol: 'fedavg',
+  // Model/Training Configuration (aligned with Training Settings)
+  training_alg: 'sft',
+  fed_alg: 'fedavg',
+  secure_aggregation: 'shamir_threshold',
+  num_computers: 3,
+  threshold: 2,
+  num_rounds: 10,
+  num_clients: 2,
+  sample_clients: 2,
+  max_steps: 100,
+  lr: '1e-4',
+  model_name_or_path: 'sshleifer/tiny-gpt2',
+  dataset_name: 'vicgalle/alpaca-gpt4',
+  dataset_sample: 50,
 
   // Training Configuration
   epochs: 100,

@@ -28,6 +28,15 @@
           </div>
           
           <div class="flex items-center space-x-3">
+            <Button 
+              @click="openSettingsModal"
+              variant="outline"
+              size="sm"
+              class="flex items-center space-x-2"
+            >
+              <CogIcon class="w-4 h-4" />
+              <span>Settings</span>
+            </Button>
             <SimpleThemeToggle size="sm" />
           </div>
         </div>
@@ -136,111 +145,47 @@
             </span>
           </div>
 
-          <!-- Basic Information -->
+          <!-- Node Information (matching Node Details List) -->
           <div class="space-y-3">
-            <h5 class="text-sm font-medium text-gray-900 dark:text-white">Basic Information</h5>
+            <h5 class="text-sm font-medium text-gray-900 dark:text-white">Node Information</h5>
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">Type</span>
-                <span class="font-medium text-gray-900 dark:text-white capitalize">{{ selectedNode.type }}</span>
+                <span class="text-gray-500 dark:text-gray-400">IP</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.ipAddress }}</span>
               </div>
-              <div v-if="selectedNode.role" class="flex justify-between">
+              <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">Role</span>
                 <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.role }}</span>
               </div>
-              <div v-if="selectedNode.user" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">Responsible User</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.user }}</span>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">Status</span>
+                <span :class="getNodeStatusBadgeClass(selectedNode.status)" class="px-2 py-1 text-xs font-medium rounded-full">
+                  {{ selectedNode.status === 'online' ? 'alive' : selectedNode.status }}
+                </span>
               </div>
-              <div v-if="selectedNode.ipAddress" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">IP Address</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.ipAddress }}</span>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">CPU %</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.resources?.cpu || 0 }}%</span>
               </div>
-              <div v-if="selectedNode.lastHeartbeat" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">Last Heartbeat</span>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">Memory %</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.resources?.memory || 0 }}%</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">Disk %</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.diskUsage || 0 }}%</span>
+            </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">Sent</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ (selectedNode.sent || 0).toFixed(2) }} MB/s</span>
+          </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">Received</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ (selectedNode.received || 0).toFixed(2) }} MB/s</span>
+                </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">Heartbeat</span>
                 <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.lastHeartbeat }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Training Progress (for training nodes) -->
-          <div v-if="selectedNode.type === 'training'" class="space-y-3">
-            <h5 class="text-sm font-medium text-gray-900 dark:text-white">Training Progress</h5>
-            <div class="space-y-3">
-              <div>
-                <div class="flex justify-between mb-2">
-                  <span class="text-sm text-gray-500 dark:text-gray-400">Progress</span>
-                  <span class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedNode.trainingProgress || 0 }}%</span>
-                </div>
-                <div class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full">
-                  <div 
-                    class="h-2 bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500"
-                    :style="{ width: `${selectedNode.trainingProgress || 0}%` }"
-                  ></div>
-                </div>
-              </div>
-              <div v-if="selectedNode.priority !== undefined" class="flex justify-between">
-                <span class="text-sm text-gray-500 dark:text-gray-400">Priority Level</span>
-                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedNode.priority }}/10</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Connection Info (for control nodes) -->
-          <div v-if="selectedNode.type === 'control' || selectedNode.type === 'model'" class="space-y-3">
-            <h5 class="text-sm font-medium text-gray-900 dark:text-white">Connection Information</h5>
-            <div class="space-y-2 text-sm">
-              <div v-if="selectedNode.connectedNodes" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">Connected Nodes</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ selectedNode.connectedNodes }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- System Resources (for training nodes) -->
-          <div v-if="selectedNode.type === 'training' && selectedNode.resources" class="space-y-3">
-            <h5 class="text-sm font-medium text-gray-900 dark:text-white">System Resources</h5>
-            <div class="space-y-3">
-              <!-- CPU -->
-              <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                <div class="flex justify-between mb-2">
-                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">CPU Usage</span>
-                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources.cpu }}%</span>
-                </div>
-                <div class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full">
-                  <div 
-                    class="h-1.5 bg-blue-500 rounded-full transition-all duration-300"
-                    :style="{ width: `${selectedNode.resources.cpu}%` }"
-                  ></div>
-                </div>
-              </div>
-
-              <!-- Memory -->
-              <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                <div class="flex justify-between mb-2">
-                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Memory Usage</span>
-                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources.memory }}GB</span>
-                </div>
-                <div class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full">
-                  <div 
-                    class="h-1.5 bg-green-500 rounded-full transition-all duration-300"
-                    :style="{ width: `${Math.min(100, parseFloat(selectedNode.resources.memory) * 40)}%` }"
-                  ></div>
-                </div>
-              </div>
-
-              <!-- GPU -->
-              <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                <div class="flex justify-between mb-2">
-                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">GPU Usage</span>
-                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources.gpu }}%</span>
-                </div>
-                <div class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full">
-                  <div 
-                    class="h-1.5 bg-purple-500 rounded-full transition-all duration-300"
-                    :style="{ width: `${selectedNode.resources.gpu}%` }"
-                  ></div>
-                </div>
               </div>
             </div>
           </div>
@@ -291,6 +236,7 @@
             <div class="h-full relative">
               <FederatedNetworkVisualization
                 ref="networkViz"
+                :key="vizKey"
                 :nodes="federatedNodes"
                 :connections="federatedConnections"
                 :training-round="trainingState.currentRound"
@@ -304,410 +250,357 @@
         </div>
         
         <!-- Control Panel (truly fixed position) -->
-        <div class="w-64 flex-shrink-0 bg-white dark:bg-gray-900 m-6 ml-0 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-[900px] overflow-y-auto">
+        <div ref="controlPanelRef" class="w-80 lg:w-96 xl:w-[420px] flex-shrink-0 bg-white dark:bg-gray-900 m-6 ml-0 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-[900px] overflow-y-auto">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">Control Panel</h3>
         
-        <!-- Training Progress -->
-        <div class="mb-6">
-          <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Training Progress</h4>
-          
-          <!-- Overall Progress -->
-          <div class="mb-4">
-            <div class="flex items-center justify-between text-sm mb-2">
-              <span class="text-gray-600 dark:text-gray-400">Overall Progress</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ averageProgress }}%</span>
-            </div>
-            <div class="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full">
-              <div 
-                class="h-3 bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500"
-                :style="{ width: `${averageProgress}%` }"
-              ></div>
-            </div>
-          </div>
-          
-          <!-- Training Rounds Progress -->
-          <div class="mb-4">
-            <div class="flex items-center justify-between text-sm mb-2">
-              <span class="text-gray-600 dark:text-gray-400">Training Rounds</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ trainingState.currentRound }}/{{ trainingState.totalRounds }}</span>
-            </div>
-            <div class="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full">
-              <div 
-                class="h-3 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-500"
-                :style="{ width: `${(trainingState.currentRound / trainingState.totalRounds) * 100}%` }"
-              ></div>
-            </div>
-          </div>
-          
-          <!-- Active Training Nodes -->
-          <div class="mb-4">
-            <div class="flex items-center justify-between text-sm mb-2">
-              <span class="text-gray-600 dark:text-gray-400">Active Training Nodes</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ trainingNodes }}/{{ maxDisplayedNodes }}</span>
-            </div>
-            <div class="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full">
-              <div 
-                class="h-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all duration-500"
-                :style="{ width: `${(trainingNodes / maxDisplayedNodes) * 100}%` }"
-              ></div>
-            </div>
-          </div>
-          
-          <!-- Training Status -->
-          <div class="flex items-center justify-between text-sm">
-            <span class="text-gray-600 dark:text-gray-400">Status</span>
-            <span 
-              class="px-2 py-1 text-xs font-medium rounded-full"
-              :class="getTrainingStatusBadgeClass(trainingState.status)"
-            >
-              {{ getTrainingStatusText(trainingState.status) }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Essential Training Controls -->
-        <div class="space-y-3 mb-8">
+        <!-- Quick Actions: Start Training at top -->
+        <div class="mb-4">
           <Button 
+            v-if="trainingState.status === 'idle' || trainingState.status === 'stopped'"
             @click="startTraining"
             variant="primary"
             size="sm"
             class="w-full flex items-center justify-center space-x-2"
-            :disabled="trainingState.status === 'training'"
+            :disabled="isTrainingStarting"
           >
-            <PlayIcon class="w-4 h-4" />
-            <span>{{ trainingState.status === 'training' ? 'Training...' : 'Start Training' }}</span>
-          </Button>
-          
-          <Button 
-            @click="completeTraining"
-            variant="outline"
-            size="sm"
-            class="w-full flex items-center justify-center space-x-2"
-            :disabled="trainingState.status !== 'training'"
-          >
-            <CheckCircleIcon class="w-4 h-4" />
-            <span>Complete Training</span>
+            <svg v-if="!isTrainingStarting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2z"/>
+            </svg>
+            <svg v-else class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span>{{ isTrainingStarting ? 'Starting...' : 'Start Training' }}</span>
           </Button>
         </div>
         
-        <!-- Real-time Status -->
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-          <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-4">Real-time Status</h4>
+        <!-- Task Management -->
+        <div class="mb-6">
+          <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Task Management</h4>
           
-          <div class="space-y-4">
-            <!-- Online Nodes -->
-            <div class="text-center">
-              <div class="text-2xl font-bold text-green-600 dark:text-green-400">{{ onlineNodes }}</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">Online Nodes</div>
+          <!-- Task List -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-600 dark:text-gray-400">Active Tasks</span>
+              <Button 
+                @click="loadTaskList"
+                variant="ghost"
+                size="sm"
+                class="text-xs"
+                :disabled="isLoadingTasks"
+              >
+                <svg v-if="!isLoadingTasks" class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                <svg v-else class="w-3 h-3 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                {{ isLoadingTasks ? 'Loading...' : 'Refresh' }}
+              </Button>
             </div>
-            
-            <!-- Training Nodes -->
-            <div class="text-center">
-              <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ trainingNodes }}</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">Training</div>
+          
+            <!-- Task List -->
+            <div v-if="taskList.length > 0" class="space-y-3 max-h-72 overflow-y-auto pr-2">
+              <div v-for="task in taskList" :key="task" 
+                   class="p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-2">
+                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span class="font-mono text-gray-700 dark:text-gray-300">{{ task.substring(0, 8) }}...</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <span class="text-[10px] text-gray-500 dark:text-gray-400">ID: {{ task }}</span>
+                    <Button 
+                      @click="deleteTask(task)"
+                      variant="ghost"
+                      size="sm"
+                      class="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-1"
+                      :disabled="isDeletingTask === task"
+                    >
+                      <svg v-if="isDeletingTask !== task" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                      <svg v-else class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                      </svg>
+                    </Button>
             </div>
-            
-            <!-- Data Transfer -->
-            <div class="text-center">
-              <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">{{ dataTransferRate }}</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">Data Transfer</div>
+          </div>
+          
+                <!-- Task Status Row -->
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                  <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1">
+                    <span class="text-gray-500 dark:text-gray-400">Round</span>
+                    <span class="font-medium text-gray-900 dark:text-white">
+                      {{ (taskStatusMap[task]?.current_round ?? 0) }}/{{ (taskStatusMap[task]?.total_rounds ?? 0) }}
+                    </span>
+            </div>
+                  <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1">
+                    <span class="text-gray-500 dark:text-gray-400">Loss</span>
+                    <span class="font-medium text-red-600 dark:text-red-400">
+                      {{ (taskStatusMap[task]?.loss ?? 0).toFixed(4) }}
+                    </span>
+            </div>
+                  <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1 col-span-2">
+                    <span class="text-gray-500 dark:text-gray-400">Accuracy</span>
+                    <span class="font-medium text-green-600 dark:text-green-400">
+                      {{ taskStatusMap[task]?.accuracy !== null && taskStatusMap[task]?.accuracy !== undefined
+                        ? (taskStatusMap[task].accuracy * 100).toFixed(2) + '%' : 'N/A' }}
+                    </span>
+          </div>
+            </div>
+            </div>
+          </div>
+          
+            <div v-else-if="!isLoadingTasks" class="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+              No active tasks
             </div>
           </div>
         </div>
+
+          <!-- Training Controls (hidden, moved to top) -->
+          <div v-if="false" class="mb-6">
+            <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Training Controls</h4>
+            
+            <!-- Start Training Button -->
+          <Button 
+              v-if="trainingState.status === 'idle' || trainingState.status === 'stopped'"
+            @click="startTraining"
+            variant="primary"
+            size="sm"
+              class="w-full flex items-center justify-center space-x-2 mb-3"
+              :disabled="isTrainingStarting"
+            >
+              <svg v-if="!isTrainingStarting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2V8a2 2 0 012-2z"/>
+              </svg>
+              <svg v-else class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              <span>{{ isTrainingStarting ? 'Starting...' : 'Start Training' }}</span>
+          </Button>
+          
+            <!-- Stop Training Button -->
+          <Button 
+              v-if="trainingState.status === 'training' || trainingState.status === 'running'"
+              @click="stopTraining"
+            variant="outline"
+            size="sm"
+              class="w-full flex items-center justify-center space-x-2 mb-3"
+              :disabled="isTrainingStopping"
+            >
+              <svg v-if="!isTrainingStopping" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10h6v4H9z"/>
+              </svg>
+              <svg v-else class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              <span>{{ isTrainingStopping ? 'Stopping...' : 'Stop Training' }}</span>
+          </Button>
+
+            <!-- Current Task ID -->
+            <div v-if="currentTaskId" class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              <div class="flex items-center justify-between">
+                <span>Task ID:</span>
+                <span class="font-mono">{{ currentTaskId.substring(0, 8) }}...</span>
+            </div>
+            </div>
+            
+            <!-- Training Metrics -->
+            <div v-if="roundMetrics.length > 0 || trainingState.status === 'training'" class="text-xs">
+              <h5 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Training Metrics</h5>
+              
+              <!-- Current Round Info -->
+              <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-3">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-gray-600 dark:text-gray-400 font-medium">Current Round</span>
+                  <span class="text-lg font-bold text-blue-600 dark:text-blue-400">
+                    {{ trainingState.currentRound }}/{{ trainingState.totalRounds }}
+                  </span>
+            </div>
+                <div class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
+                  <div 
+                    class="h-2 bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500"
+                    :style="{ width: `${(trainingState.currentRound / trainingState.totalRounds) * 100}%` }"
+                  ></div>
+          </div>
         </div>
-      </div>
+              
+              <!-- Latest Metrics -->
+              <div v-if="roundMetrics.length > 0" class="space-y-2">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-600 dark:text-gray-400 font-medium">Latest Metrics</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      Round {{ roundMetrics[roundMetrics.length - 1]?.round || 0 }}
+                    </span>
     </div>
+
+                  <div class="grid grid-cols-2 gap-3">
+                    <!-- Loss -->
+            <div class="text-center">
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Loss</div>
+                    <div class="text-lg font-bold text-red-600 dark:text-red-400">
+                      {{ roundMetrics[roundMetrics.length - 1]?.loss?.toFixed(4) || '0.0000' }}
+            </div>
+          </div>
+
+                    <!-- Accuracy -->
+                    <div class="text-center">
+                      <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Accuracy</div>
+                      <div class="text-lg font-bold text-green-600 dark:text-green-400">
+                        {{ roundMetrics[roundMetrics.length - 1]?.accuracy !== null && roundMetrics[roundMetrics.length - 1]?.accuracy !== undefined 
+                          ? (roundMetrics[roundMetrics.length - 1].accuracy * 100).toFixed(2) + '%' 
+                          : 'N/A' }}
+              </div>
+            </div>
+            </div>
+          </div>
+
+                <!-- Historical Metrics (Last 3 rounds) -->
+                <div v-if="roundMetrics.length > 1" class="space-y-1">
+                  <div class="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Recent Rounds</div>
+                  <div v-for="metric in roundMetrics.slice(-3).reverse()" :key="metric.round" 
+                       class="flex items-center justify-between py-1 px-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                    <span class="text-gray-600 dark:text-gray-400">Round {{ metric.round }}</span>
+          <div class="flex items-center space-x-3">
+                      <span class="text-red-500 dark:text-red-400">
+                        L: {{ metric.loss?.toFixed(3) || '0.000' }}
+                      </span>
+                      <span class="text-green-500 dark:text-green-400">
+                        A: {{ metric.accuracy !== null && metric.accuracy !== undefined 
+                          ? (metric.accuracy * 100).toFixed(1) + '%' 
+                          : 'N/A' }}
+                      </span>
+              </div>
+            </div>
+            </div>
+          </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
     <!-- Bottom Dashboard -->
     <div class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
       <!-- Metrics Summary -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-          <!-- Total Nodes -->
-          <div class="flex items-center space-x-3">
-            <div class="flex-shrink-0">
-              <div class="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                <ServerIcon class="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              </div>
-            </div>
-            <div>
-              <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ totalFederatedNodes }}</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">Total Nodes</div>
-            </div>
-          </div>
-
-          <!-- Average Progress -->
-          <div class="flex items-center space-x-3">
-            <div class="flex-shrink-0">
-              <div class="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-                <BeakerIcon class="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-            <div>
-              <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ averageProgress }}%</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">Average Progress</div>
-            </div>
-          </div>
-
-          <!-- Network Latency -->
-          <div class="flex items-center space-x-3">
-            <div class="flex-shrink-0">
-              <div class="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center">
-                <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
-                </svg>
-              </div>
-            </div>
-            <div>
-              <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ networkLatency }}ms</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">Network Latency</div>
-            </div>
-          </div>
-
-          <!-- System Health -->
-          <div class="flex items-center space-x-3">
-            <div class="flex-shrink-0">
-              <div class="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
-                <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
-            </div>
-            <div>
-              <div class="text-2xl font-bold text-green-600 dark:text-green-400">{{ systemHealth }}</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">System Health</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Additional Training Controls -->
-        <div class="mb-4">
-          <h3 class="text-md font-semibold text-gray-900 dark:text-white mb-3">Training Controls</h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <Button 
-              @click="inviteUser"
-              variant="outline"
-              size="sm"
-              class="flex items-center justify-center space-x-2"
-            >
-              <UserPlusIcon class="w-4 h-4" />
-              <span>Invite User</span>
-            </Button>
-            
-            <Button 
-              @click="addNode"
-              variant="outline"
-              size="sm"
-              class="flex items-center justify-center space-x-2"
-            >
-              <ServerIcon class="w-4 h-4" />
-              <span>Add Node</span>
-            </Button>
-            
-            <Button 
-              @click="resetView"
-              variant="outline"
-              size="sm"
-              class="flex items-center justify-center space-x-2"
-            >
-              <ArrowPathIcon class="w-4 h-4" />
-              <span>Reset View</span>
-            </Button>
-            
-            <Button 
-              @click="testDataTransmission"
-              variant="outline"
-              size="sm"
-              class="flex items-center justify-center space-x-2"
-            >
-              <CogIcon class="w-4 h-4" />
-              <span>Test Data Flow</span>
-            </Button>
-          </div>
-        </div>
+        <!-- 顶部统计与训练控制按钮已按要求移除 -->
 
         <!-- Node Details List -->
         <div class="mb-3">
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-md font-semibold text-gray-900 dark:text-white">Node Details List</h3>
-            <div class="text-sm text-gray-500 dark:text-gray-400">
-              Control Nodes: <span class="font-medium text-green-600">{{ controlNodesCount }}</span> • 
-              Edge Nodes: <span class="font-medium text-blue-600">{{ edgeNodesCount }}</span> • 
-              Total: <span class="font-medium text-gray-900 dark:text-white">{{ totalFederatedNodes }}</span>
-            </div>
+             <div class="text-sm text-gray-500 dark:text-gray-400">Total: <span class="font-medium text-gray-900 dark:text-white">{{ rayClusterNodes.length }}</span></div>
           </div>
 
-          <!-- Control Nodes Table -->
-          <div class="mb-3">
-            <h4 class="text-sm font-medium text-green-600 dark:text-green-400 mb-2">
-              Control Nodes (Max {{ maxControlNodes }})
-            </h4>
+          <!-- Group: Model Nodes -->
+          <div class="mb-4">
+            <h4 class="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">Model Nodes ({{ rayGroups.model.length }})</h4>
             <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Node Name</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">IP</th>
                     <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Role</th>
                     <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Status</th>
-                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Responsible User</th>
-                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">IP Address</th>
-                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Connected Nodes</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">CPU %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Memory %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Disk %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Sent</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Received</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Heartbeat</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr 
-                    v-for="node in controlNodes" 
-                    :key="node.id"
-                    class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                  >
-                    <td class="p-3">
-                      <div class="flex items-center space-x-3">
-                        <div :class="getNodeColorClass(node.type)" class="w-3 h-3 rounded-full"></div>
-                        <span class="font-medium text-gray-900 dark:text-white">{{ node.name }}</span>
+                  <tr v-for="n in rayGroups.model" :key="`model-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td class="p-3 text-gray-900 dark:text-white">{{ n.ip }}</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.role }}</td>
+                    <td class="p-3"><span :class="getNodeStatusBadgeClass(n.status === 'alive' ? 'online' : 'offline')" class="px-2 py-1 text-xs font-medium rounded-full">{{ n.status }}</span></td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.cpu_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.memory_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.disk_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ formatHeartbeat(n.heartbeat) }}</td>
+                  </tr>
+                </tbody>
+              </table>
                       </div>
-                    </td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ node.role }}</td>
-                    <td class="p-3">
-                      <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-                        {{ node.status }}
-                      </span>
-                    </td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ node.user }}</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ node.ipAddress }}</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ node.connectedNodes }}</td>
+          </div>
+
+          <!-- Group: Data Nodes -->
+          <div class="mb-4">
+            <h4 class="text-sm font-medium text-green-600 dark:text-green-400 mb-2">Data Nodes ({{ rayGroups.data.length }})</h4>
+            <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">IP</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Role</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Status</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">CPU %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Memory %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Disk %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Sent</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Received</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Heartbeat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="n in rayGroups.data" :key="`data-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td class="p-3 text-gray-900 dark:text-white">{{ n.ip }}</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.role }}</td>
+                    <td class="p-3"><span :class="getNodeStatusBadgeClass(n.status === 'alive' ? 'online' : 'offline')" class="px-2 py-1 text-xs font-medium rounded-full">{{ n.status }}</span></td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.cpu_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.memory_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.disk_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ formatHeartbeat(n.heartbeat) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <!-- Edge/Training Nodes Table -->
+          <!-- Group: Computer Nodes -->
           <div>
-            <h4 class="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">
-              Edge Nodes ({{ allFederatedNodes.filter(n => n.type === 'training').length }} total)
-            </h4>
+            <h4 class="text-sm font-medium text-purple-600 dark:text-purple-400 mb-2">Computer Nodes ({{ rayGroups.computer.length }})</h4>
             <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th 
-                      @click="sortNodes('name')"
-                      class="text-left p-3 font-medium text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div class="flex items-center space-x-1">
-                        <span>Node Name</span>
-                        <span class="text-xs">{{ getSortIcon('name') }}</span>
-                      </div>
-                    </th>
-                    <th 
-                      @click="sortNodes('status')"
-                      class="text-left p-3 font-medium text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div class="flex items-center space-x-1">
-                        <span>Status</span>
-                        <span class="text-xs">{{ getSortIcon('status') }}</span>
-                      </div>
-                    </th>
-                    <th 
-                      @click="sortNodes('trainingProgress')"
-                      class="text-left p-3 font-medium text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div class="flex items-center space-x-1">
-                        <span>Training Progress</span>
-                        <span class="text-xs">{{ getSortIcon('trainingProgress') }}</span>
-                      </div>
-                    </th>
-                    <th 
-                      @click="sortNodes('cpu')"
-                      class="text-left p-3 font-medium text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div class="flex items-center space-x-1">
-                        <span>CPU</span>
-                        <span class="text-xs">{{ getSortIcon('cpu') }}</span>
-                      </div>
-                    </th>
-                    <th 
-                      @click="sortNodes('memory')"
-                      class="text-left p-3 font-medium text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div class="flex items-center space-x-1">
-                        <span>Memory</span>
-                        <span class="text-xs">{{ getSortIcon('memory') }}</span>
-                      </div>
-                    </th>
-                    <th 
-                      @click="sortNodes('gpu')"
-                      class="text-left p-3 font-medium text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div class="flex items-center space-x-1">
-                        <span>GPU</span>
-                        <span class="text-xs">{{ getSortIcon('gpu') }}</span>
-                      </div>
-                    </th>
-                    <th 
-                      @click="sortNodes('lastHeartbeat')"
-                      class="text-left p-3 font-medium text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div class="flex items-center space-x-1">
-                        <span>Last Heartbeat</span>
-                        <span class="text-xs">{{ getSortIcon('lastHeartbeat') }}</span>
-                      </div>
-                    </th>
-                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Actions</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">IP</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Role</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Status</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">CPU %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Memory %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Disk %</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Sent</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Received</th>
+                    <th class="text-left p-3 font-medium text-gray-900 dark:text-white">Heartbeat</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr 
-                    v-for="node in sortedTrainingNodes" 
-                    :key="node.id"
-                    class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                  >
-                    <td class="p-3">
-                      <div class="flex items-center space-x-3">
-                        <div :class="getNodeColorClass(node.type)" class="w-3 h-3 rounded-full"></div>
-                        <span class="font-medium text-gray-900 dark:text-white">{{ node.name }}</span>
-                      </div>
-                    </td>
-                    <td class="p-3">
-                      <span 
-                        :class="getNodeStatusBadgeClass(node.status)"
-                        class="px-2 py-1 text-xs font-medium rounded-full"
-                      >
-                        {{ node.status }}
-                      </span>
-                    </td>
-                    <td class="p-3">
-                      <div class="flex items-center space-x-2">
-                        <div class="w-16 h-2 bg-gray-200 dark:bg-gray-600 rounded-full">
-                          <div 
-                            class="h-2 bg-blue-600 rounded-full transition-all duration-500"
-                            :style="{ width: `${node.trainingProgress || 0}%` }"
-                          ></div>
-                        </div>
-                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ node.trainingProgress || 0 }}%</span>
-                      </div>
-                    </td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ node.resources?.cpu || 0 }}%</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ node.resources?.memory || 0 }}GB</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ node.resources?.gpu || 0 }}%</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ node.lastHeartbeat || '-' }}</td>
-                    <td class="p-3">
-                      <Button
-                        @click="viewNodeDetails(node, $event)"
-                        variant="ghost"
-                        size="xs"
-                      >
-                        View Details
-                      </Button>
-                    </td>
+                  <tr v-for="n in rayGroups.computer" :key="`computer-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td class="p-3 text-gray-900 dark:text-white">{{ n.ip }}</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.role }}</td>
+                    <td class="p-3"><span :class="getNodeStatusBadgeClass(n.status === 'alive' ? 'online' : 'offline')" class="px-2 py-1 text-xs font-medium rounded-full">{{ n.status }}</span></td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.cpu_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.memory_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.disk_usage ?? 0 }}%</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ formatHeartbeat(n.heartbeat) }}</td>
                   </tr>
                 </tbody>
               </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                      </div>
+                      </div>
+                      </div>
+                      </div>
+                      </div>
 
     <!-- Node Details Modal -->
     <NodeDetailsModal
@@ -716,7 +609,222 @@
       :anchor-position="modalAnchorPosition"
       @close="closeNodeModal"
     />
+
+    <!-- Parameters Settings Modal -->
+    <div v-if="isSettingsModalVisible" class="fixed inset-0 z-50 overflow-y-auto">
+      <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closeSettingsModal"></div>
+        
+        <div class="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Training Settings</h3>
+            <button 
+              @click="closeSettingsModal"
+              class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+                      </div>
+          
+          <div class="p-6">
+            <form @submit.prevent="saveParameters" class="space-y-6">
+              <!-- 训练算法设置 -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Training Algorithm (training_alg)</label>
+                  <select 
+                    v-model="parameters.training_alg"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  >
+                    <option value="sft">SFT (Supervised Fine-Tuning)</option>
+                    <option value="rlhf">RLHF (Reinforcement Learning from Human Feedback)</option>
+                    <option value="dpo">DPO (Direct Preference Optimization)</option>
+                    <option value="ppo">PPO (Proximal Policy Optimization)</option>
+                  </select>
+                      </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Federated Algorithm (fed_alg)</label>
+                  <select 
+                    v-model="parameters.fed_alg"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  >
+                    <option value="fedavg">FedAvg</option>
+                    <option value="fedprox">FedProx</option>
+                    <option value="fednova">FedNova</option>
+                    <option value="scaffold">SCAFFOLD</option>
+                    <option value="fedopt">FedOpt</option>
+                  </select>
+                      </div>
+              </div>
+
+              <!-- 安全聚合设置 -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Secure Aggregation (secure_aggregation)</label>
+                  <select 
+                    v-model="parameters.secure_aggregation"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  >
+                    <option value="shamir_threshold">Shamir Threshold</option>
+                    <option value="paillier">Paillier</option>
+                    <option value="secure_aggregation">Secure Aggregation</option>
+                    <option value="none">None</option>
+                  </select>
+                        </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Num Computers (num_computers)</label>
+                  <input 
+                    v-model.number="parameters.num_computers"
+                    type="number"
+                    min="1"
+                    max="100"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                      </div>
+              </div>
+
+              <!-- 阈值和轮次设置 -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Threshold (threshold)</label>
+                  <input 
+                    v-model.number="parameters.threshold"
+                    type="number"
+                    min="1"
+                    :max="parameters.num_computers"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rounds (num_rounds)</label>
+                  <input 
+                    v-model.number="parameters.num_rounds"
+                    type="number"
+                    min="1"
+                    max="1000"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <!-- 客户端设置 -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Num Clients (num_clients)</label>
+                  <input 
+                    v-model.number="parameters.num_clients"
+                    type="number"
+                    min="1"
+                    max="100"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sample Clients (sample_clients)</label>
+                  <input 
+                    v-model.number="parameters.sample_clients"
+                    type="number"
+                    min="1"
+                    :max="parameters.num_clients"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <!-- 训练步数和学习率 -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Steps (max_steps)</label>
+                  <input 
+                    v-model.number="parameters.max_steps"
+                    type="number"
+                    min="1"
+                    max="10000"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Learning Rate (lr)</label>
+                  <input 
+                    v-model="parameters.lr"
+                    type="text"
+                    placeholder="1e-4"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <!-- 模型和数据集设置 -->
+              <div class="grid grid-cols-1 gap-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Model Path (model_name_or_path)</label>
+                  <input 
+                    v-model="parameters.model_name_or_path"
+                    type="text"
+                    placeholder="sshleifer/tiny-gpt2"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Dataset Name (dataset_name)</label>
+                  <input 
+                    v-model="parameters.dataset_name"
+                    type="text"
+                    placeholder="vicgalle/alpaca-gpt4"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Dataset Sample (dataset_sample)</label>
+                  <input 
+                    v-model.number="parameters.dataset_sample"
+                    type="number"
+                    min="1"
+                    max="10000"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                      <Button
+                  @click="closeSettingsModal"
+                  variant="outline"
+                  type="button"
+                >
+                  取消
+                      </Button>
+                <Button 
+                  @click="resetToDefaults"
+                  variant="outline"
+                  type="button"
+                >
+                  Reset Defaults
+                </Button>
+                <Button 
+                  type="submit"
+                  variant="primary"
+                >
+                  Save Settings
+                </Button>
+            </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
+</div>  <!-- 关闭 <div v-else class="flex-1 relative"> -->
 </template>
 
 <style scoped>
@@ -758,6 +866,7 @@ import { useEdgeAIStore } from '@/stores/edgeai'
 import { useApiOptimization } from '@/composables/useApiOptimization'
 import edgeaiService from '@/services/edgeaiService'
 import performanceMonitor from '@/utils/performanceMonitor'
+import { API_CONFIG } from '@/config/api.js'
 import FederatedNetworkVisualization from '@/components/edgeai/FederatedNetworkVisualization.vue'
 import NodeDetailsModal from '@/components/edgeai/NodeDetailsModal.vue'
 import Button from '@/components/ui/Button.vue'
@@ -781,12 +890,27 @@ const { cachedApiCall, clearCache } = useApiOptimization()
 
 // Component refs
 const networkViz = ref(null)
+const vizKey = ref(0)
+const controlPanelRef = ref(null)
+
+const scrollControlPanelBottom = () => {
+  try {
+    const el = controlPanelRef.value
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    }
+  } catch (e) {
+    // ignore
+  }
+}
 
 // Loading and error states
 const loading = ref(false)
 const error = ref(null)
 const renderError = ref(null)
 const refreshInterval = ref(null)
+const refreshErrorCount = ref(0)
+const MAX_REFRESH_ERRORS = 3
 
 // Global error handler for component rendering errors
 const handleRenderError = (err, context) => {
@@ -816,6 +940,25 @@ const trainingState = ref({
   endTime: null
 })
 
+// 后端训练接口配置与状态
+// 在开发环境通过Vite代理到 http://12.148.158.61:6677，避免CORS
+const TRAIN_API_BASE = '/edge-train'
+const trainingTaskId = ref(null)
+const monitorTimer = ref(null)
+const roundMetrics = ref([]) // { round, loss, accuracy }
+
+// 训练控制状态
+const isTrainingStarting = ref(false)
+const isTrainingStopping = ref(false)
+const currentTaskId = ref(null)
+
+// 任务管理状态
+const taskList = ref([])
+const isLoadingTasks = ref(false)
+const isDeletingTask = ref(null)
+// 每个任务的监控状态缓存 { [taskId]: { current_round, total_rounds, loss, accuracy } }
+const taskStatusMap = ref({})
+
 // Current project (will be loaded from API)
 const currentProject = ref({
   name: 'Loading...',
@@ -824,6 +967,21 @@ const currentProject = ref({
 
 // All Available Federated Learning Nodes (will be loaded from API)
 const allFederatedNodes = ref([])
+
+// 原始 Ray 集群节点（直接用于节点明细列表表格展示）
+const rayClusterNodes = ref([])
+
+// 按角色分组（model/data/computer）
+const rayGroups = computed(() => {
+  const groups = { model: [], data: [], computer: [] }
+  rayClusterNodes.value.forEach(n => {
+    const role = String(n.role || '').toLowerCase()
+    if (role.includes('model')) groups.model.push(n)
+    else if (role.includes('data')) groups.data.push(n)
+    else groups.computer.push(n)
+  })
+  return groups
+})
 
 // Node filtering and pagination state (simplified for dynamic training)
 const currentPage = ref(0)
@@ -958,104 +1116,33 @@ const loadVisualizationData = async () => {
       }
     }
 
-    // Update nodes data
+    // Update nodes data（严格使用后端返回的数据，不生成任何假数据）
     const nodesList = nodesResult?.nodes || nodesResult || []
 
-    // Always ensure we have at least some control nodes for visualization
-    const defaultControlNodes = [
-      {
-        id: 'model-1',
-        name: 'Global Model Server',
-        type: 'model',
-        status: 'online',
-        role: 'Coordinator',
-        user: 'System',
-        ipAddress: '192.168.1.100',
-        connectedNodes: '12 nodes',
-        trainingProgress: 0,
-        resources: { cpu: 45, memory: '2.1', gpu: 80 },
-        lastHeartbeat: 'Just now',
-        priority: 10
-      },
-      {
-        id: 'model-2',
-        name: 'Backup Model Server',
-        type: 'model',
-        status: 'online',
-        role: 'Backup',
-        user: 'System',
-        ipAddress: '192.168.1.101',
-        connectedNodes: '8 nodes',
-        trainingProgress: 0,
-        resources: { cpu: 35, memory: '1.8', gpu: 65 },
-        lastHeartbeat: '2 sec ago',
-        priority: 9
-      },
-      {
-        id: 'backup-control',
-        name: 'Coordinator Node',
-        type: 'control',
-        status: 'online',
-        role: 'Coordinator',
-        user: 'System',
-        ipAddress: '192.168.1.102',
-        connectedNodes: '15 nodes',
-        trainingProgress: 0,
-        resources: { cpu: 55, memory: '3.2', gpu: 0 },
-        lastHeartbeat: '1 sec ago',
-        priority: 8
-      }
-    ]
-
-    if (Array.isArray(nodesList) && nodesList.length > 0) {
-      // Map API data to our format with validation
-      const mappedNodes = nodesList
-        .filter(node => node && node.id) // Filter out invalid nodes
+    const mappedNodes = Array.isArray(nodesList)
+      ? nodesList
+          .filter(node => node && node.id)
         .map(node => ({
           id: node.id,
           name: node.name || `Node ${node.id}`,
-          type: node.type || 'training',
+            type: node.type || node.node_type || 'training',
           status: node.status || 'idle',
           role: node.role || 'Participant',
           user: node.user || 'System',
-          ipAddress: node.ip_address || 'Unknown',
-          connectedNodes: node.connected_nodes || '0 nodes',
-          trainingProgress: node.training_progress || 0,
+            ipAddress: node.ip_address || node.ip || 'Unknown',
+            connectedNodes: node.connected_nodes || node.connectedNodes || '0',
+            trainingProgress: node.training_progress || node.progress || 0,
           resources: {
-            cpu: node.resources?.cpu || Math.floor(Math.random() * 50) + 20,
-            memory: node.resources?.memory || (Math.random() * 2 + 0.5).toFixed(1),
-            gpu: node.resources?.gpu || Math.floor(Math.random() * 40) + 30
-          },
-          lastHeartbeat: node.last_heartbeat || 'Unknown',
+              cpu: node.resources?.cpu ?? node.cpu ?? 0,
+              memory: node.resources?.memory ?? node.memory ?? '0.0',
+              gpu: node.resources?.gpu ?? node.gpu ?? 0
+            },
+            lastHeartbeat: node.last_heartbeat || node.last_seen || 'Unknown',
           priority: node.priority || 1
         }))
+      : []
 
-      // Combine control nodes with training nodes
-      allFederatedNodes.value = [...defaultControlNodes, ...mappedNodes]
-    } else {
-      // If no data from API, create some sample training nodes
-      console.warn('No node data from API, creating sample nodes')
-      const sampleTrainingNodes = Array.from({ length: 8 }, (_, i) => ({
-        id: `training-${String(i + 1).padStart(2, '0')}`,
-        name: ['Manufacturing Node', 'Weather Station', 'Hospital Network', 'Smart City Hub', 'IoT Gateway', 'Research Lab', 'Entertainment Hub', 'Transport Hub'][i],
-        type: 'training',
-        status: Math.random() > 0.3 ? 'training' : 'idle',
-        role: 'Participant',
-        user: 'System',
-        ipAddress: `192.168.1.${110 + i}`,
-        connectedNodes: `${Math.floor(Math.random() * 5) + 1} nodes`,
-        trainingProgress: Math.random() * 100,
-        resources: {
-          cpu: Math.floor(Math.random() * 50) + 30,
-          memory: (Math.random() * 2 + 1).toFixed(1),
-          gpu: Math.floor(Math.random() * 40) + 40
-        },
-        lastHeartbeat: `${Math.floor(Math.random() * 10) + 1} sec ago`,
-        priority: Math.floor(Math.random() * 5) + 1
-      }))
-
-      allFederatedNodes.value = [...defaultControlNodes, ...sampleTrainingNodes]
-    }
+    allFederatedNodes.value = mappedNodes
 
     console.log('Loaded nodes data:', allFederatedNodes.value.length, 'total nodes')
     console.log('Control nodes:', allFederatedNodes.value.filter(n => ['model', 'control'].includes(n.type)).length)
@@ -1076,99 +1163,123 @@ const setupAutoRefresh = () => {
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
   }
-  
   refreshInterval.value = setInterval(() => {
     if (!loading.value) {
-      // Only refresh nodes data for real-time updates
       loadNodesData()
     }
-  }, 15 * 1000) // Refresh every 15 seconds
+  }, 5 * 1000) // 每5秒刷新一次
 }
 
 // Load only nodes data for real-time updates
 const loadNodesData = async () => {
   try {
-    const projectId = route.params.projectId
-    const nodesResult = await edgeaiService.nodes.getVisualizationNodes(projectId)
-    
-    if (nodesResult && Array.isArray(nodesResult)) {
-      // Update existing nodes or add new ones
-      const updatedNodes = nodesResult.map(node => ({
-        id: node.id,
-        name: node.name || `Node ${node.id}`,
-        type: node.type || 'training',
-        status: node.status || 'idle',
-        role: node.role || 'Participant',
-        user: node.user || 'System',
-        ipAddress: node.ip_address || 'Unknown',
-        connectedNodes: node.connected_nodes || '0 nodes',
-        trainingProgress: node.training_progress || 0,
+    // 从训练服务获取 Ray 集群节点状态
+    const resp = await fetch(`${TRAIN_API_BASE}/monitorRayCluster/node`, { headers: { accept: 'application/json' } })
+    if (!resp.ok) throw new Error(`Ray cluster monitor failed: ${resp.status}`)
+    const nodes = await resp.json()
+
+    if (Array.isArray(nodes)) {
+      rayClusterNodes.value = nodes
+      vizKey.value++
+      const mapped = nodes
+        .filter(n => n && (n.ip || n.id))
+        .map(n => {
+          const role = (n.role || '').toLowerCase()
+          const type = role.includes('model') ? 'model' : 'training'
+          const statusMap = { alive: 'online', dead: 'offline' }
+          const status = statusMap[(n.status || '').toLowerCase()] || (n.status || 'idle')
+          return {
+            id: n.ip || n.id,
+            name: `${role || 'node'} ${n.ip || ''}`.trim(),
+            type,
+            status,
+            role: n.role || undefined,
+            user: undefined,
+            ipAddress: n.ip || 'Unknown',
+            connectedNodes: undefined,
+            trainingProgress: 0,
         resources: {
-          cpu: node.resources?.cpu || 0,
-          memory: node.resources?.memory || '0.0',
-          gpu: node.resources?.gpu || 0
-        },
-        lastHeartbeat: node.last_heartbeat || 'Unknown',
-        priority: node.priority || 1
-      }))
-      
-      allFederatedNodes.value = updatedNodes
+              cpu: Number(n.cpu_usage ?? 0),
+              memory: String(n.memory_usage ?? '0.0'),
+              gpu: 0
+            },
+            lastHeartbeat: formatHeartbeat(n.heartbeat),
+            priority: 1
+          }
+        })
+      allFederatedNodes.value = mapped
     }
+    // 成功后重置错误计数
+    if (refreshErrorCount.value !== 0) refreshErrorCount.value = 0
   } catch (err) {
-    console.error('Failed to refresh nodes data:', err)
+    console.error('Failed to refresh nodes data (ray cluster):', err)
+    refreshErrorCount.value += 1
+    if (refreshErrorCount.value >= MAX_REFRESH_ERRORS) {
+      if (refreshInterval.value) {
+        clearInterval(refreshInterval.value)
+        refreshInterval.value = null
+      }
+      if (refreshErrorCount.value === MAX_REFRESH_ERRORS) {
+        alert('Ray 集群监控接口连续失败，已暂停自动刷新。请检查训练服务/代理配置。')
+      }
+    }
   }
 }
 
-// Computed property for displayed nodes - 只显示训练中的节点
-const displayedNodes = computed(() => {
-  console.log('Computing displayedNodes, allFederatedNodes length:', allFederatedNodes.value.length)
-
-  // Validate that allFederatedNodes is an array
-  if (!Array.isArray(allFederatedNodes.value)) {
-    console.error('allFederatedNodes is not an array:', allFederatedNodes.value)
-    return []
+// 将心跳时间戳转为相对时间字符串
+const formatHeartbeat = (ts) => {
+  if (!ts) return '-'
+  try {
+    const now = Date.now()
+    const diffSec = Math.max(0, Math.floor((now - Number(ts)) / 1000))
+    if (diffSec < 60) return `${diffSec} seconds ago`
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin < 60) return `${diffMin} minutes ago`
+    const diffHour = Math.floor(diffMin / 60)
+    return `${diffHour} hours ago`
+  } catch (e) {
+    return '-'
   }
+}
 
-  // Get control nodes (always show) - but only if they have valid data
-  const controlNodes = allFederatedNodes.value.filter(n => {
-    const isValidControl = n && n.id && ['model', 'control'].includes(n.type)
-    if (!isValidControl && n) {
-      console.warn('Invalid control node:', n)
+// Computed property for displayed nodes - 直接使用 Ray 集群节点数据
+const displayedNodes = computed(() => {
+  // 直接使用 Ray 集群节点数据，确保与 Node Details List 对应
+  const mapped = rayClusterNodes.value.map(n => {
+    const role = String(n.role || '').toLowerCase()
+    let type = 'training'
+    if (role.includes('model')) type = 'model'
+    else if (role.includes('data')) type = 'training'
+    else type = 'training'
+    
+    return {
+      id: n.ip,
+      name: `${n.role} ${n.ip}`,
+      type: type,
+      status: n.status === 'alive' ? 'online' : 'offline',
+      role: n.role,
+      ipAddress: n.ip,
+      resources: {
+        cpu: n.cpu_usage || 0,
+        memory: String(n.memory_usage || 0),
+        gpu: 0
+      },
+      lastHeartbeat: formatHeartbeat(n.heartbeat),
+      priority: 1,
+      // 添加 Node Details List 中需要的字段
+      diskUsage: Number(n.disk_usage ?? 0),
+      sent: Number(n.sent ?? 0),
+      received: Number(n.received ?? 0)
     }
-    return isValidControl
   })
-
-  // 只显示正在训练的节点，加上正在消散的节点
-  const activeTrainingNodes = allFederatedNodes.value.filter(n => {
-    if (!n || !n.id) {
-      console.warn('Invalid training node (missing id):', n)
-      return false
-    }
-
-    const isTraining = n.type === 'training'
-    const isActiveStatus = n.status === 'training' || nodeAnimationStates.value.get(n.id)?.fading
-
-    return isTraining && isActiveStatus
+  
+  console.log('displayedNodes computed:', {
+    rayClusterNodesCount: rayClusterNodes.value.length,
+    mappedCount: mapped.length,
+    nodes: mapped.map(n => ({ id: n.id, name: n.name, type: n.type }))
   })
-
-  // 按优先级和CPU使用率排序
-  activeTrainingNodes.sort((a, b) => {
-    const priorityA = a.priority || 0
-    const priorityB = b.priority || 0
-    if (priorityB !== priorityA) return priorityB - priorityA
-
-    const cpuA = a.resources?.cpu || 0
-    const cpuB = b.resources?.cpu || 0
-    return cpuB - cpuA
-  })
-
-  // 限制最多15个训练节点
-  const limitedTrainingNodes = activeTrainingNodes.slice(0, 15)
-
-  const result = [...controlNodes, ...limitedTrainingNodes]
-  console.log('DisplayedNodes result:', result.length, 'nodes:', result.map(n => ({ id: n.id, type: n.type, name: n.name })))
-
-  return result
+  
+  return mapped
 })
 
 // Update federatedNodes to use displayedNodes
@@ -1181,11 +1292,12 @@ const transmissionStates = ref(new Map())
 const federatedConnections = computed(() => {
   const connections = []
   const displayedTrainingNodes = federatedNodes.value.filter(n => n.type === 'training')
-  const controlNodeIds = ['model-1', 'model-2', 'backup-control']
+  const controlNodes = federatedNodes.value.filter(n => ['model', 'control'].includes(n.type))
   
-  // Create connections from each control node to visible training nodes
+  // 仅当后端返回了控制/模型节点时，按轮询方式连接到训练节点
+  if (controlNodes.length > 0) {
   displayedTrainingNodes.forEach((trainingNode, index) => {
-    const controlNodeId = controlNodeIds[index % controlNodeIds.length]
+      const controlNodeId = controlNodes[index % controlNodes.length].id
     const connectionId = `${controlNodeId}-${trainingNode.id}`
     const transmissionState = transmissionStates.value.get(connectionId)
     
@@ -1201,6 +1313,7 @@ const federatedConnections = computed(() => {
       bandwidth: 0
     })
   })
+  }
   
   return connections
 })
@@ -1321,15 +1434,65 @@ const addNode = () => {
   console.log('New node added:', newNode)
 }
 
-const startTraining = () => {
-  if (trainingState.value.status !== 'training') {
+const startTraining = async () => {
+  if (trainingState.value.status === 'training' || isTrainingStarting.value) return
+  
+  isTrainingStarting.value = true
+  try {
+    // 从参数生成后端训练payload
+    const payload = { parameters: { ...parameters.value } }
+    console.log('🚀 发送训练请求到:', `${TRAIN_API_BASE}/train`, 'payload:', payload)
+    // 发送开始训练请求
+    const resp = await fetch(`${TRAIN_API_BASE}/train`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'accept': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    if (!resp.ok) {
+      let errorMessage = `Start training failed: ${resp.status}`
+      try {
+        const errorData = await resp.json()
+        errorMessage += ` - ${errorData.message || errorData.error || 'Unknown error'}`
+        console.error('❌ 训练启动失败详情:', errorData)
+      } catch (e) {
+        console.error('❌ 无法解析错误响应:', e)
+      }
+      throw new Error(errorMessage)
+    }
+    const data = await resp.json()
+    console.log('✅ 训练启动响应:', data)
+    trainingTaskId.value = data?.task_id || data?.id || data?.taskId
+    currentTaskId.value = trainingTaskId.value
+    if (!trainingTaskId.value) {
+      throw new Error(`No task_id returned from training service`)
+    }
+    console.log('📝 保存的 task_id:', trainingTaskId.value)
+    // 更新UI状态
     trainingState.value.status = 'training'
     trainingState.value.startTime = Date.now()
-    trainingState.value.currentRound = 1
+    trainingState.value.currentRound = 0
+    roundMetrics.value = []
+    // 启动轮询监控
+    startMonitor()
+  } catch (e) {
+    console.error('Start training error:', e)
+    let errorMsg = '启动训练失败：'
     
-    // Start simulating training progress
-    simulateTraining()
-    console.log('Training started')
+    if (e.message.includes('409')) {
+      errorMsg += '检测到已有训练任务在运行中。\n\n建议：\n1. 等待当前训练完成\n2. 或联系管理员停止现有训练任务'
+    } else if (e.message.includes('400')) {
+      errorMsg += '请求参数错误，请检查参数设置。'
+    } else if (e.message.includes('500')) {
+      errorMsg += '服务器内部错误，请稍后重试。'
+    } else if (e.message.includes('Failed to fetch')) {
+      errorMsg += '无法连接到训练服务，请检查网络连接和服务状态。'
+    } else {
+      errorMsg += e.message || '未知错误，请稍后重试。'
+    }
+    
+    alert(errorMsg)
+  } finally {
+    isTrainingStarting.value = false
   }
 }
 
@@ -1347,6 +1510,227 @@ const completeTraining = () => {
     })
     
     console.log('Training completed')
+  }
+}
+
+const stopTraining = async () => {
+  if (trainingState.value.status !== 'training' && trainingState.value.status !== 'running' || isTrainingStopping.value) return
+  
+  isTrainingStopping.value = true
+  try {
+    // 停止监控
+    stopMonitor()
+    
+    // 更新状态
+    trainingState.value.status = 'stopped'
+    trainingState.value.endTime = Date.now()
+    
+    // 重置任务ID
+    currentTaskId.value = null
+    trainingTaskId.value = null
+    
+    console.log('Training stopped')
+  } catch (e) {
+    console.error('Stop training error:', e)
+  } finally {
+    isTrainingStopping.value = false
+  }
+}
+
+// 轮询监控训练进度
+const startMonitor = () => {
+  stopMonitor()
+  if (!trainingTaskId.value) return
+  monitorTimer.value = setInterval(async () => {
+    try {
+      console.log('🔍 轮询监控 task_id:', trainingTaskId.value)
+      const resp = await fetch(`${TRAIN_API_BASE}/monitor/${trainingTaskId.value}`, {
+        method: 'GET',
+        headers: { 'accept': 'application/json' }
+      })
+      if (!resp.ok) {
+        let errorMessage = `Monitor failed: ${resp.status}`
+        try {
+          const errorData = await resp.json()
+          errorMessage += ` - ${errorData.message || errorData.error || 'Unknown error'}`
+          console.error('❌ 监控失败详情:', errorData)
+        } catch (e) {
+          console.error('❌ 无法解析监控错误响应:', e)
+        }
+        throw new Error(errorMessage)
+      }
+      const data = await resp.json()
+      console.log('📊 监控响应:', data)
+      // 解析后端返回结构
+      const current = Number(data.current_round ?? data.round ?? trainingState.value.currentRound)
+      const total = Number(data.total_rounds ?? trainingState.value.totalRounds)
+      const loss = data.loss
+      const accuracy = data.accuracy
+      console.log('📈 解析数据 - current:', current, 'total:', total, 'loss:', loss, 'accuracy:', accuracy)
+      trainingState.value.currentRound = current
+      if (Number.isFinite(total) && total > 0) trainingState.value.totalRounds = total
+      if (Number.isFinite(current)) {
+        const last = roundMetrics.value[roundMetrics.value.length - 1]
+        if (!last || last.round !== current) {
+          roundMetrics.value.push({ round: current, loss, accuracy })
+          console.log('➕ 新增轮次指标:', { round: current, loss, accuracy })
+        } else {
+          last.loss = loss; last.accuracy = accuracy
+          console.log('🔄 更新轮次指标:', { round: current, loss, accuracy })
+        }
+      }
+      if (total && current >= total) {
+        trainingState.value.status = 'completed'
+        console.log('🏁 训练完成!')
+        stopMonitor()
+      }
+    } catch (e) {
+      console.error('Monitor error:', e)
+      // 如果是404错误，说明任务不存在，停止监控
+      if (e.message.includes('404')) {
+        console.log('🛑 训练任务不存在，停止监控')
+        stopMonitor()
+        trainingState.value.status = 'stopped'
+      } else if (e.message.includes('Failed to fetch')) {
+        console.log('🌐 网络连接问题，继续尝试监控...')
+      } else {
+        console.log('⚠️ 监控错误，继续尝试...')
+      }
+    }
+  }, 2000)
+}
+
+const stopMonitor = () => {
+  if (monitorTimer.value) {
+    clearInterval(monitorTimer.value)
+    monitorTimer.value = null
+  }
+}
+
+// 任务管理方法
+const loadTaskList = async () => {
+  isLoadingTasks.value = true
+  try {
+    console.log('📋 加载任务列表...')
+    const resp = await fetch(`${TRAIN_API_BASE}/tasksList`, {
+      method: 'GET',
+      headers: { 'accept': 'application/json' }
+    })
+    if (!resp.ok) {
+      let errorMessage = `Load tasks failed: ${resp.status}`
+      try {
+        const errorData = await resp.json()
+        errorMessage += ` - ${errorData.message || errorData.error || 'Unknown error'}`
+        console.error('❌ 加载任务失败详情:', errorData)
+      } catch (e) {
+        console.error('❌ 无法解析错误响应:', e)
+      }
+      throw new Error(errorMessage)
+    }
+    const data = await resp.json()
+    console.log('✅ 任务列表响应:', data)
+    const newTaskList = data.tasks || []
+    console.log('📋 更新任务列表:', { 
+      oldCount: taskList.value.length, 
+      newCount: newTaskList.length, 
+      tasks: newTaskList 
+    })
+    taskList.value = newTaskList
+
+    // 并行查询每个任务的状态
+    await refreshAllTaskStatuses()
+    // 加载后滚动到底部，便于查看最新任务
+    setTimeout(scrollControlPanelBottom, 0)
+  } catch (e) {
+    console.error('Load task list error:', e)
+    alert(`加载任务列表失败：${e.message}`)
+  } finally {
+    isLoadingTasks.value = false
+  }
+}
+
+const refreshAllTaskStatuses = async () => {
+  if (!Array.isArray(taskList.value) || taskList.value.length === 0) {
+    taskStatusMap.value = {}
+    return
+  }
+  console.log('🔎 并行查询任务状态...', taskList.value)
+  const entries = await Promise.all(taskList.value.map(async (taskId) => {
+    try {
+      const resp = await fetch(`${TRAIN_API_BASE}/monitor/${taskId}`, {
+        method: 'GET', headers: { accept: 'application/json' }
+      })
+      if (!resp.ok) throw new Error(`status ${resp.status}`)
+      const status = await resp.json()
+      return [taskId, {
+        current_round: Number(status.current_round ?? 0),
+        total_rounds: Number(status.total_rounds ?? 0),
+        loss: typeof status.loss === 'number' ? status.loss : 0,
+        accuracy: status.accuracy
+      }]
+    } catch (err) {
+      console.warn('获取任务状态失败:', taskId, err.message)
+      return [taskId, { current_round: 0, total_rounds: 0, loss: 0, accuracy: null }]
+    }
+  }))
+  taskStatusMap.value = Object.fromEntries(entries)
+  console.log('📦 任务状态缓存:', taskStatusMap.value)
+}
+
+const deleteTask = async (taskId) => {
+  if (isDeletingTask.value) return
+  
+  isDeletingTask.value = taskId
+  try {
+    console.log('🗑️ 删除任务:', taskId)
+    const resp = await fetch(`${TRAIN_API_BASE}/tasks/${taskId}`, {
+      method: 'DELETE',
+      headers: { 'accept': 'application/json' }
+    })
+    if (!resp.ok) {
+      let errorMessage = `Delete task failed: ${resp.status}`
+      try {
+        const errorData = await resp.json()
+        errorMessage += ` - ${errorData.message || errorData.error || 'Unknown error'}`
+        console.error('❌ 删除任务失败详情:', errorData)
+      } catch (e) {
+        console.error('❌ 无法解析错误响应:', e)
+      }
+      throw new Error(errorMessage)
+    }
+    const data = await resp.json()
+    console.log('✅ 删除任务响应:', data)
+    console.log('🗑️ 删除详情:', {
+      taskId: taskId,
+      status: data.status,
+      terminated: data.terminated,
+      reason: data.detail?.reason
+    })
+    
+    // 从列表中移除已删除的任务
+    taskList.value = taskList.value.filter(task => task !== taskId)
+    delete taskStatusMap.value[taskId]
+    
+    // 如果删除的是当前训练任务，停止监控
+    if (taskId === trainingTaskId.value) {
+      stopMonitor()
+      trainingState.value.status = 'stopped'
+      currentTaskId.value = null
+      trainingTaskId.value = null
+    }
+    
+    // 延迟1秒后重新加载任务列表并刷新状态，确保后端状态同步
+    setTimeout(async () => {
+      console.log('🔄 删除后重新加载任务列表...')
+      await loadTaskList()
+    }, 1000)
+    
+    alert(`任务 ${taskId.substring(0, 8)}... 已成功删除`)
+  } catch (e) {
+    console.error('Delete task error:', e)
+    alert(`删除任务失败：${e.message}`)
+  } finally {
+    isDeletingTask.value = null
   }
 }
 
@@ -1474,6 +1858,43 @@ const isModalVisible = ref(false)
 const modalSelectedNode = ref(null)
 const modalAnchorPosition = ref({ x: 0, y: 0 })
 
+// 参数设置模态框状态
+const isSettingsModalVisible = ref(false)
+
+// 训练参数配置
+const parameters = ref({
+  training_alg: 'sft',
+  fed_alg: 'fedavg',
+  secure_aggregation: 'shamir_threshold',
+  num_computers: 3,
+  threshold: 2,
+  num_rounds: 10,
+  num_clients: 2,
+  sample_clients: 2,
+  max_steps: 100,
+  lr: '1e-4',
+  model_name_or_path: 'sshleifer/tiny-gpt2',
+  dataset_name: 'vicgalle/alpaca-gpt4',
+  dataset_sample: 50
+})
+
+// 默认参数配置
+const defaultParameters = {
+  training_alg: 'sft',
+  fed_alg: 'fedavg',
+  secure_aggregation: 'shamir_threshold',
+  num_computers: 3,
+  threshold: 2,
+  num_rounds: 10,
+  num_clients: 2,
+  sample_clients: 2,
+  max_steps: 100,
+  lr: '1e-4',
+  model_name_or_path: 'sshleifer/tiny-gpt2',
+  dataset_name: 'vicgalle/alpaca-gpt4',
+  dataset_sample: 50
+}
+
 // Event handlers
 const handleNodeClick = (node) => {
   if (!node || !node.id) {
@@ -1563,6 +1984,81 @@ const stopNodeTraining = (node) => {
     node.trainingProgress = Math.floor(node.trainingProgress || 0) // Keep current progress
     console.log(`Stopped training for node: ${node.name}`)
   }
+}
+
+// 参数设置相关方法
+const openSettingsModal = () => {
+  isSettingsModalVisible.value = true
+  loadParametersFromStorage()
+}
+
+const closeSettingsModal = () => {
+  isSettingsModalVisible.value = false
+}
+
+const loadParametersFromStorage = () => {
+  try {
+    const savedParameters = localStorage.getItem('edgeai-training-parameters')
+    if (savedParameters) {
+      const parsed = JSON.parse(savedParameters)
+      parameters.value = { ...defaultParameters, ...parsed }
+    }
+  } catch (error) {
+    console.error('Failed to load parameters from storage:', error)
+    parameters.value = { ...defaultParameters }
+  }
+}
+
+const saveParameters = () => {
+  try {
+    // 验证参数
+    if (parameters.value.threshold > parameters.value.num_computers) {
+      alert('阈值不能大于计算机数量')
+      return
+    }
+    
+    if (parameters.value.sample_clients > parameters.value.num_clients) {
+      alert('采样客户端数量不能大于客户端总数')
+      return
+    }
+
+    // 保存到localStorage
+    localStorage.setItem('edgeai-training-parameters', JSON.stringify(parameters.value))
+    
+    // 更新训练配置显示
+    updateTrainingConfigDisplay()
+    
+    // 关闭模态框
+    closeSettingsModal()
+    
+    console.log('Parameters saved:', parameters.value)
+    
+    // 显示成功消息
+    alert('参数设置已保存！')
+  } catch (error) {
+    console.error('Failed to save parameters:', error)
+    alert('保存参数时出错，请重试')
+  }
+}
+
+const resetToDefaults = () => {
+  if (confirm('确定要重置为默认参数吗？这将覆盖当前的所有设置。')) {
+    parameters.value = { ...defaultParameters }
+  }
+}
+
+const updateTrainingConfigDisplay = () => {
+  // 更新训练配置显示，让用户看到参数变化
+  trainingConfig.value = {
+    aiModel: parameters.value.model_name_or_path,
+    strategy: parameters.value.training_alg.toUpperCase(),
+    protocol: parameters.value.fed_alg,
+    targetAccuracy: `≥90%`,
+    estimatedCompletion: `${parameters.value.num_rounds} rounds`
+  }
+  // 同步训练轮次到控制面板
+  const parsedRounds = Number(parameters.value.num_rounds)
+  trainingState.value.totalRounds = Number.isFinite(parsedRounds) && parsedRounds > 0 ? parsedRounds : 100
 }
 
 // Helper methods
@@ -1686,6 +2182,18 @@ onMounted(async () => {
   // Load initial data
   await loadVisualizationData()
   
+  // 首次拉取 Ray 集群节点
+  await loadNodesData()
+  
+  // Load parameters from storage
+  loadParametersFromStorage()
+  
+  // Update training config display with loaded parameters
+  updateTrainingConfigDisplay()
+  
+  // Load task list
+  await loadTaskList()
+  
   // Setup auto-refresh for real-time updates
   setupAutoRefresh()
   
@@ -1703,6 +2211,7 @@ onUnmounted(() => {
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
   }
+  stopMonitor()
   
   // Clear API cache
   clearCache()

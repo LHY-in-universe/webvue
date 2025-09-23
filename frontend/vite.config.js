@@ -65,6 +65,15 @@ export default defineConfig({
     port: 5173,
     hmr: {
       overlay: false // Disable error overlay for better performance
+    },
+    proxy: {
+      // 将本地 /edge-train/* 转发到训练服务，避免浏览器CORS限制
+      '/edge-train': {
+        target: 'http://12.148.158.61:6677',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/edge-train/, '')
+      }
     }
   },
   optimizeDeps: {

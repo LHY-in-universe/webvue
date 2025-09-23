@@ -407,22 +407,49 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const handleWebSocketMessage = (data) => {
     switch (data.type) {
       case 'node_update':
-        updateNode(data.payload)
+        // WebSocket 消息结构: {type: 'node_update', node_id: 'xxx', data: {...}}
+        if (data.data && data.node_id) {
+          const nodeData = {
+            id: data.node_id,
+            ...data.data
+          }
+          updateNode(nodeData)
+        } else {
+          console.warn('WebSocket node_update received with invalid structure:', data)
+        }
         break
       case 'project_update':
-        updateProject(data.payload)
+        // WebSocket 消息结构: {type: 'project_update', project_id: 'xxx', data: {...}}
+        if (data.data && data.project_id) {
+          const projectData = {
+            id: data.project_id,
+            ...data.data
+          }
+          updateProject(projectData)
+        } else if (data.payload) {
+          updateProject(data.payload)
+        } else {
+          console.warn('WebSocket project_update received with invalid structure:', data)
+        }
         break
       case 'task_update':
         // Handle task status updates
-        if (data.payload && data.payload.id) {
-          // Find and update task if it exists in any project
+        if (data.data && data.task_id) {
+          console.log('Task update received:', { id: data.task_id, ...data.data })
+        } else if (data.payload && data.payload.id) {
           console.log('Task update received:', data.payload)
+        } else {
+          console.warn('WebSocket task_update received with invalid structure:', data)
         }
         break
       case 'model_update':
         // Handle model deployment/status changes
-        if (data.payload && data.payload.id) {
+        if (data.data && data.model_id) {
+          console.log('Model update received:', { id: data.model_id, ...data.data })
+        } else if (data.payload && data.payload.id) {
           console.log('Model update received:', data.payload)
+        } else {
+          console.warn('WebSocket model_update received with invalid structure:', data)
         }
         break
       case 'system_stats':
