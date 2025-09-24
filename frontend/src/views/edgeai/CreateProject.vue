@@ -177,62 +177,9 @@
             </div>
           </div>
 
-          <!-- Training Configuration -->
-          <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Training Configuration</h3>
+          
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Input
-                v-model.number="projectData.epochs"
-                type="number"
-                label="Epochs *"
-                placeholder="100"
-                min="1"
-                max="1000"
-                required
-                :error="errors.epochs"
-              />
-
-              <Input
-                v-model.number="projectData.batch_size"
-                type="number"
-                label="Batch Size *"
-                placeholder="32"
-                min="1"
-                max="512"
-                required
-                :error="errors.batch_size"
-              />
-
-              <Input
-                v-model.number="projectData.learning_rate"
-                type="number"
-                step="0.0001"
-                label="Learning Rate *"
-                placeholder="0.001"
-                min="0.0001"
-                max="1"
-                required
-                :error="errors.learning_rate"
-              />
-            </div>
-          </div>
-
-          <!-- Node Configuration -->
-          <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Node Configuration</h3>
-
-            <div class="grid grid-cols-1 gap-6">
-              <Input
-                v-model="projectData.node_ip"
-                label="Node IP Address *"
-                placeholder="192.168.1.100"
-                required
-                :error="errors.node_ip"
-              />
-              <p class="text-xs text-gray-500 dark:text-gray-400 -mt-4">Connected to database node table</p>
-            </div>
-          </div>
+          
 
           <!-- Action Buttons -->
           <div class="flex justify-end space-x-4 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -331,20 +278,7 @@ const createProject = async () => {
       return
     }
 
-    if (projectData.value.epochs < 1 || projectData.value.epochs > 1000) {
-      errors.value.epochs = 'Epochs must be between 1 and 1000'
-      return
-    }
-
-    if (projectData.value.batch_size < 1 || projectData.value.batch_size > 512) {
-      errors.value.batch_size = 'Batch size must be between 1 and 512'
-      return
-    }
-
-    if (projectData.value.learning_rate < 0.0001 || projectData.value.learning_rate > 1) {
-      errors.value.learning_rate = 'Learning rate must be between 0.0001 and 1'
-      return
-    }
+    
 
     if (!projectData.value.node_ip.trim()) {
       errors.value.node_ip = 'Node IP address is required'
@@ -358,9 +292,7 @@ const createProject = async () => {
       model: projectData.value.model,
       training_strategy: projectData.value.training_strategy,
       protocol: projectData.value.protocol,
-      epochs: projectData.value.epochs,
-      batch_size: projectData.value.batch_size,
-      learning_rate: projectData.value.learning_rate,
+      
       node_ip: projectData.value.node_ip.trim()
     }
 

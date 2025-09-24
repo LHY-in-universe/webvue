@@ -43,11 +43,15 @@ else
     exit 1
 fi
 
+# 获取公网IP地址
+PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "your-server-ip")
+
 echo ""
 echo "🎉 所有服务启动完成！"
 echo "📊 后端API: http://localhost:8000"
 echo "📚 API文档: http://localhost:8000/docs"
-echo "🌐 前端界面: http://localhost:5173"
+echo "🌐 前端界面: http://localhost:5173 (本地访问)"
+echo "🌍 前端界面: http://$PUBLIC_IP:5173 (公网访问)"
 echo "🔧 Vue DevTools: http://localhost:5173/__devtools__/"
 echo ""
 echo "🛑 按 Ctrl+C 停止所有服务"

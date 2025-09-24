@@ -79,54 +79,7 @@
         </p>
       </div>
 
-      <!-- Statistics Overview -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div class="text-center">
-          <div class="flex items-center justify-center mb-4">
-            <ComputerDesktopIcon class="w-12 h-12 text-gray-600 dark:text-gray-400" />
-          </div>
-          <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
-          <div v-else class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            {{ systemStats.totalProjects }}
-          </div>
-          <div class="text-gray-600 dark:text-gray-400">Total Projects</div>
-        </div>
-
-        <div class="text-center">
-          <div class="flex items-center justify-center mb-4">
-            <ServerIcon class="w-12 h-12 text-green-600 dark:text-green-400" />
-          </div>
-          <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
-          <div v-else class="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
-            {{ systemStats.onlineNodes }}
-          </div>
-          <div class="text-gray-600 dark:text-gray-400">Active Nodes</div>
-        </div>
-
-        <div class="text-center">
-          <div class="flex items-center justify-center mb-4">
-            <svg class="w-12 h-12 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-            </svg>
-          </div>
-          <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
-          <div v-else class="text-3xl font-bold text-yellow-500 mb-2">
-            {{ systemStats.trainingNodes }}
-          </div>
-          <div class="text-gray-600 dark:text-gray-400">Training Tasks</div>
-        </div>
-
-        <div class="text-center">
-          <div class="flex items-center justify-center mb-4">
-            <ChartBarIcon class="w-12 h-12 text-purple-600 dark:text-purple-400" />
-          </div>
-          <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
-          <div v-else class="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
-            {{ completionRate }}%
-          </div>
-          <div class="text-gray-600 dark:text-gray-400">Completion Rate</div>
-        </div>
-      </div>
+      
 
       <!-- Main Function Buttons -->
       <div class="flex flex-wrap gap-4 mb-8">
@@ -195,140 +148,14 @@
             @click="openProjectVisualization(project)"
             class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 cursor-pointer hover:shadow-lg transition-all duration-200"
           >
-            <!-- Status Indicator and Title -->
-            <div class="flex items-start justify-between mb-3">
-              <div class="flex items-center">
-                <div 
-                  :class="getStatusDotColor(project.status)"
-                  class="w-3 h-3 rounded-full mr-3"
-                ></div>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                  {{ project.name }}
-                </h3>
-              </div>
+            <div class="mb-3">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ project.name }}
+              </h3>
             </div>
-            
-            <!-- Description -->
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+            <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
               {{ project.description }}
             </p>
-
-            <!-- Model Information -->
-            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 mb-4">
-              <div class="flex justify-between items-center mb-2">
-                <span class="text-xs font-medium text-gray-600 dark:text-gray-400">MODEL INFO</span>
-                <span :class="getModelTypeBadgeColor(project.modelType)" class="px-2 py-1 rounded-full text-xs font-medium">
-                  {{ project.modelType?.toUpperCase() || 'CNN' }}
-                </span>
-              </div>
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <div class="text-gray-600 dark:text-gray-400">
-                  Batch Size: <span class="font-medium text-gray-900 dark:text-white">{{ project.batchSize || 32 }}</span>
-                </div>
-                <div class="text-gray-600 dark:text-gray-400">
-                  Learning Rate: <span class="font-medium text-gray-900 dark:text-white">{{ project.learningRate || 0.001 }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Performance Metrics -->
-            <div v-if="project.metrics && project.status !== 'created'" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mb-4">
-              <div class="flex justify-between items-center mb-2">
-                <span class="text-xs font-medium text-blue-600 dark:text-blue-400">PERFORMANCE</span>
-                <div class="flex items-center">
-                  <div class="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
-                  <span class="text-xs text-blue-600 dark:text-blue-400">Live</span>
-                </div>
-              </div>
-              <div class="grid grid-cols-3 gap-2">
-                <div class="text-center">
-                  <div class="text-lg font-bold text-blue-600 dark:text-blue-400">
-                    {{ (project.metrics?.accuracy || 0).toFixed(1) }}%
-                  </div>
-                  <div class="text-xs text-gray-600 dark:text-gray-400">Accuracy</div>
-                </div>
-                <div class="text-center">
-                  <div class="text-lg font-bold text-green-600 dark:text-green-400">
-                    {{ (project.metrics?.f1Score || 0).toFixed(1) }}
-                  </div>
-                  <div class="text-xs text-gray-600 dark:text-gray-400">F1 Score</div>
-                </div>
-                <div class="text-center">
-                  <div class="text-lg font-bold text-orange-600 dark:text-orange-400">
-                    {{ (project.metrics?.loss || 0).toFixed(3) }}
-                  </div>
-                  <div class="text-xs text-gray-600 dark:text-gray-400">Loss</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Training Status & Progress -->
-            <div class="mb-4">
-              <div class="flex justify-between text-sm mb-2">
-                <span class="text-gray-500 dark:text-gray-400">Connected Nodes:</span>
-                <span class="font-semibold text-gray-900 dark:text-white">{{ project.connectedNodes || project.nodes }}</span>
-              </div>
-
-              <div class="flex justify-between text-sm mb-2">
-                <span class="text-gray-500 dark:text-gray-400">Training Progress:</span>
-                <span class="font-semibold text-gray-900 dark:text-white">{{ project.progress }}%</span>
-              </div>
-
-              <!-- Epoch Information -->
-              <div v-if="project.currentEpoch || project.totalEpochs" class="flex justify-between text-sm mb-2">
-                <span class="text-gray-500 dark:text-gray-400">Epochs:</span>
-                <span class="font-semibold text-gray-900 dark:text-white">
-                  {{ project.currentEpoch || 0 }} / {{ project.totalEpochs || 100 }}
-                </span>
-              </div>
-
-              <!-- Progress Bar -->
-              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
-                <div
-                  :class="getProgressBarColor(project.status, project.progress)"
-                  class="h-2 rounded-full transition-all duration-300"
-                  :style="{ width: project.progress + '%' }"
-                ></div>
-              </div>
-
-              <!-- ETA and Speed -->
-              <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                <span v-if="project.status === 'training'">ETA: {{ calculateETA(project) }}</span>
-                <span v-else-if="project.status === 'active' || project.status === 'completed'">Status: Completed</span>
-                <span v-else>Status: {{ project.status || 'Idle' }}</span>
-
-                <span v-if="project.status === 'training'">{{ calculateTrainingSpeed(project) }} epochs/hr</span>
-                <span v-else-if="project.status === 'active' && project.totalEpochs">{{ project.currentEpoch || 0 }}/{{ project.totalEpochs }} epochs</span>
-              </div>
-            </div>
-
-            <!-- Resource Usage (if available) -->
-            <div v-if="project.resourceUsage" class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 mb-4">
-              <div class="flex justify-between items-center mb-2">
-                <span class="text-xs font-medium text-yellow-600 dark:text-yellow-400">RESOURCES</span>
-                <span class="text-xs text-yellow-600 dark:text-yellow-400">Live Usage</span>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <div class="text-center">
-                  <div class="text-sm font-bold text-yellow-600 dark:text-yellow-400">
-                    {{ project.resourceUsage.cpu || 0 }}%
-                  </div>
-                  <div class="text-xs text-gray-600 dark:text-gray-400">CPU</div>
-                </div>
-                <div class="text-center">
-                  <div class="text-sm font-bold text-yellow-600 dark:text-yellow-400">
-                    {{ project.resourceUsage.memory || 0 }}%
-                  </div>
-                  <div class="text-xs text-gray-600 dark:text-gray-400">Memory</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Timestamps -->
-            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-600">
-              <span>Created: {{ project.created }}</span>
-              <span>Updated: {{ project.lastUpdate || project.lastUpdated || 'Unknown' }}</span>
-            </div>
           </div>
         </div>
       </div>

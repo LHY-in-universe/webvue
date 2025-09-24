@@ -61,10 +61,12 @@ export default defineConfig({
   },
   server: {
     // Development server optimizations
-    host: '127.0.0.1',
+    host: '0.0.0.0',
     port: 5173,
     hmr: {
-      overlay: false // Disable error overlay for better performance
+      overlay: false, // Disable error overlay for better performance
+      host: '0.0.0.0',
+      port: 5174
     },
     proxy: {
       // 将本地 /edge-train/* 转发到训练服务，避免浏览器CORS限制

@@ -111,12 +111,12 @@
             @click.stop.prevent="handleNodeClick(node)"
           />
 
-          <!-- Main Node Circle - Simplified -->
+          <!-- Main Node Circle - 根据角色类型显示不同颜色 -->
           <circle
             :cx="getNodePosition(node).x"
             :cy="getNodePosition(node).y"
             r="25"
-            :fill="node.type === 'training' ? '#3b82f6' : (node.type === 'control' ? '#ef4444' : '#10b981')"
+            :fill="getNodeColorByRole(node)"
             :stroke="themeStore.isDark ? '#ffffff' : '#000000'"
             stroke-width="2"
             class="node-circle select-none no-hover"
@@ -243,39 +243,40 @@ const svgDimensions = reactive({
 })
 
 // Computed property for valid nodes - filter out invalid/undefined nodes
+// 修正：允许使用 ip 作为 id，并基于 role 推断 type，确保与 Node Details List 一一对应
 const validNodes = computed(() => {
   if (!props.nodes || !Array.isArray(props.nodes)) {
     console.warn('validNodes: props.nodes is not a valid array:', props.nodes)
     return []
   }
 
-  const filtered = props.nodes.filter(node => {
-    if (!node) {
-      console.warn('validNodes: found null/undefined node')
-      return false
-    }
+  const normalized = props.nodes
+    .map(original => {
+      const node = { ...original }
+      // 使用 ip 作为 id 的兜底
+      if (!node.id && node.ip) node.id = node.ip
 
-    if (!node.id) {
-      console.warn('validNodes: found node without id:', node)
-      return false
-    }
+      // 基于 role 推断 type（与列表分类保持一致）
+      if (!node.type && node.role) {
+        const role = String(node.role).toLowerCase()
+        if (role.includes('mpc model node')) node.type = 'model'
+        else if (role.includes('model manager node')) node.type = 'control'
+        else if (role.includes('edge ai training node')) node.type = 'training'
+      }
 
-    if (!node.type) {
-      console.warn('validNodes: found node without type, defaulting to "training":', node)
-      node.type = 'training'
-    }
+      // 名称兜底
+      if (!node.name) node.name = node.ip || node.id
+      return node
+    })
+    .filter(node => {
+      if (!node) return false
+      if (!node.id) return false
+      if (!node.type) node.type = 'training'
+      return true
+    })
 
-    if (!node.name) {
-      console.warn('validNodes: found node without name, using id:', node)
-      node.name = node.id
-    }
-
-    return true
-  })
-
-  console.log(`validNodes: filtered ${filtered.length} valid nodes from ${props.nodes.length} total`)
-  console.log('validNodes details:', filtered.map(n => ({ id: n.id, name: n.name, type: n.type })))
-  return filtered
+  console.log(`validNodes: normalized ${normalized.length} nodes from ${props.nodes.length} total`)
+  return normalized
 })
 
 // Fan-shaped node positions (训练节点大幅下移与模型节点区分)
@@ -310,8 +311,43 @@ const CONTROL_NODE_POSITIONS = [
   { x: 1200, y: 200 }  // 最右
 ]
 
-// Node position tracking
+// Node position tracking（逐层整齐排布）
 const nodePositions = ref(new Map())
+
+// 基于角色分三层并保持与列表一致的顺序
+const layeredGroups = computed(() => {
+  const groups = { mpc: [], manager: [], edge: [] }
+  validNodes.value.forEach(n => {
+    const role = String(n.role || '').toLowerCase()
+    if (role.includes('mpc model node')) groups.mpc.push(n)
+    else if (role.includes('model manager node')) groups.manager.push(n)
+    else if (role.includes('edge ai training node')) groups.edge.push(n)
+    else if (n.type === 'model') groups.mpc.push(n)
+    else if (n.type === 'control') groups.manager.push(n)
+    else groups.edge.push(n)
+  })
+  return groups
+})
+
+// 每层的Y坐标（上、中、下）
+const LAYER_Y = computed(() => {
+  const h = Math.max(600, svgDimensions.height)
+  // 给出上中下三层在可视区域中的相对位置
+  return {
+    mpc: h * 0.18,
+    manager: h * 0.38,
+    edge: h * 0.60
+  }
+})
+
+// 计算一层的X坐标分布
+const getLayerX = (index, count) => {
+  const padding = 120
+  const width = Math.max(1400, svgDimensions.width) - padding * 2
+  if (count <= 1) return padding + width / 2
+  const step = width / (count - 1)
+  return padding + step * index
+}
 
 // 根据节点ID稳定分配位置的函数
 const getStablePositionIndex = (nodeId, nodeType) => {
@@ -327,35 +363,22 @@ const getStablePositionIndex = (nodeId, nodeType) => {
   return 0
 }
 
-// Initialize fixed positions for all nodes
+// Initialize positions for all nodes: 按层等间距排布，顺序与列表一致
 const initializeNodePositions = () => {
-  const nodes = validNodes.value
-  console.log('Initializing positions for', nodes.length, 'valid nodes')
+  nodePositions.value.clear()
+  const groups = layeredGroups.value
 
-  nodes.forEach((node, index) => {
-    // 跳过已经有位置的节点
-    if (nodePositions.value.has(node.id)) {
-      return
-    }
+  // 逐层放置
+  const placeGroup = (arr, y) => {
+    arr.forEach((node, idx) => {
+      const x = getLayerX(idx, arr.length)
+      nodePositions.value.set(node.id, { x, y })
+    })
+  }
 
-    if (['model', 'control'].includes(node.type)) {
-      // 使用稳定的控制节点位置分配
-      const positionIndex = getStablePositionIndex(node.id, node.type)
-      if (positionIndex < CONTROL_NODE_POSITIONS.length) {
-        nodePositions.value.set(node.id, CONTROL_NODE_POSITIONS[positionIndex])
-        console.log(`Positioned control node ${node.id} at`, CONTROL_NODE_POSITIONS[positionIndex])
-      }
-    } else if (node.type === 'training') {
-      // 使用稳定的训练节点位置分配
-      const positionIndex = getStablePositionIndex(node.id, node.type)
-      if (positionIndex < FIXED_NODE_POSITIONS.length) {
-        nodePositions.value.set(node.id, FIXED_NODE_POSITIONS[positionIndex])
-        console.log(`Positioned training node ${node.id} at`, FIXED_NODE_POSITIONS[positionIndex])
-      }
-    }
-  })
-
-  console.log('Total positioned nodes:', nodePositions.value.size)
+  placeGroup(groups.mpc, LAYER_Y.value.mpc)
+  placeGroup(groups.manager, LAYER_Y.value.manager)
+  placeGroup(groups.edge, LAYER_Y.value.edge)
 }
 
 // Get position for a specific node
@@ -378,24 +401,21 @@ const getNodePosition = (node) => {
     }
   }
 
-  // If no stored position, assign one immediately using stable index
-  if (['model', 'control'].includes(node.type)) {
-    const positionIndex = getStablePositionIndex(node.id, node.type)
-    if (positionIndex >= 0 && positionIndex < CONTROL_NODE_POSITIONS.length) {
-      const position = CONTROL_NODE_POSITIONS[positionIndex]
-      nodePositions.value.set(node.id, position)
-      console.log(`Assigned control position to ${node.id}:`, position)
-      return position
-    }
-  } else if (node.type === 'training') {
-    const positionIndex = getStablePositionIndex(node.id, node.type)
-    if (positionIndex >= 0 && positionIndex < FIXED_NODE_POSITIONS.length) {
-      const position = FIXED_NODE_POSITIONS[positionIndex]
-      nodePositions.value.set(node.id, position)
-      console.log(`Assigned training position to ${node.id}:`, position)
-      return position
-    }
-  }
+  // 如果没有缓存位置，按照分层规则即时计算
+  const role = String(node.role || '').toLowerCase()
+  let layer = 'edge'
+  if (role.includes('mpc model node') || node.type === 'model') layer = 'mpc'
+  else if (role.includes('model manager node') || node.type === 'control') layer = 'manager'
+  else layer = 'edge'
+
+  const groups = layeredGroups.value
+  const arr = layer === 'mpc' ? groups.mpc : layer === 'manager' ? groups.manager : groups.edge
+  const idx = arr.findIndex(n => n.id === node.id)
+  const x = getLayerX(idx === -1 ? 0 : idx, arr.length || 1)
+  const y = LAYER_Y.value[layer]
+  const position = { x, y }
+  nodePositions.value.set(node.id, position)
+  return position
 
   // Fallback to node's original coordinates if available
   if (node.x && node.y && typeof node.x === 'number' && typeof node.y === 'number') {
@@ -584,9 +604,28 @@ const validateNode = (node) => {
     return false
   }
 
+  // 使用 ip 作为 id（如果 id 不存在）
+  if (!node.id && node.ip) {
+    node.id = node.ip
+  }
+
   if (!node.id) {
-    console.error('Node missing required id field:', node)
+    console.error('Node missing required id/ip field:', node)
     return false
+  }
+
+  // 根据角色设置类型
+  if (!node.type && node.role) {
+    const role = String(node.role).toLowerCase()
+    if (role.includes('mpc model node')) {
+      node.type = 'model'
+    } else if (role.includes('model manager node')) {
+      node.type = 'control'
+    } else if (role.includes('edge ai training node')) {
+      node.type = 'training'
+    } else {
+      node.type = 'training' // 默认类型
+    }
   }
 
   if (!node.type) {
@@ -594,9 +633,9 @@ const validateNode = (node) => {
     node.type = 'training'
   }
 
+  // 使用 ip 作为 name（如果 name 不存在）
   if (!node.name) {
-    console.warn(`Node ${node.id} missing name field, using ID as name`)
-    node.name = node.id
+    node.name = node.ip || node.id
   }
 
   return true
@@ -614,6 +653,45 @@ const getNodeDisplayName = (node) => {
     return name.substring(0, 9) + '...'
   }
   return name
+}
+
+// 根据节点角色返回对应颜色
+const getNodeColorByRole = (node) => {
+  if (!node || !node.role) {
+    // 根据 type 兜底
+    if (node?.type === 'model') return '#3b82f6'
+    if (node?.type === 'control') return '#10b981'
+    if (node?.type === 'training') return '#8b5cf6'
+    return '#6b7280'
+  }
+  
+  const role = String(node.role).toLowerCase()
+  
+  // MPC Model Node - 蓝色
+  if (role.includes('mpc model node')) {
+    return '#3b82f6' // 蓝色
+  }
+  // Model Manager Node - 绿色  
+  else if (role.includes('model manager node')) {
+    return '#10b981' // 绿色
+  }
+  // Edge AI Training Node - 紫色
+  else if (role.includes('edge ai training node')) {
+    return '#8b5cf6' // 紫色
+  }
+  // 兜底逻辑：根据关键词判断
+  else if (role.includes('model')) {
+    return '#3b82f6' // 蓝色
+  }
+  else if (role.includes('manager') || node?.type === 'control') {
+    return '#10b981' // 绿色
+  }
+  else if (role.includes('training')) {
+    return '#8b5cf6' // 紫色
+  }
+  
+  // 默认颜色
+  return '#6b7280' // 灰色
 }
 
 // All dragging functionality removed - nodes are completely static

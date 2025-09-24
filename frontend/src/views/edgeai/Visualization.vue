@@ -237,7 +237,7 @@
               <FederatedNetworkVisualization
                 ref="networkViz"
                 :key="vizKey"
-                :nodes="federatedNodes"
+                :nodes="rayClusterNodes"
                 :connections="federatedConnections"
                 :training-round="trainingState.currentRound"
                 :training-status="trainingState.status"
@@ -274,7 +274,7 @@
         </div>
         
         <!-- Task Management -->
-        <div class="mb-6">
+        <div v-if="taskList.length > 0" class="mb-6">
           <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Task Management</h4>
           
           <!-- Task List -->
@@ -304,8 +304,11 @@
                    class="p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div :class="isTaskRunning(task) ? 'bg-green-500' : 'bg-gray-400'" class="w-2 h-2 rounded-full"></div>
                     <span class="font-mono text-gray-700 dark:text-gray-300">{{ task.substring(0, 8) }}...</span>
+                    <span class="text-[10px]" :class="isTaskRunning(task) ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'">
+                      {{ isTaskRunning(task) ? 'running' : 'dead' }}
+                    </span>
                   </div>
                   <div class="flex items-center space-x-2">
                     <span class="text-[10px] text-gray-500 dark:text-gray-400">ID: {{ task }}</span>
@@ -344,16 +347,14 @@
                     <span class="text-gray-500 dark:text-gray-400">Accuracy</span>
                     <span class="font-medium text-green-600 dark:text-green-400">
                       {{ taskStatusMap[task]?.accuracy !== null && taskStatusMap[task]?.accuracy !== undefined
-                        ? (taskStatusMap[task].accuracy * 100).toFixed(2) + '%' : 'N/A' }}
+                        ? (taskStatusMap[task].accuracy * 100).toFixed(6) + '%' : 'N/A' }}
                     </span>
           </div>
             </div>
             </div>
           </div>
           
-            <div v-else-if="!isLoadingTasks" class="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-              No active tasks
-            </div>
+            
           </div>
         </div>
 
@@ -450,7 +451,7 @@
                       <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Accuracy</div>
                       <div class="text-lg font-bold text-green-600 dark:text-green-400">
                         {{ roundMetrics[roundMetrics.length - 1]?.accuracy !== null && roundMetrics[roundMetrics.length - 1]?.accuracy !== undefined 
-                          ? (roundMetrics[roundMetrics.length - 1].accuracy * 100).toFixed(2) + '%' 
+                          ? (roundMetrics[roundMetrics.length - 1].accuracy * 100).toFixed(6) + '%' 
                           : 'N/A' }}
               </div>
             </div>
@@ -469,7 +470,7 @@
                       </span>
                       <span class="text-green-500 dark:text-green-400">
                         A: {{ metric.accuracy !== null && metric.accuracy !== undefined 
-                          ? (metric.accuracy * 100).toFixed(1) + '%' 
+                          ? (metric.accuracy * 100).toFixed(6) + '%' 
                           : 'N/A' }}
                       </span>
               </div>
@@ -494,9 +495,9 @@
              <div class="text-sm text-gray-500 dark:text-gray-400">Total: <span class="font-medium text-gray-900 dark:text-white">{{ rayClusterNodes.length }}</span></div>
           </div>
 
-          <!-- Group: Model Nodes -->
+          <!-- Group: MPC Model Nodes -->
           <div class="mb-4">
-            <h4 class="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">Model Nodes ({{ rayGroups.model.length }})</h4>
+            <h4 class="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">MPC Model Nodes ({{ rayGroups.mpcModel.length }})</h4>
             <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-700">
@@ -513,7 +514,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="n in rayGroups.model" :key="`model-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <tr v-for="n in rayGroups.mpcModel" :key="`mpc-model-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td class="p-3 text-gray-900 dark:text-white">{{ n.ip }}</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.role }}</td>
                     <td class="p-3"><span :class="getNodeStatusBadgeClass(n.status === 'alive' ? 'online' : 'offline')" class="px-2 py-1 text-xs font-medium rounded-full">{{ n.status }}</span></td>
@@ -529,9 +530,9 @@
                       </div>
           </div>
 
-          <!-- Group: Data Nodes -->
+          <!-- Group: Model Manager Nodes -->
           <div class="mb-4">
-            <h4 class="text-sm font-medium text-green-600 dark:text-green-400 mb-2">Data Nodes ({{ rayGroups.data.length }})</h4>
+            <h4 class="text-sm font-medium text-green-600 dark:text-green-400 mb-2">Model Manager Nodes ({{ rayGroups.modelManager.length }})</h4>
             <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-700">
@@ -548,7 +549,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="n in rayGroups.data" :key="`data-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <tr v-for="n in rayGroups.modelManager" :key="`model-manager-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td class="p-3 text-gray-900 dark:text-white">{{ n.ip }}</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.role }}</td>
                     <td class="p-3"><span :class="getNodeStatusBadgeClass(n.status === 'alive' ? 'online' : 'offline')" class="px-2 py-1 text-xs font-medium rounded-full">{{ n.status }}</span></td>
@@ -564,9 +565,9 @@
             </div>
           </div>
 
-          <!-- Group: Computer Nodes -->
+          <!-- Group: Edge AI Training Nodes -->
           <div>
-            <h4 class="text-sm font-medium text-purple-600 dark:text-purple-400 mb-2">Computer Nodes ({{ rayGroups.computer.length }})</h4>
+            <h4 class="text-sm font-medium text-purple-600 dark:text-purple-400 mb-2">Edge AI Training Nodes ({{ rayGroups.edgeAI.length }})</h4>
             <div class="overflow-x-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-700">
@@ -583,7 +584,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="n in rayGroups.computer" :key="`computer-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <tr v-for="n in rayGroups.edgeAI" :key="`edge-ai-${n.ip}`" class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td class="p-3 text-gray-900 dark:text-white">{{ n.ip }}</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.role }}</td>
                     <td class="p-3"><span :class="getNodeStatusBadgeClass(n.status === 'alive' ? 'online' : 'offline')" class="px-2 py-1 text-xs font-medium rounded-full">{{ n.status }}</span></td>
@@ -971,14 +972,27 @@ const allFederatedNodes = ref([])
 // 原始 Ray 集群节点（直接用于节点明细列表表格展示）
 const rayClusterNodes = ref([])
 
-// 按角色分组（model/data/computer）
+// 按角色分组（mpc model node, model manager node, edge AI training node）
 const rayGroups = computed(() => {
-  const groups = { model: [], data: [], computer: [] }
+  const groups = { 
+    mpcModel: [], 
+    modelManager: [], 
+    edgeAI: [] 
+  }
   rayClusterNodes.value.forEach(n => {
     const role = String(n.role || '').toLowerCase()
-    if (role.includes('model')) groups.model.push(n)
-    else if (role.includes('data')) groups.data.push(n)
-    else groups.computer.push(n)
+    if (role.includes('mpc model node')) {
+      groups.mpcModel.push(n)
+    } else if (role.includes('model manager node')) {
+      groups.modelManager.push(n)
+    } else if (role.includes('edge ai training node')) {
+      groups.edgeAI.push(n)
+    } else {
+      // 兜底逻辑：如果角色不匹配，根据关键词分类
+      if (role.includes('model')) groups.mpcModel.push(n)
+      else if (role.includes('manager')) groups.modelManager.push(n)
+      else groups.edgeAI.push(n)
+    }
   })
   return groups
 })
@@ -1629,7 +1643,29 @@ const loadTaskList = async () => {
     }
     const data = await resp.json()
     console.log('✅ 任务列表响应:', data)
-    const newTaskList = data.tasks || []
+    // 兼容新旧两种返回：
+    // 旧：{ tasks: [id1, id2] }
+    // 新：{ "<taskId>": "running", ... }
+    let newTaskList = []
+    if (Array.isArray(data?.tasks)) {
+      newTaskList = data.tasks
+    } else if (data && typeof data === 'object') {
+      newTaskList = Object.keys(data)
+      // 将已有状态预置到缓存（若后续监控接口不可用时也能展示占位）
+      for (const [taskId, statusText] of Object.entries(data)) {
+        if (!taskStatusMap.value[taskId]) {
+          taskStatusMap.value[taskId] = { current_round: 0, total_rounds: 0, loss: 0, accuracy: null, statusText }
+        } else {
+          taskStatusMap.value[taskId].statusText = statusText
+        }
+      }
+    } else if (Array.isArray(data)) {
+      newTaskList = data
+    } else {
+      newTaskList = []
+    }
+    // 只保留 running 的任务
+    newTaskList = newTaskList.filter(id => isTaskRunning(id))
     console.log('📋 更新任务列表:', { 
       oldCount: taskList.value.length, 
       newCount: newTaskList.length, 
@@ -1662,7 +1698,10 @@ const refreshAllTaskStatuses = async () => {
       })
       if (!resp.ok) throw new Error(`status ${resp.status}`)
       const status = await resp.json()
+      const prev = taskStatusMap.value?.[taskId] || {}
       return [taskId, {
+        // 保留由 tasksList 写入的状态文本（running/deleted等）
+        statusText: prev.statusText,
         current_round: Number(status.current_round ?? 0),
         total_rounds: Number(status.total_rounds ?? 0),
         loss: typeof status.loss === 'number' ? status.loss : 0,
@@ -1670,11 +1709,22 @@ const refreshAllTaskStatuses = async () => {
       }]
     } catch (err) {
       console.warn('获取任务状态失败:', taskId, err.message)
-      return [taskId, { current_round: 0, total_rounds: 0, loss: 0, accuracy: null }]
+      const prev = taskStatusMap.value?.[taskId] || {}
+      return [taskId, { statusText: prev.statusText, current_round: 0, total_rounds: 0, loss: 0, accuracy: null }]
     }
   }))
   taskStatusMap.value = Object.fromEntries(entries)
   console.log('📦 任务状态缓存:', taskStatusMap.value)
+}
+
+// 判定任务是否 running（基于 tasksList 返回的状态文本缓存）
+const isTaskRunning = (taskId) => {
+  try {
+    const statusText = taskStatusMap.value?.[taskId]?.statusText
+    return String(statusText || '').toLowerCase() === 'running'
+  } catch (e) {
+    return false
+  }
 }
 
 const deleteTask = async (taskId) => {
