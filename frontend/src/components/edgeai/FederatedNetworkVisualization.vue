@@ -56,35 +56,73 @@
       <!-- Connections -->
       <g class="connections">
         <g v-for="connection in connections" :key="`${connection.from}-${connection.to}`">
-          <!-- Transparent Background Connection Line -->
-          <path
-            :d="getConnectionPath(connection)"
-            stroke="transparent"
-            stroke-width="2"
-            stroke-linecap="round"
-            fill="none"
-            class="background-connection-line"
-          />
+          <!-- 移除静态连接线，只保留动态粒子效果 -->
           
-          <!-- Dynamic Data Flow Animation -->
-          <path
-            v-if="connection.transmitting"
-            :d="getConnectionPath(connection)"
-            :stroke="getTransmissionColor(connection.direction)"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-dasharray="20,100"
-            fill="none"
-            class="data-flow-animation"
-            :class="`data-flow-${connection.direction}`"
-          >
-            <animate
-              attributeName="stroke-dashoffset"
-              :values="getAnimationValues(connection.direction)"
-              dur="2s"
-              repeatCount="indefinite"
-            />
-          </path>
+          <!-- 纯数据粒子传输效果 - 始终显示 -->
+          <g class="enhanced-data-flow">
+            <!-- 数据包粒子效果 - 沿路径移动 -->
+            <g v-for="(particle, index) in getDataParticles(connection)" :key="`particle-${index}`">
+              <!-- 定义粒子移动路径 -->
+              <path
+                :d="`M ${particle.x} ${particle.y} Q ${particle.ctrlX} ${particle.ctrlY} ${particle.endX} ${particle.endY}`"
+                stroke="transparent"
+                fill="none"
+                :id="`particle-path-${connection.id}-${index}`"
+              />
+              
+              <!-- 粒子圆圈 -->
+              <circle
+                :r="particle.size"
+                :fill="particle.color"
+                class="data-particle"
+                filter="url(#particleGlow)"
+              >
+                <!-- 沿路径移动动画 -->
+                <animateMotion
+                  :dur="particle.duration"
+                  :begin="particle.delay"
+                  repeatCount="indefinite"
+                >
+                  <mpath :href="`#particle-path-${connection.id}-${index}`" />
+                </animateMotion>
+                
+                <!-- 透明度动画 - 平滑过渡，消除卡顿 -->
+                <animate
+                  attributeName="opacity"
+                  :values="particle.direction === 'forward' ? '0;0.3;1;1;0.3;0' : '0;0.2;0.8;0.8;0.2;0'"
+                  :dur="particle.duration"
+                  :begin="particle.delay"
+                  repeatCount="indefinite"
+                  calcMode="spline"
+                  keySplines="0.25 0.1 0.25 1; 0.25 0.1 0.25 1; 0.25 0.1 0.25 1; 0.25 0.1 0.25 1"
+                />
+                
+                <!-- 大小动画 - 平滑过渡 -->
+                <animate
+                  attributeName="r"
+                  :values="particle.direction === 'forward' ? '2;2.5;4;4;2.5;2' : '1.5;2;3;3;2;1.5'"
+                  :dur="particle.duration"
+                  :begin="particle.delay"
+                  repeatCount="indefinite"
+                  calcMode="spline"
+                  keySplines="0.25 0.1 0.25 1; 0.25 0.1 0.25 1; 0.25 0.1 0.25 1; 0.25 0.1 0.25 1"
+                />
+                
+                <!-- 发光效果动画 - 平滑颜色过渡 -->
+                <animate
+                  attributeName="fill"
+                  :values="particle.direction === 'forward' 
+                    ? `${particle.color};${particle.color};#ffffff;${particle.color};${particle.color}`
+                    : `${particle.color};${particle.color};#fbbf24;${particle.color};${particle.color}`"
+                  :dur="particle.duration"
+                  :begin="particle.delay"
+                  repeatCount="indefinite"
+                  calcMode="spline"
+                  keySplines="0.25 0.1 0.25 1; 0.25 0.1 0.25 1; 0.25 0.1 0.25 1; 0.25 0.1 0.25 1"
+                />
+              </circle>
+            </g>
+          </g>
         </g>
       </g>
       
@@ -553,6 +591,144 @@ const getAnimationValues = (direction) => {
   }
 }
 
+// 生成数据粒子效果 - 单条弧线双向传输
+const getDataParticles = (connection) => {
+  const particles = []
+  const fromNode = validNodes.value.find(n => n.id === connection.from)
+  const toNode = validNodes.value.find(n => n.id === connection.to)
+  
+  if (!fromNode || !toNode) return particles
+  
+  const fromPos = getNodePosition(fromNode)
+  const toPos = getNodePosition(toNode)
+  
+  // 计算弧线路径的控制点
+  const dx = toPos.x - fromPos.x
+  const dy = toPos.y - fromPos.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+  const midX = fromPos.x + dx * 0.5
+  const midY = fromPos.y + dy * 0.5
+  
+  // 创建单条弧线路径
+  // 为了避免多条近似共线的连接在视觉上堆叠为一条带，我们给每条连接引入稳定的抖动（基于连接ID的种子），
+  // 并对粒子相位/持续时间做轻微错峰，从而在时间轴和空间上都拉开。
+  const hashCode = (str) => {
+    let h = 0
+    for (let k = 0; k < str.length; k++) {
+      h = ((h << 5) - h) + str.charCodeAt(k)
+      h |= 0
+    }
+    return Math.abs(h)
+  }
+  const seededRandom = (seed, a = 9301, c = 49297, m = 233280) => {
+    seed = (seed * a + c) % m
+    return seed / m
+  }
+  const seed = hashCode(connection.id)
+  const r1 = seededRandom(seed)
+  const r2 = seededRandom(seed + 1)
+  const r3 = seededRandom(seed + 2)
+
+  // 基础弧度
+  let offset = Math.min(80, Math.max(30, distance / 4))
+  // 如果近似水平连接，适当增大弧度，避免在画布下方重叠
+  const isNearlyHorizontal = Math.abs(dy) < Math.max(20, Math.abs(dx) * 0.2)
+  if (isNearlyHorizontal) offset *= 1.35
+
+  // 对弧度加入稳定抖动（±20%）
+  offset *= (0.8 + r1 * 0.4)
+  const angle = Math.atan2(dy, dx) + Math.PI / 2
+  // 控制点加入少量横向/纵向抖动（相对于offset的±15%）
+  const jitterFactor = 0.15 * offset
+  const ctrlX = midX + Math.cos(angle) * offset + (r2 - 0.5) * 2 * jitterFactor
+  const ctrlY = midY + Math.sin(angle) * offset + (r3 - 0.5) * 2 * jitterFactor
+
+  // 双向粒子流 - 正向和反向，优化时序消除卡顿，并加入稳定相位偏移
+  const directions = ['forward', 'reverse']
+  // 距离越长粒子越多，但限制范围，避免过密
+  const particleCount = Math.max(6, Math.min(12, Math.floor(distance / 120) + 6))
+  // 每条连接的基础持续时间加入±10%的偏移
+  const baseDuration = 2.4 * (0.9 + seededRandom(seed + 3) * 0.2)
+  // 交错延迟更短，更连续
+  const staggerDelay = 0.12
+  // 稳定的相位偏移（0-1.5s），使不同连接不同步
+  const phaseOffset = seededRandom(seed + 4) * 1.5
+
+  directions.forEach((direction, dirIndex) => {
+    for (let i = 0; i < particleCount; i++) {
+      const isForward = direction === 'forward'
+      const startPos = isForward ? fromPos : toPos
+      const endPos = isForward ? toPos : fromPos
+
+      // 根据方向选择颜色
+      let particleColor
+      if (isForward) {
+        particleColor = getTransmissionColor(connection.direction || 'downstream')
+      } else {
+        // 反向传输使用不同的颜色
+        const reverseColors = {
+          downstream: '#ef4444', // 红色
+          upstream: '#f59e0b',   // 橙色
+          bidirectional: '#8b5cf6' // 紫色
+        }
+        particleColor = reverseColors[connection.direction || 'downstream'] || '#ef4444'
+      }
+
+      // 平滑且稳定的延迟时间（加入相位偏移），确保不同连接不同步
+      const delay = phaseOffset + (i + dirIndex * particleCount) * staggerDelay
+
+      particles.push({
+        x: startPos.x,
+        y: startPos.y,
+        ctrlX: ctrlX,
+        ctrlY: ctrlY,
+        endX: endPos.x,
+        endY: endPos.y,
+        size: 2.5 + Math.sin(Date.now() / 300 + i) * 1,
+        color: particleColor,
+        duration: `${baseDuration}s`,
+        delay: `${delay}s`,
+        direction: direction
+      })
+    }
+  })
+  
+  console.log(`为连接 ${connection.from} <-> ${connection.to} 生成了 ${particles.length} 个弧线粒子`)
+  return particles
+}
+
+// 生成所有节点间的完全连接 - 每个节点都与所有其他节点传输数据
+const generateFullMeshConnections = (nodes) => {
+  const connections = []
+  
+  // 为每对节点创建双向连接
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const fromNode = nodes[i]
+      const toNode = nodes[j]
+      const connectionId = `${fromNode.id}-${toNode.id}`
+      
+      const directions = ['upstream', 'downstream', 'bidirectional']
+      const randomDirection = directions[Math.floor(Math.random() * directions.length)]
+      
+      connections.push({
+        id: connectionId,
+        from: fromNode.id,
+        to: toNode.id,
+        type: 'data',
+        active: true,
+        transmitting: true,
+        direction: randomDirection,
+        lastTransmission: Date.now(),
+        bandwidth: Math.random() * 100
+      })
+    }
+  }
+  
+  console.log(`生成了 ${connections.length} 个完全连接（所有节点互相传输）`)
+  return connections
+}
+
 // 获取节点的透明度（基于动画状态）
 const getNodeOpacity = (node) => {
   if (!node || !node.id) {
@@ -890,7 +1066,32 @@ defineExpose({
   transition: opacity 3s ease-out, transform 3s ease-out !important;
 }
 
-/* 数据流动画样式 */
+/* 纯数据粒子传输效果样式 */
+.enhanced-data-flow {
+  pointer-events: none;
+}
+
+.data-particle {
+  filter: drop-shadow(0 0 4px currentColor);
+  animation: particle-glow 2.5s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+}
+
+@keyframes particle-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px currentColor);
+  }
+  25% {
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  75% {
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+}
+
+/* 原有数据流动画样式保持兼容 */
 .data-flow-animation {
   filter: drop-shadow(0 0 4px currentColor);
   opacity: 0.9;
@@ -908,9 +1109,7 @@ defineExpose({
   filter: drop-shadow(0 0 6px #8b5cf6);
 }
 
-.background-connection-line {
-  pointer-events: none;
-}
+/* 移除不需要的连接线样式 */
 
 @media (max-width: 768px) {
   .node-label,

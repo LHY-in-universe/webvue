@@ -16,7 +16,13 @@ export default defineConfig({
         }
       }
     }),
-    vueDevTools(),
+    // 避免 devtools 在某些网络环境下尝试连接 ws://0.0.0.0:* 造成报错
+    vueDevTools({
+      launchEditor: 'code',
+      componentInspector: true,
+      enableToast: false,
+      ui: { port: 0 },
+    }),
   ],
   resolve: {
     alias: {
@@ -65,8 +71,11 @@ export default defineConfig({
     port: 5173,
     hmr: {
       overlay: false, // Disable error overlay for better performance
-      host: '0.0.0.0',
-      port: 5174
+      // 使用浏览器可接受的主机与端口，避免 ws://0.0.0.0:5174 连接失败
+      host: 'localhost',
+      clientPort: 5173,
+      port: 5173,
+      protocol: 'ws'
     },
     proxy: {
       // 将本地 /edge-train/* 转发到训练服务，避免浏览器CORS限制

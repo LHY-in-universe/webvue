@@ -34,6 +34,14 @@ const EdgeAI = {
   ModelDetails: () => import('@/views/edgeai/ModelDetails.vue'),
 }
 
+    // Debug Routes
+    const Debug = {
+      ConnectionDebug: () => import('@/views/ConnectionDebug.vue'),
+      DataFlowTest: () => import('@/views/DataFlowTest.vue'),
+      AnimationDemo: () => import('@/views/AnimationDemo.vue'),
+      ParticleTest: () => import('@/views/ParticleTest.vue'),
+    }
+
 // Blockchain Module Routes
 const Blockchain = {
   Login: () => import('@/views/blockchain/Login.vue'),
@@ -202,6 +210,43 @@ const routes = [
       requiresAuth: true
     }
   },
+  // Debug Routes
+  {
+    path: '/debug/connection',
+    name: 'ConnectionDebug',
+    component: Debug.ConnectionDebug,
+    meta: {
+      title: '连接调试页面',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/debug/dataflow',
+    name: 'DataFlowTest',
+    component: Debug.DataFlowTest,
+    meta: {
+      title: '数据传输测试页面',
+      requiresAuth: false
+    }
+  },
+      {
+        path: '/debug/animation',
+        name: 'AnimationDemo',
+        component: Debug.AnimationDemo,
+        meta: {
+          title: '动画演示页面',
+          requiresAuth: false
+        }
+      },
+      {
+        path: '/debug/particle',
+        name: 'ParticleTest',
+        component: Debug.ParticleTest,
+        meta: {
+          title: '粒子传输测试页面',
+          requiresAuth: false
+        }
+      },
   {
     path: '/edgeai/import-project',
     name: 'EdgeAIImportProject',

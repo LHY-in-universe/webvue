@@ -326,9 +326,9 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                       </svg>
                     </Button>
-            </div>
-          </div>
-          
+                  </div>
+                </div>
+                
                 <!-- Task Status Row -->
                 <div class="grid grid-cols-2 gap-2 mt-2">
                   <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1">
@@ -336,21 +336,36 @@
                     <span class="font-medium text-gray-900 dark:text-white">
                       {{ (taskStatusMap[task]?.current_round ?? 0) }}/{{ (taskStatusMap[task]?.total_rounds ?? 0) }}
                     </span>
-            </div>
+                  </div>
                   <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1">
                     <span class="text-gray-500 dark:text-gray-400">Loss</span>
                     <span class="font-medium text-red-600 dark:text-red-400">
                       {{ (taskStatusMap[task]?.loss ?? 0).toFixed(4) }}
                     </span>
-            </div>
+                  </div>
                   <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1 col-span-2">
                     <span class="text-gray-500 dark:text-gray-400">Accuracy</span>
                     <span class="font-medium text-green-600 dark:text-green-400">
                       {{ taskStatusMap[task]?.accuracy !== null && taskStatusMap[task]?.accuracy !== undefined
                         ? (taskStatusMap[task].accuracy * 100).toFixed(6) + '%' : 'N/A' }}
                     </span>
-          </div>
-            </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Round Progress per Node -->
+              <div v-if="Object.keys(roundProgressMap).length > 0" class="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs border border-gray-200 dark:border-gray-700">
+                <div class="text-[11px] text-gray-600 dark:text-gray-400 mb-2">Node Round Progress</div>
+                <div class="grid grid-cols-1 gap-3">
+                  <div v-for="(round, nodeId) in roundProgressMap" :key="`round-${nodeId}`" class="flex items-center justify-between gap-3">
+                    <span class="flex-1 min-w-0" :title="nodeId">
+                      <span class="text-gray-500 dark:text-gray-400 block">Edge AI training node IP</span>
+                      <code class="font-mono text-gray-700 dark:text-gray-300 break-all">{{ nodeId }}</code>
+                    </span>
+                    <span class="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 whitespace-nowrap">{{ round }} round</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -481,6 +496,7 @@
             </div>
           </div>
         </div>
+      </div>
 
     <!-- Bottom Dashboard -->
     <div class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
@@ -824,8 +840,6 @@
         </div>
       </div>
     </div>
-  </div>
-</div>  <!-- 关闭 <div v-else class="flex-1 relative"> -->
 </template>
 
 <style scoped>
@@ -947,6 +961,9 @@ const TRAIN_API_BASE = '/edge-train'
 const trainingTaskId = ref(null)
 const monitorTimer = ref(null)
 const roundMetrics = ref([]) // { round, loss, accuracy }
+// 节点轮次进度 { [nodeIp]: round }
+const roundProgressMap = ref({})
+let roundProgressTimer = null
 
 // 训练控制状态
 const isTrainingStarting = ref(false)
@@ -1302,32 +1319,54 @@ const federatedNodes = displayedNodes
 // 传输状态管理
 const transmissionStates = ref(new Map())
 
-// Dynamic connections based on currently displayed nodes
+// Dynamic connections based on ALL nodes - 确保全部节点都互相传输数据
 const federatedConnections = computed(() => {
   const connections = []
-  const displayedTrainingNodes = federatedNodes.value.filter(n => n.type === 'training')
-  const controlNodes = federatedNodes.value.filter(n => ['model', 'control'].includes(n.type))
+  const allNodes = federatedNodes.value
   
-  // 仅当后端返回了控制/模型节点时，按轮询方式连接到训练节点
-  if (controlNodes.length > 0) {
-  displayedTrainingNodes.forEach((trainingNode, index) => {
-      const controlNodeId = controlNodes[index % controlNodes.length].id
-    const connectionId = `${controlNodeId}-${trainingNode.id}`
-    const transmissionState = transmissionStates.value.get(connectionId)
-    
-    connections.push({
-      id: connectionId,
-      from: controlNodeId,
-      to: trainingNode.id,
-      type: 'control',
-      active: trainingNode.status === 'training',
-      transmitting: transmissionState?.transmitting || false,
-      direction: transmissionState?.direction || 'downstream',
-      lastTransmission: transmissionState?.lastTransmission || 0,
-      bandwidth: 0
-    })
+  console.log('连接数据生成 - 全部节点:', {
+    totalNodes: allNodes.length,
+    nodeList: allNodes.map(n => ({ id: n.id, name: n.name, type: n.type, status: n.status }))
   })
+  
+  // 强制创建完全连接网络 - 每个节点都与所有其他节点连接
+  if (allNodes.length > 1) {
+    for (let i = 0; i < allNodes.length; i++) {
+      for (let j = i + 1; j < allNodes.length; j++) {
+        const fromNode = allNodes[i]
+        const toNode = allNodes[j]
+        const connectionId = `${fromNode.id}-${toNode.id}`
+        const transmissionState = transmissionStates.value.get(connectionId)
+        
+        const directions = ['upstream', 'downstream', 'bidirectional']
+        const randomDirection = directions[Math.floor(Math.random() * directions.length)]
+        
+        connections.push({
+          id: connectionId,
+          from: fromNode.id,
+          to: toNode.id,
+          type: 'data',
+          active: true,
+          transmitting: true, // 强制所有连接都传输数据
+          direction: randomDirection,
+          lastTransmission: Date.now(),
+          bandwidth: Math.random() * 100
+        })
+      }
+    }
   }
+  
+  console.log(`生成的完全连接网络: ${connections.length} 条连接，${allNodes.length} 个节点`)
+  console.log('连接详情:', connections.map(c => `${c.from} <-> ${c.to}`))
+  
+  // 验证每个节点都参与了连接
+  const nodeConnections = {}
+  allNodes.forEach(node => {
+    nodeConnections[node.id] = connections.filter(c => 
+      c.from === node.id || c.to === node.id
+    ).length
+  })
+  console.log('每个节点的连接数:', nodeConnections)
   
   return connections
 })
@@ -1348,6 +1387,32 @@ const triggerTransmission = (connectionId, direction, duration = 2000) => {
       transmissionStates.value.set(connectionId, state)
     }
   }, duration)
+}
+
+// 自动触发数据传输动画
+const startDataFlowAnimations = () => {
+  const connections = federatedConnections.value
+  connections.forEach((connection, index) => {
+    if (connection.active) {
+      setTimeout(() => {
+        const directions = ['upstream', 'downstream', 'bidirectional']
+        const randomDirection = directions[index % directions.length]
+        triggerTransmission(connection.id, randomDirection, 3000)
+        console.log(`启动数据传输动画: ${connection.from} -> ${connection.to} (${randomDirection})`)
+      }, index * 500) // 每个连接延迟500ms，避免同时触发
+    }
+  })
+}
+
+// 持续的数据传输动画
+const startContinuousDataFlow = () => {
+  // 立即启动一次
+  startDataFlowAnimations()
+  
+  // 每5秒重新启动一次动画
+  setInterval(() => {
+    startDataFlowAnimations()
+  }, 5000)
 }
 
 // 随机方向选择
@@ -1488,6 +1553,17 @@ const startTraining = async () => {
     roundMetrics.value = []
     // 启动轮询监控
     startMonitor()
+    // 自动刷新任务列表以显示新任务
+    setTimeout(() => {
+      loadTaskList()
+      console.log('🔄 训练启动后自动刷新任务列表')
+    }, 1000) // 延迟1秒确保后端任务已创建
+    
+    // 再次延迟刷新，确保任务完全创建
+    setTimeout(() => {
+      loadTaskList()
+      console.log('🔄 训练启动后第二次刷新任务列表')
+    }, 3000) // 延迟3秒再次刷新
   } catch (e) {
     console.error('Start training error:', e)
     let errorMsg = '启动训练失败：'
@@ -1612,6 +1688,8 @@ const startMonitor = () => {
       }
     }
   }, 2000)
+  // 同时启动轮次进度轮询
+  startRoundProgressPolling()
 }
 
 const stopMonitor = () => {
@@ -1619,6 +1697,43 @@ const stopMonitor = () => {
     clearInterval(monitorTimer.value)
     monitorTimer.value = null
   }
+  if (roundProgressTimer) {
+    clearInterval(roundProgressTimer)
+    roundProgressTimer = null
+  }
+}
+
+// 轮询每个 Edge AI 节点的当前轮次进度
+const fetchRoundProgress = async () => {
+  try {
+    if (!currentTaskId.value && !trainingTaskId.value) return
+    const taskId = currentTaskId.value || trainingTaskId.value
+    const resp = await fetch(`${TRAIN_API_BASE}/roundProgress/${taskId}`, {
+      headers: { accept: 'application/json' }
+    })
+    if (!resp.ok) throw new Error(`roundProgress failed: ${resp.status}`)
+    const data = await resp.json()
+    // data 示例: [ { "42.194.177.24": 0 }, { "114.132.200.147": 0 } ]
+    const merged = {}
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item && typeof item === 'object') {
+          const [key, value] = Object.entries(item)[0] || []
+          if (key) merged[key] = Number(value) || 0
+        }
+      }
+    }
+    roundProgressMap.value = merged
+  } catch (e) {
+    console.warn('fetchRoundProgress error:', e.message)
+  }
+}
+
+const startRoundProgressPolling = () => {
+  if (roundProgressTimer) clearInterval(roundProgressTimer)
+  roundProgressTimer = setInterval(fetchRoundProgress, 2000)
+  // 立即拉一次
+  fetchRoundProgress()
 }
 
 // 任务管理方法
@@ -1665,13 +1780,15 @@ const loadTaskList = async () => {
       newTaskList = []
     }
     // 只保留 running 的任务
-    newTaskList = newTaskList.filter(id => isTaskRunning(id))
+    const runningTasks = newTaskList.filter(id => isTaskRunning(id))
     console.log('📋 更新任务列表:', { 
       oldCount: taskList.value.length, 
-      newCount: newTaskList.length, 
-      tasks: newTaskList 
+      newCount: newTaskList.length,
+      runningCount: runningTasks.length,
+      allTasks: newTaskList,
+      runningTasks: runningTasks
     })
-    taskList.value = newTaskList
+    taskList.value = runningTasks
 
     // 并行查询每个任务的状态
     await refreshAllTaskStatuses()
@@ -2238,6 +2355,12 @@ onMounted(async () => {
   // Load parameters from storage
   loadParametersFromStorage()
   
+  // 启动数据传输动画
+  setTimeout(() => {
+    startContinuousDataFlow()
+    console.log('数据传输动画已启动')
+  }, 2000) // 延迟2秒启动，确保数据已加载
+  
   // Update training config display with loaded parameters
   updateTrainingConfigDisplay()
   
@@ -2253,6 +2376,11 @@ onMounted(async () => {
     edgeaiStore.connectWebSocket()
   } catch (error) {
     console.warn('WebSocket connection failed, continuing in offline mode:', error)
+  }
+
+  // 如果已有任务ID（刷新回来），启动节点轮次轮询
+  if (currentTaskId.value || trainingTaskId.value) {
+    startRoundProgressPolling()
   }
 })
 

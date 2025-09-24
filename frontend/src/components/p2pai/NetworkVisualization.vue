@@ -62,25 +62,76 @@
             class="background-connection-line"
           />
           
-          <!-- Dynamic Data Flow Animation -->
-          <path
-            v-if="connection.active && trainingActive"
-            :d="getConnectionPath(connection)"
-            :stroke="getTransmissionColor(connection.direction)"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-dasharray="20,100"
-            fill="none"
-            class="data-flow-animation"
-            :class="`data-flow-${connection.direction}`"
-          >
-            <animate
-              attributeName="stroke-dashoffset"
-              :values="getAnimationValues(connection.direction)"
-              dur="2s"
-              repeatCount="indefinite"
-            />
-          </path>
+          <!-- Enhanced Data Flow Animation -->
+          <g v-if="connection.active && trainingActive" class="enhanced-data-flow">
+            <!-- 脉冲光晕效果 -->
+            <path
+              :d="getConnectionPath(connection)"
+              :stroke="getTransmissionColor(connection.direction)"
+              stroke-width="8"
+              stroke-linecap="round"
+              fill="none"
+              opacity="0.6"
+              class="pulse-glow"
+            >
+              <animate
+                attributeName="opacity"
+                values="0.2;0.8;0.2"
+                dur="2s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="stroke-width"
+                values="6;12;6"
+                dur="2s"
+                repeatCount="indefinite"
+              />
+            </path>
+            
+            <!-- 波浪传输效果 -->
+            <path
+              :d="getConnectionPath(connection)"
+              :stroke="getTransmissionColor(connection.direction)"
+              stroke-width="4"
+              stroke-linecap="round"
+              stroke-dasharray="15,30"
+              fill="none"
+              class="wave-transmission"
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                :values="getAnimationValues(connection.direction)"
+                dur="2s"
+                repeatCount="indefinite"
+              />
+            </path>
+            
+            <!-- 数据包粒子效果 -->
+            <g v-for="(particle, index) in getDataParticles(connection)" :key="`particle-${index}`">
+              <circle
+                :cx="particle.x"
+                :cy="particle.y"
+                :r="particle.size"
+                :fill="particle.color"
+                class="data-particle"
+              >
+                <animate
+                  attributeName="opacity"
+                  values="0;1;0"
+                  :dur="particle.duration"
+                  :begin="particle.delay"
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="r"
+                  values="2;4;2"
+                  :dur="particle.duration"
+                  :begin="particle.delay"
+                  repeatCount="indefinite"
+                />
+              </circle>
+            </g>
+          </g>
         </g>
       </g>
       
@@ -206,7 +257,58 @@ svg {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Data flow animation styles */
+/* 增强的数据流动画样式 */
+.enhanced-data-flow {
+  pointer-events: none;
+}
+
+.pulse-glow {
+  filter: drop-shadow(0 0 8px currentColor);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.wave-transmission {
+  filter: drop-shadow(0 0 4px currentColor);
+  animation: wave-flow 2s linear infinite;
+}
+
+.data-particle {
+  filter: drop-shadow(0 0 3px currentColor);
+  animation: particle-float 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.2;
+    stroke-width: 6;
+  }
+  50% {
+    opacity: 0.8;
+    stroke-width: 12;
+  }
+}
+
+@keyframes wave-flow {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -45;
+  }
+}
+
+@keyframes particle-float {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 原有数据流动画样式保持兼容 */
 .data-flow-animation {
   filter: drop-shadow(0 0 4px currentColor);
   opacity: 0.9;
@@ -489,6 +591,38 @@ const getAnimationValues = (direction) => {
     default:
       return "0;-120;-240"
   }
+}
+
+// 生成数据粒子效果
+const getDataParticles = (connection) => {
+  const particles = []
+  const particleCount = 3
+  
+  for (let i = 0; i < particleCount; i++) {
+    const progress = (Date.now() / 1000 + i * 0.33) % 1
+    const fromNode = props.nodes.find(n => n.id === connection.from)
+    const toNode = props.nodes.find(n => n.id === connection.to)
+    
+    if (fromNode && toNode) {
+      const fromPos = getNodePosition(fromNode)
+      const toPos = getNodePosition(toNode)
+      
+      // 计算粒子在路径上的位置
+      const x = fromPos.x + (toPos.x - fromPos.x) * progress
+      const y = fromPos.y + (toPos.y - fromPos.y) * progress
+      
+      particles.push({
+        x,
+        y,
+        size: 3 + Math.sin(Date.now() / 200 + i) * 1,
+        color: getTransmissionColor(connection.direction),
+        duration: '2s',
+        delay: `${i * 0.5}s`
+      })
+    }
+  }
+  
+  return particles
 }
 
 // Node interaction handlers

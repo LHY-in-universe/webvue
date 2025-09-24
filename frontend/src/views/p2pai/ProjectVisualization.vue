@@ -1102,31 +1102,36 @@ const visibleConnections = computed(() => {
         from: 'local-001', 
         to: 'server-001', 
         type: 'federated',
-        active: isTraining.value
+        active: isTraining.value,
+        direction: 'bidirectional'
       },
       { 
         from: 'edge-002', 
         to: 'server-001', 
         type: 'federated',
-        active: true
+        active: true,
+        direction: 'downstream'
       },
       { 
         from: 'edge-003', 
         to: 'server-001', 
         type: 'federated',
-        active: false
+        active: false,
+        direction: 'upstream'
       },
       { 
         from: 'edge-004', 
         to: 'server-001', 
         type: 'federated',
-        active: true
+        active: true,
+        direction: 'bidirectional'
       },
       { 
         from: 'edge-005', 
         to: 'server-001', 
         type: 'federated',
-        active: false
+        active: false,
+        direction: 'downstream'
       }
     ]
   }
