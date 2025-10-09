@@ -352,6 +352,8 @@ import Button from '@/components/ui/Button.vue'
 import { useEdgeAIStore } from '@/stores/edgeai.js'
 import { useUIStore } from '@/stores/ui.js'
 import { useThemeStore } from '@/stores/theme.js'
+import { useFormValidation } from '@/composables/useFormValidation'
+import { parseNumericInput, formatToDecimal } from '@/utils/numberUtils'
 
 // Stores
 const edgeaiStore = useEdgeAIStore()
@@ -359,9 +361,17 @@ const uiStore = useUIStore()
 const themeStore = useThemeStore()
 const router = useRouter()
 
+// Form validation
+const {
+  errors,
+  validateField,
+  validators,
+  createNumericInputHandler,
+  clearErrors
+} = useFormValidation()
+
 // Reactive state
 const creating = ref(false)
-const errors = ref({})
 
 const projectData = ref({
   // Basic Information
@@ -380,7 +390,7 @@ const projectData = ref({
   total_epochs: 100,                      // 原 epochs，重命名为total_epochs
   num_rounds: 10,                         // 联邦学习轮次
   batch_size: 32,
-  lr: '1e-4',                            // 原 learning_rate，改为String类型
+  lr: 0.0001,                            // 改为数字类型以便进行精度处理
 
   // 模型和数据集配置
   model_name_or_path: 'sshleifer/tiny-gpt2',

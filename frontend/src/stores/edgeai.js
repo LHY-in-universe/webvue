@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import edgeaiService from '@/services/edgeaiService'
+import { preprocessFormData, formatToDecimal, formatPercentage } from '@/utils/numberUtils'
 
 export const useEdgeAIStore = defineStore('edgeai', () => {
   // State
@@ -471,11 +472,17 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const createProject = async (projectData) => {
     loading.value.projects = true
     try {
+      // Preprocess numeric data to ensure proper decimal precision
+      const processedData = preprocessFormData(projectData, {
+        learningRate: (value) => formatToDecimal(value, 4), // Learning rates might need more precision
+        batchSize: (value) => Math.round(parseFloat(value) || 32), // Batch sizes should be integers
+      })
+
       // Send complete project data to API
-      console.log('EdgeAI Store - Sending projectData to backend:', projectData)
+      console.log('EdgeAI Store - Sending processedData to backend:', processedData)
 
       // Call real API to create project
-      const result = await edgeaiService.projects.createProject(projectData)
+      const result = await edgeaiService.projects.createProject(processedData)
       
       if (result) {
         const newProject = {
@@ -484,7 +491,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
           description: result.description,
           model: result.model,
           status: result.status || 'created',
-          progress: result.progress || 0,
+          progress: formatPercentage(result.progress || 0),
           connectedNodes: result.connected_nodes || 0,
           currentEpoch: result.current_epoch || 0,
           totalEpochs: result.total_epochs || 100,
@@ -492,14 +499,14 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
           protocol: result.protocol,
           epochs: result.epochs,
           batchSize: result.batch_size || 32,
-          learningRate: result.learning_rate || 0.001,
+          learningRate: formatToDecimal(result.learning_rate || 0.001, 4),
           nodeIp: result.node_ip,
           created: result.created_time,
           lastUpdate: result.last_update,
           metrics: result.metrics || {
-            accuracy: 0,
-            loss: 0,
-            f1Score: 0
+            accuracy: formatPercentage(0),
+            loss: formatToDecimal(0),
+            f1Score: formatToDecimal(0)
           }
         }
         
@@ -624,7 +631,10 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const addNode = async (nodeData) => {
     loading.value.operations = true
     try {
-      const result = await edgeaiService.nodes.addNode(nodeData)
+      // Preprocess numeric data to ensure proper decimal precision
+      const processedData = preprocessFormData(nodeData)
+
+      const result = await edgeaiService.nodes.addNode(processedData)
       
       if (result && result.data) {
         const newNode = {
@@ -634,10 +644,10 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
           status: result.data.status || 'offline',
           project: result.data.current_project || 'unassigned',
           location: result.data.location || 'Unknown',
-          cpuUsage: result.data.cpu_usage || 0,
-          memoryUsage: result.data.memory_usage || 0,
-          gpuUsage: result.data.gpu_usage || 0,
-          progress: result.data.progress || 0,
+          cpuUsage: formatPercentage(result.data.cpu_usage || 0),
+          memoryUsage: formatPercentage(result.data.memory_usage || 0),
+          gpuUsage: formatPercentage(result.data.gpu_usage || 0),
+          progress: formatPercentage(result.data.progress || 0),
           currentEpoch: result.data.current_epoch || 0,
           totalEpochs: result.data.total_epochs || 0,
           lastSeen: result.data.last_seen || 'unknown',

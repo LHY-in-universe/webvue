@@ -122,7 +122,7 @@
           </div>
           <div v-if="loading" class="text-3xl font-bold text-gray-400 mb-2">--</div>
           <div v-else class="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
-            {{ completionRate }}%
+            {{ completionRate.toFixed(2) }}%
           </div>
           <div class="text-gray-600 dark:text-gray-400">Completion Rate</div>
         </div>
@@ -243,13 +243,13 @@
               <div class="grid grid-cols-3 gap-2">
                 <div class="text-center">
                   <div class="text-lg font-bold text-blue-600 dark:text-blue-400">
-                    {{ (project.metrics?.accuracy || 0).toFixed(1) }}%
+                    {{ (project.metrics?.accuracy || 0).toFixed(2) }}%
                   </div>
                   <div class="text-xs text-gray-600 dark:text-gray-400">Accuracy</div>
                 </div>
                 <div class="text-center">
                   <div class="text-lg font-bold text-green-600 dark:text-green-400">
-                    {{ (project.metrics?.f1Score || 0).toFixed(1) }}
+                    {{ (project.metrics?.f1Score || 0).toFixed(2) }}
                   </div>
                   <div class="text-xs text-gray-600 dark:text-gray-400">F1 Score</div>
                 </div>
@@ -271,7 +271,7 @@
 
               <div class="flex justify-between text-sm mb-2">
                 <span class="text-gray-500 dark:text-gray-400">Training Progress:</span>
-                <span class="font-semibold text-gray-900 dark:text-white">{{ project.progress }}%</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ project.progress.toFixed(2) }}%</span>
               </div>
 
               <!-- Epoch Information -->
@@ -311,13 +311,13 @@
               <div class="grid grid-cols-2 gap-2">
                 <div class="text-center">
                   <div class="text-sm font-bold text-yellow-600 dark:text-yellow-400">
-                    {{ project.resourceUsage.cpu || 0 }}%
+                    {{ (project.resourceUsage.cpu || 0).toFixed(2) }}%
                   </div>
                   <div class="text-xs text-gray-600 dark:text-gray-400">CPU</div>
                 </div>
                 <div class="text-center">
                   <div class="text-sm font-bold text-yellow-600 dark:text-yellow-400">
-                    {{ project.resourceUsage.memory || 0 }}%
+                    {{ (project.resourceUsage.memory || 0).toFixed(2) }}%
                   </div>
                   <div class="text-xs text-gray-600 dark:text-gray-400">Memory</div>
                 </div>

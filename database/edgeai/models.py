@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, ForeignKey, JSON, DECIMAL, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -51,7 +51,7 @@ class Project(Base):
 
     # Project status
     status = Column(String(50), default="pending")
-    progress = Column(Float, default=0.0)
+    progress = Column(DECIMAL(5,2), default=0.00)
     task_id = Column(String(100), default="")
 
     created_time = Column(DateTime(timezone=True), server_default=func.now())
@@ -61,6 +61,7 @@ class Project(Base):
     user = relationship("User", back_populates="projects")
     models = relationship("Model", back_populates="project", cascade="all, delete-orphan")
     nodes = relationship("Node", back_populates="project", cascade="all, delete-orphan")
+    task_queues = relationship("TaskQueue", back_populates="project", cascade="all, delete-orphan")
 
 class Model(Base):
     __tablename__ = "models"
@@ -72,12 +73,12 @@ class Model(Base):
     description = Column(Text, default="")
     file_path = Column(String(500), default="")
     version = Column(String(50), default="1.0.0")
-    size = Column(Float, default=0.0)  # File size in MB
+    size = Column(DECIMAL(10,2), default=0.00)  # File size in MB
     class_config = Column(JSON, default={})
     status = Column(String(50), default="created")
-    progress = Column(Float, default=0.0)
-    loss = Column(Float, default=0.0)
-    accuracy = Column(Float, default=0.0)
+    progress = Column(DECIMAL(5,2), default=0.00)
+    loss = Column(DECIMAL(8,2), default=0.00)
+    accuracy = Column(DECIMAL(5,2), default=0.00)
     created_time = Column(DateTime(timezone=True), server_default=func.now())
     updated_time = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -93,17 +94,78 @@ class Node(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     name = Column(String(200), nullable=False)
     path_ipv4 = Column(String(15), default="")  # IPv4 address
-    progress = Column(Float, default=0.0)
-    state = Column(String(50), default="idle")
-    role = Column(String(50), default="worker")
+    progress = Column(DECIMAL(5,2), default=0.00)
+    state = Column(String(50), default="idle")  # alive, dead, idle
+    role = Column(String(50), default="worker")  # computer node, model node, worker node, coordinator node
+
+    # Resource information to match testapi format
+    cpu_usage = Column(DECIMAL(5,2), default=0.00)     # CPU usage percentage
+    memory_usage = Column(DECIMAL(5,2), default=0.00)  # Memory usage percentage
+    disk_usage = Column(DECIMAL(5,2), default=0.00)    # Disk usage percentage
+    sent = Column(DECIMAL(10,2), default=0.00)          # Data sent (MB)
+    received = Column(DECIMAL(10,2), default=0.00)      # Data received (MB)
+    heartbeat = Column(String(50), default="") # Heartbeat timestamp
+
+    # Legacy fields (keeping for backward compatibility)
     cpu = Column(String(100), default="")
     gpu = Column(String(100), default="")
     memory = Column(String(50), default="")
+
     created_time = Column(DateTime(timezone=True), server_default=func.now())
     last_updated_time = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     user = relationship("User", back_populates="nodes")
     project = relationship("Project", back_populates="nodes")
+
+
+class TaskQueue(Base):
+    """
+    任务队列表 - 管理训练任务的排队和调度
+    """
+    __tablename__ = "task_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+
+    # 队列状态: queued, running, completed, failed, cancelled
+    status = Column(String(20), default="queued", nullable=False)
+
+    # 优先级 (数字越小优先级越高, 默认为5)
+    priority = Column(Integer, default=5, nullable=False)
+
+    # 任务配置信息 (JSON格式)
+    task_config = Column(JSON, default={})
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # 重试相关
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+
+    # 错误信息
+    error_message = Column(Text, nullable=True)
+
+    # 外部任务ID (如TestAPI返回的task_id)
+    external_task_id = Column(String(100), nullable=True)
+
+    # 创建索引以优化查询性能
+    __table_args__ = (
+        # 复合索引：按状态、优先级、创建时间排序
+        Index('idx_queue_order', 'status', 'priority', 'created_at'),
+        # 项目ID索引
+        Index('idx_project_queue', 'project_id', 'status'),
+    )
+
+    # 关系
+    project = relationship("Project", back_populates="task_queues")
+
+
+# 更新Project模型，添加与TaskQueue的关系
+# 需要在Project类中添加：
+# task_queues = relationship("TaskQueue", back_populates="project", cascade="all, delete-orphan")
 
 

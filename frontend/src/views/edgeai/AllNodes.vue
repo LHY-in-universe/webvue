@@ -250,7 +250,7 @@
                 'text-red-600 dark:text-red-400': node.cpuUsage > 80,
                 'text-yellow-600 dark:text-yellow-400': node.cpuUsage > 60 && node.cpuUsage <= 80,
                 'text-green-600 dark:text-green-400': node.cpuUsage <= 60
-              }">{{ node.cpuUsage }}%</span>
+              }">{{ node.cpuUsage.toFixed(2) }}%</span>
             </div>
             <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <div
@@ -270,7 +270,7 @@
                 'text-red-600 dark:text-red-400': node.memoryUsage > 80,
                 'text-yellow-600 dark:text-yellow-400': node.memoryUsage > 60 && node.memoryUsage <= 80,
                 'text-blue-600 dark:text-blue-400': node.memoryUsage <= 60
-              }">{{ node.memoryUsage }}%</span>
+              }">{{ node.memoryUsage.toFixed(2) }}%</span>
             </div>
             <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <div
@@ -291,7 +291,7 @@
                 'text-red-600 dark:text-red-400': node.gpuUsage > 80,
                 'text-yellow-600 dark:text-yellow-400': node.gpuUsage > 60 && node.gpuUsage <= 80,
                 'text-purple-600 dark:text-purple-400': node.gpuUsage <= 60
-              }">{{ node.gpuUsage }}%</span>
+              }">{{ node.gpuUsage.toFixed(2) }}%</span>
             </div>
             <div v-if="node.gpuUsage > 0" class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <div
@@ -1024,9 +1024,9 @@ const onlineNodes = computed(() => nodes.value.filter(n => n.status === 'online'
 const trainingNodes = computed(() => nodes.value.filter(n => n.status === 'training').length)
 const averageLoad = computed(() => {
   const activeNodes = nodes.value.filter(n => n.status !== 'offline' && n.status !== 'error')
-  if (activeNodes.length === 0) return 0
+  if (activeNodes.length === 0) return "0.00"
   const totalLoad = activeNodes.reduce((sum, node) => sum + node.cpuUsage, 0)
-  return Math.round(totalLoad / activeNodes.length)
+  return (totalLoad / activeNodes.length).toFixed(2)
 })
 
 const uniqueLocations = computed(() => {
