@@ -65,14 +65,28 @@ class Protocol(str, Enum):
 class ProjectCreateRequest(BaseModel):
     name: str
     description: str
-    model: str  # 与数据库table IP连接的字段
-    training_strategy: TrainingStrategy
-    protocol: Protocol
-    epochs: int
-    batch_size: int
-    learning_rate: float
-    node_ip: str  # 与数据库node table连接的字段
-    created_time: Optional[datetime] = None  # 建立时间
+    
+    # Training configuration fields (from frontend form)
+    training_alg: Optional[str] = "sft"
+    fed_alg: Optional[str] = "fedavg"
+    num_rounds: Optional[int] = 10
+    num_clients: Optional[int] = 2
+    sample_clients: Optional[int] = 2
+    max_steps: Optional[int] = 100
+    lr: Optional[str] = "1e-4"
+    dataset_sample: Optional[int] = 50
+    model_name_or_path: Optional[str] = ""
+    dataset_name: Optional[str] = ""
+    
+    # Legacy fields (for backward compatibility)
+    model: Optional[str] = ""
+    training_strategy: Optional[TrainingStrategy] = TrainingStrategy.SFT
+    protocol: Optional[Protocol] = Protocol.FEDAVG
+    epochs: Optional[int] = 100
+    batch_size: Optional[int] = 32
+    learning_rate: Optional[float] = 0.001
+    node_ip: Optional[str] = ""
+    created_time: Optional[datetime] = None
 
 class ProjectResponse(BaseModel):
     id: str

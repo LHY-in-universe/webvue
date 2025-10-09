@@ -251,7 +251,7 @@ const projectData = ref({
   learning_rate: 0.001,
 
   // Node Configuration
-  node_ip: ''  // 与数据库node table连接的字段
+  node_ip: '127.0.0.1'  // 默认节点IP地址
 })
 
 const toggleTheme = (event) => {
@@ -278,21 +278,30 @@ const createProject = async () => {
       return
     }
 
-    
-
-    if (!projectData.value.node_ip.trim()) {
-      errors.value.node_ip = 'Node IP address is required'
-      return
-    }
-
-    // Build payload matching backend API
+    // Build payload matching backend API with all frontend form fields
     const payload = {
       name: projectData.value.name.trim(),
       description: projectData.value.description.trim(),
-      model: projectData.value.model,
-      training_strategy: projectData.value.training_strategy,
-      protocol: projectData.value.protocol,
       
+      // Training configuration fields (from frontend form)
+      training_alg: projectData.value.training_alg,
+      fed_alg: projectData.value.fed_alg,
+      num_rounds: projectData.value.num_rounds,
+      num_clients: projectData.value.num_clients,
+      sample_clients: projectData.value.sample_clients,
+      max_steps: projectData.value.max_steps,
+      lr: projectData.value.lr,
+      dataset_sample: projectData.value.dataset_sample,
+      model_name_or_path: projectData.value.model_name_or_path,
+      dataset_name: projectData.value.dataset_name,
+      
+      // Legacy fields (for backward compatibility)
+      model: projectData.value.model_name_or_path || 'default-model',
+      training_strategy: projectData.value.training_alg,
+      protocol: projectData.value.fed_alg,
+      epochs: projectData.value.epochs,
+      batch_size: projectData.value.batch_size,
+      learning_rate: parseFloat(projectData.value.lr) || projectData.value.learning_rate,
       node_ip: projectData.value.node_ip.trim()
     }
 

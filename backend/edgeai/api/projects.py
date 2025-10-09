@@ -274,11 +274,26 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
         user_id=1,  # TODO: Get from authenticated user
         name=request.name,
         description=request.description,
-        strategy=request.training_strategy.value,
-        protocol=request.protocol.value,
+        
+        # Training configuration fields (from frontend form)
+        training_alg=request.training_alg,
+        fed_alg=request.fed_alg,
+        num_rounds=request.num_rounds,
+        num_clients=request.num_clients,
+        sample_clients=request.sample_clients,
+        max_steps=request.max_steps,
+        lr=request.lr,
+        dataset_sample=request.dataset_sample,
+        model_name_or_path=request.model_name_or_path,
+        dataset_name=request.dataset_name,
+        
+        # Legacy fields (for backward compatibility)
+        strategy=request.training_strategy.value if request.training_strategy else "sft",
+        protocol=request.protocol.value if request.protocol else "fedavg",
         epoches=request.epochs,
         learning_rate=request.learning_rate,
         batch_size=request.batch_size,
+        
         status="created",
         progress=0.0,
         task_id=f"task-{uuid.uuid4().hex[:8]}"
@@ -330,21 +345,35 @@ async def update_project(project_id: str, request: ProjectCreateRequest):
     raise HTTPException(status_code=404, detail="Project not found")
 
 @router.delete("/{project_id}", response_model=BaseResponse)
-async def delete_project(project_id: str):
+async def delete_project(project_id: str, db: Session = Depends(get_db)):
     """
     删除项目
     """
-    global mock_projects
-    original_count = len(mock_projects)
-    mock_projects = [p for p in mock_projects if p["id"] != project_id]
+    try:
+        project_id_int = int(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    # Find the project in database
+    project = db.query(Project).filter(Project.id == project_id_int).first()
     
-    if len(mock_projects) < original_count:
-        return BaseResponse(
-            success=True,
-            message="Project deleted successfully"
-        )
-    else:
+    if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Delete related nodes first (cascade delete)
+    db.query(Node).filter(Node.project_id == project_id_int).delete()
+    
+    # Delete related models first (cascade delete)
+    db.query(Model).filter(Model.project_id == project_id_int).delete()
+    
+    # Delete the project
+    db.delete(project)
+    db.commit()
+    
+    return BaseResponse(
+        success=True,
+        message=f"Project '{project.name}' deleted successfully"
+    )
 
 @router.post("/import", response_model=BaseResponse)
 async def import_project(request: ProjectImportRequest):

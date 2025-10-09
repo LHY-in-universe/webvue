@@ -128,16 +128,29 @@
             </div>
             
             <!-- Status Filter -->
-            <select
+            <CustomSelect
               v-model="statusFilter"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              :options="statusOptions"
+              placeholder="All Statuses"
+              class="w-48"
+            />
+            
+            <!-- Select Button -->
+            <button
+              @click="toggleSelectMode"
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200"
             >
-              <option value="">All Statuses</option>
-              <option value="Training">Training</option>
-              <option value="Completed">Completed</option>
-              <option value="Idle">Idle</option>
-              <option value="Error">Error</option>
-            </select>
+              {{ selectMode ? 'Cancel Select' : 'Select' }}
+            </button>
+            
+            <!-- Delete Selected Button -->
+            <button
+              v-if="selectMode && selectedProjects.length > 0"
+              @click="deleteSelectedProjects"
+              class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200"
+            >
+              Delete Selected ({{ selectedProjects.length }})
+            </button>
           </div>
         </div>
         
@@ -145,9 +158,11 @@
           <div 
             v-for="project in filteredProjects" 
             :key="project.id"
-            @click="openProjectVisualization(project)"
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 cursor-pointer hover:shadow-lg transition-all duration-200"
+            @click="selectMode ? toggleProjectSelection(project.id) : openProjectVisualization(project)"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 cursor-pointer hover:shadow-lg transition-all duration-200 relative"
+            :class="{ 'border-blue-500 ring-2 ring-blue-500': selectMode && selectedProjects.includes(project.id) }"
           >
+            <!-- Project Content -->
             <div class="mb-3">
               <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ project.name }}
@@ -156,6 +171,16 @@
             <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
               {{ project.description }}
             </p>
+            
+            <!-- Selection Checkbox -->
+            <div v-if="selectMode" class="absolute top-3 right-3">
+              <input
+                type="checkbox"
+                :checked="selectedProjects.includes(project.id)"
+                @click.stop="toggleProjectSelection(project.id)"
+                class="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -183,6 +208,7 @@ import StatCard from '@/components/ui/StatCard.vue'
 import DashboardCard from '@/components/ui/DashboardCard.vue'
 import RealtimeMonitor from '@/components/edgeai/RealtimeMonitor.vue'
 import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 import { 
   ComputerDesktopIcon,
   ServerIcon,
@@ -196,7 +222,11 @@ import {
   CalendarIcon,
   FolderIcon,
   SignalIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  PlayIcon,
+  CheckCircleIcon,
+  PauseIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -240,6 +270,19 @@ const systemLogs = ref([])
 // Search and filter state
 const searchQuery = ref('')
 const statusFilter = ref('')
+
+// Status filter options with icons
+const statusOptions = ref([
+  { value: '', label: 'All Statuses', icon: null },
+  { value: 'Training', label: 'Training', icon: PlayIcon },
+  { value: 'Completed', label: 'Completed', icon: CheckCircleIcon },
+  { value: 'Idle', label: 'Idle', icon: PauseIcon },
+  { value: 'Error', label: 'Error', icon: ExclamationTriangleIcon }
+])
+
+// Selection mode state
+const selectMode = ref(false)
+const selectedProjects = ref([])
 
 
 // Computed property for filtered projects
@@ -496,7 +539,26 @@ const openModelManagement = () => {
 }
 
 const openProjectVisualization = (project) => {
-  router.push(`/edgeai/visualization/${project.id}`)
+  if (!selectMode.value) {
+    router.push(`/edgeai/visualization/${project.id}`)
+  }
+}
+
+// Selection mode functions
+const toggleSelectMode = () => {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value) {
+    selectedProjects.value = []
+  }
+}
+
+const toggleProjectSelection = (projectId) => {
+  const index = selectedProjects.value.indexOf(projectId)
+  if (index > -1) {
+    selectedProjects.value.splice(index, 1)
+  } else {
+    selectedProjects.value.push(projectId)
+  }
 }
 
 // Utility functions for project display
@@ -584,5 +646,69 @@ const calculateTrainingSpeed = (project) => {
   // Add some randomness to make it more realistic
   const variation = (Math.random() - 0.5) * 4
   return Math.max(1, Math.round(speed + variation))
+}
+
+// Delete selected projects function
+const deleteSelectedProjects = async () => {
+  if (selectedProjects.value.length === 0) {
+    uiStore.addNotification({
+      type: 'warning',
+      title: '未选择项目',
+      message: '请选择至少一个项目进行删除'
+    })
+    return
+  }
+
+  const projectNames = selectedProjects.value.map(id => {
+    const project = edgeaiStore.projects.find(p => p.id === id)
+    return project ? project.name : `项目 ${id}`
+  }).join('、')
+
+  if (!confirm(`确定要删除以下 ${selectedProjects.value.length} 个项目吗？\n\n${projectNames}\n\n此操作不可撤销。`)) {
+    return
+  }
+
+  let successCount = 0
+  let failCount = 0
+  const errors = []
+
+  for (const projectId of selectedProjects.value) {
+    try {
+      const result = await edgeaiStore.deleteProject(projectId)
+      
+      if (result && result.success) {
+        successCount++
+      } else {
+        failCount++
+        const project = edgeaiStore.projects.find(p => p.id === projectId)
+        errors.push(project ? project.name : `项目 ${projectId}`)
+      }
+    } catch (error) {
+      console.error('Failed to delete project:', error)
+      failCount++
+      const project = edgeaiStore.projects.find(p => p.id === projectId)
+      errors.push(project ? project.name : `项目 ${projectId}`)
+    }
+  }
+
+  if (successCount > 0) {
+    uiStore.addNotification({
+      type: 'success',
+      title: '批量删除完成',
+      message: `成功删除 ${successCount} 个项目${failCount > 0 ? `，${failCount} 个项目删除失败` : ''}`
+    })
+  } else {
+    uiStore.addNotification({
+      type: 'error',
+      title: '删除失败',
+      message: '所有选中的项目删除失败，请重试'
+    })
+  }
+
+  // Reset selection mode and refresh data
+  selectMode.value = false
+  selectedProjects.value = []
+  clearCache()
+  await loadDashboardData()
 }
 </script>

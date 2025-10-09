@@ -69,7 +69,8 @@ mock_nodes = [
 async def get_nodes(
     status: Optional[str] = None,
     node_type: Optional[str] = None,
-    project: Optional[str] = None
+    project: Optional[str] = None,
+    type: Optional[str] = None  # 添加type参数支持
 ):
     """
     获取节点列表
@@ -82,6 +83,9 @@ async def get_nodes(
     
     if node_type:
         filtered_nodes = [n for n in filtered_nodes if n["type"] == node_type]
+    
+    if type:  # 支持type参数
+        filtered_nodes = [n for n in filtered_nodes if n["type"] == type]
     
     if project:
         filtered_nodes = [n for n in filtered_nodes if n["project"] == project]

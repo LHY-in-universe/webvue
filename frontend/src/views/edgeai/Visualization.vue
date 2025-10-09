@@ -104,9 +104,12 @@
             <div class="mt-2 text-sm text-red-700 dark:text-red-300">
               {{ error }}
             </div>
-            <div class="mt-3">
+            <div class="mt-3 flex space-x-3">
               <Button @click="loadVisualizationData" variant="ghost" size="sm" class="text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800/30">
                 Try again
+              </Button>
+              <Button @click="goToDashboard" variant="ghost" size="sm" class="text-blue-800 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-800/30">
+                Back to Dashboard
               </Button>
             </div>
           </div>
@@ -177,11 +180,11 @@
             </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">Sent</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ (selectedNode.sent || 0).toFixed(2) }} MB/s</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ (selectedNode.sent || 0).toFixed(2) }} KB/s</span>
           </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">Received</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ (selectedNode.received || 0).toFixed(2) }} MB/s</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ (selectedNode.received || 0).toFixed(2) }} KB/s</span>
                 </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">Heartbeat</span>
@@ -255,8 +258,23 @@
         
         <!-- Quick Actions: Start Training at top -->
         <div class="mb-4">
+          <!-- 当有活跃任务时显示 Training 状态 -->
           <Button 
-            v-if="trainingState.status === 'idle' || trainingState.status === 'stopped'"
+            v-if="hasActiveTasks"
+            variant="outline"
+            size="sm"
+            class="w-full flex items-center justify-center space-x-2"
+            disabled
+          >
+            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span>Training</span>
+          </Button>
+          
+          <!-- 当没有活跃任务时显示 Start Training 按钮 -->
+          <Button 
+            v-else-if="trainingState.status === 'idle' || trainingState.status === 'stopped'"
             @click="startTraining"
             variant="primary"
             size="sm"
@@ -303,47 +321,80 @@
               <div v-for="task in taskList" :key="task" 
                    class="p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between">
-                  <div class="flex items-center space-x-2">
-                    <div :class="isTaskRunning(task) ? 'bg-green-500' : 'bg-gray-400'" class="w-2 h-2 rounded-full"></div>
-                    <span class="font-mono text-gray-700 dark:text-gray-300">{{ task.substring(0, 8) }}...</span>
-                    <span class="text-[10px]" :class="isTaskRunning(task) ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'">
-                      {{ isTaskRunning(task) ? 'running' : 'dead' }}
-                    </span>
+                  <div class="flex items-center space-x-3">
+                    <div class="flex items-center space-x-2">
+                      <div :class="isTaskRunning(task) ? 'bg-green-500' : 'bg-gray-400'" class="w-2 h-2 rounded-full"></div>
+                      <span class="text-[10px] font-medium" :class="isTaskRunning(task) ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'">
+                        {{ isTaskRunning(task) ? 'Running' : 'Stopped' }}
+                      </span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <div class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">
+                        <span class="font-mono text-xs text-gray-600 dark:text-gray-300">{{ task.substring(0, 8) }}...</span>
+                      </div>
+                      <Button 
+                        @click="copyTaskId(task)"
+                        variant="ghost"
+                        size="sm"
+                        class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                        title="复制任务ID"
+                      >
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                      </Button>
+                    </div>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <span class="text-[10px] text-gray-500 dark:text-gray-400">ID: {{ task }}</span>
-                    <Button 
-                      @click="deleteTask(task)"
-                      variant="ghost"
-                      size="sm"
-                      class="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-1"
-                      :disabled="isDeletingTask === task"
-                    >
-                      <svg v-if="isDeletingTask !== task" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                      </svg>
-                      <svg v-else class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                      </svg>
-                    </Button>
-                  </div>
+                  <Button 
+                    @click="deleteTask(task)"
+                    variant="ghost"
+                    size="sm"
+                    class="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-1"
+                    :disabled="isDeletingTask === task"
+                    title="删除任务"
+                  >
+                    <svg v-if="isDeletingTask !== task" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    <svg v-else class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                  </Button>
                 </div>
                 
-                <!-- Task Status Row -->
-                <div class="grid grid-cols-2 gap-2 mt-2">
-                  <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1">
-                    <span class="text-gray-500 dark:text-gray-400">Round</span>
-                    <span class="font-medium text-gray-900 dark:text-white">
-                      {{ (taskStatusMap[task]?.current_round ?? 0) }}/{{ (taskStatusMap[task]?.total_rounds ?? 0) }}
+                <!-- Progress Bar -->
+                <div class="mt-3 mb-2">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Training Progress</span>
+                    <span class="text-xs font-medium text-gray-900 dark:text-white">
+                      {{ getTaskProgressPercentage(task) }}%
                     </span>
                   </div>
+                  <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div 
+                      class="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500 ease-out"
+                      :style="{ width: getTaskProgressPercentage(task) + '%' }"
+                    ></div>
+                  </div>
+                  <div class="flex items-center justify-between mt-1">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      Round {{ (taskStatusMap[task]?.current_round ?? 0) }}/{{ (taskStatusMap[task]?.total_rounds ?? 0) }}
+                    </span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ getTaskProgressPercentage(task) }}% Complete
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Task Status Row -->
+                <div class="grid grid-cols-2 gap-2 mt-2">
                   <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1">
                     <span class="text-gray-500 dark:text-gray-400">Loss</span>
                     <span class="font-medium text-red-600 dark:text-red-400">
                       {{ (taskStatusMap[task]?.loss ?? 0).toFixed(4) }}
                     </span>
                   </div>
-                  <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1 col-span-2">
+                  <div class="flex items-center justify-between bg-white dark:bg-gray-900 rounded px-2 py-1">
                     <span class="text-gray-500 dark:text-gray-400">Accuracy</span>
                     <span class="font-medium text-green-600 dark:text-green-400">
                       {{ taskStatusMap[task]?.accuracy !== null && taskStatusMap[task]?.accuracy !== undefined
@@ -537,8 +588,8 @@
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.cpu_usage ?? 0 }}%</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.memory_usage ?? 0 }}%</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.disk_usage ?? 0 }}%</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} MB/s</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} KB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} KB/s</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ formatHeartbeat(n.heartbeat) }}</td>
                   </tr>
                 </tbody>
@@ -572,8 +623,8 @@
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.cpu_usage ?? 0 }}%</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.memory_usage ?? 0 }}%</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.disk_usage ?? 0 }}%</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} MB/s</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} KB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} KB/s</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ formatHeartbeat(n.heartbeat) }}</td>
                   </tr>
                 </tbody>
@@ -607,8 +658,8 @@
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.cpu_usage ?? 0 }}%</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.memory_usage ?? 0 }}%</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ n.disk_usage ?? 0 }}%</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} MB/s</td>
-                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} MB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.sent || 0).toFixed(2) }} KB/s</td>
+                    <td class="p-3 text-gray-600 dark:text-gray-400">{{ (n.received || 0).toFixed(2) }} KB/s</td>
                     <td class="p-3 text-gray-600 dark:text-gray-400">{{ formatHeartbeat(n.heartbeat) }}</td>
                   </tr>
                 </tbody>
@@ -1098,6 +1149,10 @@ const triggerCelebrationAnimation = () => {
 }
 
 // Load visualization data from API
+const goToDashboard = () => {
+  router.push('/edgeai/dashboard')
+}
+
 const loadVisualizationData = async () => {
   const pageMonitor = performanceMonitor.monitorPageLoad('EdgeAIVisualization')
   loading.value = true
@@ -1106,12 +1161,16 @@ const loadVisualizationData = async () => {
   try {
     const projectId = route.params.projectId
     
+    if (!projectId) {
+      throw new Error('No project ID provided in URL')
+    }
+    
     // Load project details, training config, and nodes in parallel
     const [projectResult, configResult, nodesResult] = await Promise.all([
-      projectId ? cachedApiCall(`edgeai-project-${projectId}`, 
+      cachedApiCall(`edgeai-project-${projectId}`, 
         () => edgeaiService.projects.getProject(projectId), 
         2 * 60 * 1000
-      ) : null,
+      ),
       cachedApiCall('edgeai-training-config', 
         () => edgeaiService.training.getTrainingConfig(projectId), 
         5 * 60 * 1000
@@ -1123,16 +1182,14 @@ const loadVisualizationData = async () => {
     ])
 
     // Update project details
-    if (projectResult) {
+    if (projectResult && projectResult.id) {
       currentProject.value = {
         name: projectResult.name || 'EdgeAI Training Session',
         status: projectResult.status || 'active'
       }
     } else {
-      currentProject.value = {
-        name: 'EdgeAI Training Session',
-        status: 'active'
-      }
+      // Project not found - redirect to dashboard with error message
+      throw new Error(`Project ${projectId} not found. It may have been deleted.`)
     }
 
     // Update training configuration
@@ -1182,7 +1239,16 @@ const loadVisualizationData = async () => {
     pageMonitor.end({ success: true, nodeCount: allFederatedNodes.value.length })
   } catch (err) {
     console.error('Failed to load visualization data:', err)
-    error.value = err.message || 'Failed to load visualization data'
+    
+    // Handle specific error cases
+    if (err.message && err.message.includes('not found')) {
+      error.value = err.message
+    } else if (err.response && err.response.status === 404) {
+      error.value = `Project ${route.params.projectId} not found. It may have been deleted.`
+    } else {
+      error.value = err.message || 'Failed to load visualization data'
+    }
+    
     pageMonitor.end({ success: false, error: err.message })
   } finally {
     loading.value = false
@@ -1451,7 +1517,7 @@ const trainingNodes = computed(() => {
   return allFederatedNodes.value.filter(n => n.status === 'training').length
 })
 
-const dataTransferRate = computed(() => '1.5MB/s')
+const dataTransferRate = computed(() => '1.5KB/s')
 
 const averageProgress = computed(() => {
   const trainingNodes = allFederatedNodes.value.filter(n => n.type === 'training')
@@ -1841,6 +1907,46 @@ const isTaskRunning = (taskId) => {
     return String(statusText || '').toLowerCase() === 'running'
   } catch (e) {
     return false
+  }
+}
+
+// 检查是否有活跃任务
+const hasActiveTasks = computed(() => {
+  return taskList.value.length > 0 && taskList.value.some(taskId => isTaskRunning(taskId))
+})
+
+// 计算任务进度百分比
+const getTaskProgressPercentage = (taskId) => {
+  const taskStatus = taskStatusMap.value[taskId]
+  if (!taskStatus) return 0
+  
+  const currentRound = Number(taskStatus.current_round || 0)
+  const totalRounds = Number(taskStatus.total_rounds || 0)
+  
+  if (totalRounds <= 0) return 0
+  
+  const percentage = Math.min(100, Math.max(0, (currentRound / totalRounds) * 100))
+  return Math.round(percentage)
+}
+
+// 复制任务ID到剪贴板
+const copyTaskId = async (taskId) => {
+  try {
+    await navigator.clipboard.writeText(taskId)
+    // 可以添加一个简单的提示，比如 toast 通知
+    console.log('任务ID已复制到剪贴板:', taskId)
+    // 这里可以添加一个 toast 通知组件
+    alert(`任务ID已复制: ${taskId}`)
+  } catch (err) {
+    console.error('复制失败:', err)
+    // 降级方案：使用传统的复制方法
+    const textArea = document.createElement('textarea')
+    textArea.value = taskId
+    document.body.appendChild(textArea)
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+    alert(`任务ID已复制: ${taskId}`)
   }
 }
 

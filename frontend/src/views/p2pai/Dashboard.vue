@@ -250,16 +250,12 @@
               </div>
               
               <!-- Status Filter -->
-              <select
+              <CustomSelect
                 v-model="statusFilter"
-                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Statuses</option>
-                <option value="Training">Training</option>
-                <option value="Completed">Completed</option>
-                <option value="Idle">Idle</option>
-                <option value="Error">Error</option>
-              </select>
+                :options="statusOptions"
+                placeholder="All Statuses"
+                class="w-48"
+              />
             </div>
           </div>
           
@@ -549,6 +545,7 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 import Modal from '@/components/ui/Modal.vue'
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 import { 
   CpuChipIcon, 
   ClockIcon,
@@ -560,6 +557,10 @@ import {
   ServerIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
+  PlayIcon,
+  CheckCircleIcon,
+  PauseIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -692,6 +693,15 @@ const formatTime = (timestamp) => {
 // 项目搜索和过滤 - 复制EdgeAI功能
 const searchQuery = ref('')
 const statusFilter = ref('')
+
+// Status filter options with icons
+const statusOptions = ref([
+  { value: '', label: 'All Statuses', icon: null },
+  { value: 'Training', label: 'Training', icon: PlayIcon },
+  { value: 'Completed', label: 'Completed', icon: CheckCircleIcon },
+  { value: 'Idle', label: 'Idle', icon: PauseIcon },
+  { value: 'Error', label: 'Error', icon: ExclamationTriangleIcon }
+])
 
 // 项目数据 - 初始为空，将从API加载
 const projects = ref([])

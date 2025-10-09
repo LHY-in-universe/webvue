@@ -53,7 +53,7 @@
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Statistics Overview -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <StatCard
           title="Total Nodes"
           :value="totalNodes"
@@ -71,277 +71,125 @@
           description="Currently connected"
           animated
         />
-        
-        <StatCard
-          title="Training Nodes"
-          :value="trainingNodes"
-          :icon="CpuChipIcon"
-          variant="info"
-          description="Actively training"
-          animated
-        />
-        
-        <StatCard
-          title="Avg Load"
-          :value="averageLoad"
-          unit="%"
-          :icon="ChartBarIcon"
-          variant="warning"
-          description="System utilization"
-          animated
-        />
       </div>
 
-      <!-- Filters and Search -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-          <div class="flex flex-1 items-center space-x-4">
-            <div class="relative flex-1 max-w-md">
-              <MagnifyingGlassIcon class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                :value="searchQuery"
-                @input="onSearchInput"
-                @focus="onSearchFocus"
-                @blur="onSearchBlur"
-                type="text"
-                placeholder="Search nodes by name, ID, location, or project..."
-                class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                autocomplete="off"
-              />
-
-              <!-- Search Suggestions -->
-              <div
-                v-if="showSearchSuggestions"
-                class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto"
-              >
-                <div
-                  v-for="suggestion in searchSuggestions"
-                  :key="suggestion"
-                  @click="selectSuggestion(suggestion)"
-                  class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 last:border-b-0"
-                >
-                  {{ suggestion }}
-                </div>
-              </div>
-            </div>
-            
+      <!-- Filters and Actions -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-6 shadow-sm">
+        <div class="flex items-center gap-4">
+          <!-- Status Filter -->
+          <div class="flex-shrink-0">
             <select
               v-model="statusFilter"
-              class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-400 dark:hover:border-gray-500 min-w-[120px]"
             >
               <option value="">All Status</option>
-              <option value="online">Online</option>
-              <option value="training">Training</option>
-              <option value="idle">Idle</option>
-              <option value="offline">Offline</option>
-              <option value="error">Error</option>
+              <option value="alive">Alive</option>
+              <option value="dead">Dead</option>
             </select>
-
-            <select
-              v-model="locationFilter"
-              class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
-            >
-              <option value="">All Locations</option>
-              <option v-for="location in uniqueLocations" :key="location" :value="location">
-                {{ location }}
-              </option>
-            </select>
-
           </div>
           
-          <div class="flex items-center space-x-3">
-            <Button
-              @click="selectAllNodes"
-              variant="outline"
-              size="sm"
-              v-if="filteredNodes.length > 0"
-            >
-              Select All
-            </Button>
-
-            <Button
-              @click="clearSelection"
-              variant="outline"
-              size="sm"
-              v-if="selectedNodes.size > 0"
-            >
-              Clear ({{ selectedNodes.size }})
-            </Button>
-
-            <Button
-              @click="addNewNode"
-              variant="primary"
-              size="sm"
-              :leftIcon="PlusIcon"
-              class="bg-green-600 hover:bg-green-700 focus:ring-green-500"
-            >
-              Add Node
-            </Button>
-
-            <Button
-              @click="exportNodes"
-              variant="outline"
-              size="sm"
-              :leftIcon="ArrowDownTrayIcon"
-              :loading="exportingNodes"
-              :disabled="exportingNodes"
-            >
-              {{ exportingNodes ? 'Exporting...' : 'Export' }}
-            </Button>
+          <!-- Search Input -->
+          <div class="relative flex-1 max-w-md">
+            <input
+              :value="searchQuery"
+              @input="onSearchInput"
+              @focus="onSearchFocus"
+              @blur="onSearchBlur"
+              type="text"
+              placeholder=""
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-400 dark:hover:border-gray-500"
+              autocomplete="off"
+            />
           </div>
+
         </div>
       </div>
 
-      <!-- Nodes Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div
-          v-for="node in filteredNodes"
-          :key="node.id"
-          class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow cursor-pointer relative"
-          @click="selectNode(node)"
-          :class="{
-            'ring-2 ring-green-500 border-green-500': selectedNode?.id === node.id,
-            'ring-2 ring-blue-500 border-blue-500': isNodeSelected(node.id)
-          }"
-        >
-          <!-- Selection checkbox -->
-          <div class="absolute top-4 right-4">
-            <input
-              type="checkbox"
-              :checked="isNodeSelected(node.id)"
-              @click.stop="toggleNodeSelection(node.id)"
-              class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-          </div>
-          <!-- Node Header -->
-          <div class="flex items-start justify-between mb-4">
-            <div class="flex items-center space-x-3">
-              <div class="relative">
-                <div :class="[
-                  'w-3 h-3 rounded-full',
-                  getStatusColor(node.status)
-                ]"></div>
-                <!-- Pulsing indicator for operations -->
-                <div
-                  v-if="isNodeOperationLoading(node.id, 'connecting') || isNodeOperationLoading(node.id, 'disconnecting')"
-                  class="absolute inset-0 w-3 h-3 rounded-full bg-blue-500 animate-ping opacity-75"
-                ></div>
+      <!-- Nodes Table -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <!-- Table Header -->
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Node Details List</h3>
+          <span class="text-sm text-gray-500 dark:text-gray-400">{{ filteredNodes.length }} nodes</span>
+        </div>
+
+        <!-- Grouped Tables -->
+        <div v-for="group in groupedNodes" :key="group.role" class="border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+          <!-- Group Header -->
+          <div class="px-6 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-medium text-gray-900 dark:text-white capitalize">
+                {{ group.role }} ({{ group.nodes.length }})
+              </h4>
+              <div class="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+                <span class="flex items-center">
+                  <div class="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                  {{ group.aliveCount }} alive
+                </span>
+                <span class="flex items-center">
+                  <div class="w-2 h-2 bg-gray-400 rounded-full mr-1"></div>
+                  {{ group.deadCount }} dead
+                </span>
               </div>
-              <div>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ node.name }}</h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400">{{ node.id }}</p>
-              </div>
-            </div>
-            <span :class="[
-              'px-2 py-1 rounded-full text-xs font-medium',
-              getStatusBadgeColor(node.status)
-            ]">
-              {{ isNodeOperationLoading(node.id, 'connecting') ? 'Connecting...' :
-                 isNodeOperationLoading(node.id, 'disconnecting') ? 'Disconnecting...' :
-                 node.status }}
-            </span>
-          </div>
-
-          <!-- Node Metrics -->
-          <div class="space-y-3">
-            <div class="flex justify-between text-sm">
-              <span class="text-gray-600 dark:text-gray-400">CPU Usage:</span>
-              <span class="font-medium" :class="{
-                'text-red-600 dark:text-red-400': node.cpuUsage > 80,
-                'text-yellow-600 dark:text-yellow-400': node.cpuUsage > 60 && node.cpuUsage <= 80,
-                'text-green-600 dark:text-green-400': node.cpuUsage <= 60
-              }">{{ node.cpuUsage }}%</span>
-            </div>
-            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div
-                class="h-2 rounded-full transition-all duration-300"
-                :class="{
-                  'bg-red-500': node.cpuUsage > 80,
-                  'bg-yellow-500': node.cpuUsage > 60 && node.cpuUsage <= 80,
-                  'bg-green-500': node.cpuUsage <= 60
-                }"
-                :style="{ width: `${node.cpuUsage}%` }"
-              ></div>
-            </div>
-
-            <div class="flex justify-between text-sm">
-              <span class="text-gray-600 dark:text-gray-400">Memory:</span>
-              <span class="font-medium" :class="{
-                'text-red-600 dark:text-red-400': node.memoryUsage > 80,
-                'text-yellow-600 dark:text-yellow-400': node.memoryUsage > 60 && node.memoryUsage <= 80,
-                'text-blue-600 dark:text-blue-400': node.memoryUsage <= 60
-              }">{{ node.memoryUsage }}%</span>
-            </div>
-            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div
-                class="h-2 rounded-full transition-all duration-300"
-                :class="{
-                  'bg-red-500': node.memoryUsage > 80,
-                  'bg-yellow-500': node.memoryUsage > 60 && node.memoryUsage <= 80,
-                  'bg-blue-500': node.memoryUsage <= 60
-                }"
-                :style="{ width: `${node.memoryUsage}%` }"
-              ></div>
-            </div>
-
-            <!-- GPU Usage if available -->
-            <div v-if="node.gpuUsage > 0" class="flex justify-between text-sm">
-              <span class="text-gray-600 dark:text-gray-400">GPU Usage:</span>
-              <span class="font-medium" :class="{
-                'text-red-600 dark:text-red-400': node.gpuUsage > 80,
-                'text-yellow-600 dark:text-yellow-400': node.gpuUsage > 60 && node.gpuUsage <= 80,
-                'text-purple-600 dark:text-purple-400': node.gpuUsage <= 60
-              }">{{ node.gpuUsage }}%</span>
-            </div>
-            <div v-if="node.gpuUsage > 0" class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div
-                class="h-2 rounded-full transition-all duration-300"
-                :class="{
-                  'bg-red-500': node.gpuUsage > 80,
-                  'bg-yellow-500': node.gpuUsage > 60 && node.gpuUsage <= 80,
-                  'bg-purple-500': node.gpuUsage <= 60
-                }"
-                :style="{ width: `${node.gpuUsage}%` }"
-              ></div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4 text-sm pt-2">
-              <div>
-                <span class="text-gray-600 dark:text-gray-400">Tasks:</span>
-                <span class="font-medium ml-1">{{ node.activeTasks }}</span>
-              </div>
-              <div>
-                <span class="text-gray-600 dark:text-gray-400">Uptime:</span>
-                <span class="font-medium ml-1">{{ node.uptime }}</span>
-              </div>
-            </div>
-
-            <div class="text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
-              <div>Location: {{ node.location }}</div>
-              <div>Last seen: {{ node.lastSeen }}</div>
             </div>
           </div>
 
-          <!-- Node Actions -->
-          <div class="flex justify-end space-x-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <Button
-              @click.stop="connectToNode(node)"
-              variant="outline"
-              size="xs"
-              :disabled="isNodeOperationLoading(node.id, 'connecting') || isNodeOperationLoading(node.id, 'disconnecting')"
-              :loading="isNodeOperationLoading(node.id, 'connecting') || isNodeOperationLoading(node.id, 'disconnecting')"
-            >
-              {{ isNodeOperationLoading(node.id, 'connecting') ? 'Connecting...' :
-                 isNodeOperationLoading(node.id, 'disconnecting') ? 'Disconnecting...' :
-                 (node.status === 'online' || node.status === 'training' || node.status === 'idle') ? 'Disconnect' : 'Connect' }}
-            </Button>
-            <Button
-              @click.stop="showNodeDetails(node)"
-              variant="primary"
-              size="xs"
-            >
-              Details
-            </Button>
+          <!-- Group Table -->
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">IP</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CPU %</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Memory %</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Disk %</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Sent</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Received</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Heartbeat</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tr
+                  v-for="node in group.nodes"
+                  :key="node.id"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  @click="selectNode(node)"
+                >
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
+                    {{ node.ip || node.id }}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span :class="[
+                      'inline-flex px-2 py-1 text-xs font-semibold rounded-full',
+                      node.status === 'online' || node.status === 'alive' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                    ]">
+                      {{ node.status === 'alive' ? 'alive' : node.status }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {{ node.cpuUsage || 0 }}%
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {{ node.memoryUsage || 0 }}%
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {{ node.diskUsage || 0 }}%
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {{ formatDataRate(node.sent) }}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {{ formatDataRate(node.received) }}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {{ formatHeartbeat(node.heartbeat) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -353,14 +201,6 @@
         <p class="text-gray-500 dark:text-gray-400 mb-6">
           {{ searchQuery || statusFilter || locationFilter ? 'Try adjusting your filters' : 'Start by adding your first edge node' }}
         </p>
-        <Button
-          @click="addNewNode"
-          variant="primary"
-          :leftIcon="PlusIcon"
-          class="bg-green-600 hover:bg-green-700 focus:ring-green-500"
-        >
-          Add First Node
-        </Button>
       </div>
     </div>
 
@@ -731,59 +571,6 @@
       </form>
     </Modal>
 
-    <!-- Floating Batch Actions -->
-    <Transition
-      enter-active-class="transition ease-out duration-300"
-      enter-from-class="transform translate-y-full opacity-0"
-      enter-to-class="transform translate-y-0 opacity-100"
-      leave-active-class="transition ease-in duration-200"
-      leave-from-class="transform translate-y-0 opacity-100"
-      leave-to-class="transform translate-y-full opacity-0"
-    >
-      <div
-        v-if="showBatchActions"
-        class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50"
-      >
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 px-6 py-4">
-          <div class="flex items-center space-x-4">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {{ selectedNodes.size }} node(s) selected
-            </span>
-
-            <div class="flex space-x-2">
-              <Button
-                @click="batchConnectNodes"
-                variant="outline"
-                size="sm"
-                :loading="batchOperationLoading"
-                :disabled="batchOperationLoading"
-              >
-                Toggle Connection
-              </Button>
-
-              <Button
-                @click="batchRestartNodes"
-                variant="outline"
-                size="sm"
-                :loading="batchOperationLoading"
-                :disabled="batchOperationLoading"
-              >
-                Restart All
-              </Button>
-
-              <Button
-                @click="clearSelection"
-                variant="outline"
-                size="sm"
-                :disabled="batchOperationLoading"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -802,8 +589,6 @@ import {
   SunIcon,
   MoonIcon,
   CheckCircleIcon,
-  CpuChipIcon,
-  ChartBarIcon,
   MagnifyingGlassIcon,
   PlusIcon,
   ArrowDownTrayIcon,
@@ -826,9 +611,6 @@ const activeDetailsTab = ref('overview')
 const addingNode = ref(false)
 const exportingNodes = ref(false)
 const nodeOperations = ref({}) // Track loading states for individual nodes
-const selectedNodes = ref(new Set()) // Track selected nodes for batch operations
-const batchOperationLoading = ref(false)
-const showBatchActions = ref(false)
 const autoRefreshEnabled = ref(true)
 const refreshInterval = ref(null)
 const showSearchSuggestions = ref(false)
@@ -839,24 +621,139 @@ const newNodeData = ref({
   node_type: 'edge'
 })
 
-// Use nodes from EdgeAI store
-const nodes = computed(() => edgeaiStore.nodes.map(node => ({
-  ...node,
-  // Add additional fields for UI that might not be in store
-  hardware: node.hardware || {
-    cpu: 'Intel Xeon E5-2670 v3',
-    memory: '32GB DDR4',
-    storage: '1TB SSD',
-    gpu: node.gpuUsage > 0 ? 'NVIDIA Tesla V100' : null
-  },
-  recentActivity: node.recentActivity || [
-    { id: 1, message: 'Training task started', time: '2 minutes ago' },
-    { id: 2, message: 'Model checkpoint saved', time: '15 minutes ago' },
-    { id: 3, message: 'Node connected to network', time: '1 hour ago' }
-  ],
-  activeTasks: node.activeTasks || (node.status === 'training' ? Math.floor(Math.random() * 5) + 1 : 0),
-  uptime: node.uptime || `${Math.floor(Math.random() * 720) + 24}h ${Math.floor(Math.random() * 60)}m`
-})))
+// Use nodes from EdgeAI store with mock data for demonstration
+const nodes = computed(() => {
+  // If no real data, use mock data based on the image
+  if (edgeaiStore.nodes.length === 0) {
+    return [
+      // MPC Model Nodes
+      {
+        id: '43.135.30.207',
+        ip: '43.135.30.207',
+        name: 'MPC Model Node 1',
+        role: 'mpc model node',
+        status: 'alive',
+        cpuUsage: 0,
+        memoryUsage: 36,
+        diskUsage: 79.4,
+        sent: 9.20,
+        received: 4.17,
+        heartbeat: Date.now() - 4000,
+        location: 'Unknown',
+        project: 'Default',
+        type: 'edge'
+      },
+      {
+        id: '106.52.36.202',
+        ip: '106.52.36.202',
+        name: 'MPC Model Node 2',
+        role: 'mpc model node',
+        status: 'dead',
+        cpuUsage: 0,
+        memoryUsage: 0,
+        diskUsage: 0,
+        sent: 0,
+        received: 0,
+        heartbeat: Date.now() - 4000,
+        location: 'Unknown',
+        project: 'Default',
+        type: 'edge'
+      },
+      {
+        id: '175.178.24.56',
+        ip: '175.178.24.56',
+        name: 'MPC Model Node 3',
+        role: 'mpc model node',
+        status: 'dead',
+        cpuUsage: 0,
+        memoryUsage: 0,
+        diskUsage: 0,
+        sent: 0,
+        received: 0,
+        heartbeat: Date.now() - 2000,
+        location: 'Unknown',
+        project: 'Default',
+        type: 'edge'
+      },
+      // Model Manager Node
+      {
+        id: '10.0.4.31',
+        ip: '10.0.4.31',
+        name: 'Model Manager Node',
+        role: 'model manager node',
+        status: 'alive',
+        cpuUsage: 17.3,
+        memoryUsage: 7.4,
+        diskUsage: 2.8,
+        sent: 3.32,
+        received: 6.66,
+        heartbeat: Date.now() - 5000,
+        location: 'Unknown',
+        project: 'Default',
+        type: 'edge'
+      },
+      // Edge AI Training Nodes
+      {
+        id: '114.132.200.147',
+        ip: '114.132.200.147',
+        name: 'Edge AI Training Node 1',
+        role: 'edge AI training node',
+        status: 'dead',
+        cpuUsage: 0,
+        memoryUsage: 0,
+        diskUsage: 0,
+        sent: 0,
+        received: 0,
+        heartbeat: Date.now() - 4000,
+        location: 'Unknown',
+        project: 'Default',
+        type: 'edge'
+      },
+      {
+        id: '42.194.177.24',
+        ip: '42.194.177.24',
+        name: 'Edge AI Training Node 2',
+        role: 'edge AI training node',
+        status: 'dead',
+        cpuUsage: 0,
+        memoryUsage: 0,
+        diskUsage: 0,
+        sent: 0,
+        received: 0,
+        heartbeat: Date.now() - 2000,
+        location: 'Unknown',
+        project: 'Default',
+        type: 'edge'
+      }
+    ]
+  }
+  
+  return edgeaiStore.nodes.map(node => ({
+    ...node,
+    // Add additional fields for UI that might not be in store
+    ip: node.ip || node.id,
+    role: node.role || 'Unknown',
+    cpuUsage: node.cpuUsage || 0,
+    memoryUsage: node.memoryUsage || 0,
+    diskUsage: node.diskUsage || 0,
+    sent: node.sent || 0,
+    received: node.received || 0,
+    heartbeat: node.heartbeat || Date.now(),
+    hardware: node.hardware || {
+      cpu: 'Intel Xeon E5-2670 v3',
+      memory: '32GB DDR4',
+      storage: '1TB SSD',
+      gpu: node.gpuUsage > 0 ? 'NVIDIA Tesla V100' : null
+    },
+    recentActivity: node.recentActivity || [
+      { id: 1, message: 'Training task started', time: '2 minutes ago' },
+      { id: 2, message: 'Model checkpoint saved', time: '15 minutes ago' },
+      { id: 3, message: 'Node connected to network', time: '1 hour ago' }
+    ],
+    activeTasks: node.activeTasks || (node.status === 'training' ? Math.floor(Math.random() * 5) + 1 : 0),
+    uptime: node.uptime || `${Math.floor(Math.random() * 720) + 24}h ${Math.floor(Math.random() * 60)}m`
+  }))
+})
 
 // Computed properties using store data
 
@@ -873,7 +770,14 @@ const filteredNodes = computed(() => {
   }
 
   if (statusFilter.value) {
-    filtered = filtered.filter(node => node.status === statusFilter.value)
+    filtered = filtered.filter(node => {
+      if (statusFilter.value === 'alive') {
+        return node.status === 'alive' || node.status === 'online'
+      } else if (statusFilter.value === 'dead') {
+        return node.status === 'dead' || node.status === 'offline'
+      }
+      return node.status === statusFilter.value
+    })
   }
 
   if (locationFilter.value) {
@@ -884,18 +788,38 @@ const filteredNodes = computed(() => {
 })
 
 const totalNodes = computed(() => nodes.value.length)
-const onlineNodes = computed(() => nodes.value.filter(n => n.status === 'online' || n.status === 'training' || n.status === 'idle').length)
-const trainingNodes = computed(() => nodes.value.filter(n => n.status === 'training').length)
-const averageLoad = computed(() => {
-  const activeNodes = nodes.value.filter(n => n.status !== 'offline' && n.status !== 'error')
-  if (activeNodes.length === 0) return 0
-  const totalLoad = activeNodes.reduce((sum, node) => sum + node.cpuUsage, 0)
-  return Math.round(totalLoad / activeNodes.length)
-})
+const onlineNodes = computed(() => nodes.value.filter(n => n.status === 'alive' || n.status === 'online').length)
 
 const uniqueLocations = computed(() => {
   const locations = nodes.value.map(n => n.location).filter(Boolean)
   return [...new Set(locations)].sort()
+})
+
+// 按角色分组节点
+const groupedNodes = computed(() => {
+  const groups = {}
+  
+  filteredNodes.value.forEach(node => {
+    const role = node.role || 'Unknown'
+    if (!groups[role]) {
+      groups[role] = {
+        role: role,
+        nodes: [],
+        aliveCount: 0,
+        deadCount: 0
+      }
+    }
+    
+    groups[role].nodes.push(node)
+    if (node.status === 'alive' || node.status === 'online') {
+      groups[role].aliveCount++
+    } else {
+      groups[role].deadCount++
+    }
+  })
+  
+  // 按角色名称排序
+  return Object.values(groups).sort((a, b) => a.role.localeCompare(b.role))
 })
 
 // Helper functions for node operations
@@ -910,115 +834,7 @@ const setNodeOperationLoading = (nodeId, operation, loading) => {
   nodeOperations.value[nodeId][operation] = loading
 }
 
-// Batch operations helpers
-const toggleNodeSelection = (nodeId) => {
-  if (selectedNodes.value.has(nodeId)) {
-    selectedNodes.value.delete(nodeId)
-  } else {
-    selectedNodes.value.add(nodeId)
-  }
-  showBatchActions.value = selectedNodes.value.size > 0
-}
 
-const selectAllNodes = () => {
-  filteredNodes.value.forEach(node => selectedNodes.value.add(node.id))
-  showBatchActions.value = true
-}
-
-const clearSelection = () => {
-  selectedNodes.value.clear()
-  showBatchActions.value = false
-}
-
-const isNodeSelected = (nodeId) => {
-  return selectedNodes.value.has(nodeId)
-}
-
-// Batch operations
-const batchConnectNodes = async () => {
-  batchOperationLoading.value = true
-  const selectedNodeIds = Array.from(selectedNodes.value)
-  let successCount = 0
-  let errorCount = 0
-
-  try {
-    for (const nodeId of selectedNodeIds) {
-      const node = nodes.value.find(n => n.id === nodeId)
-      if (!node) continue
-
-      const isConnecting = node.status === 'offline' || node.status === 'error'
-
-      try {
-        let result
-        if (isConnecting) {
-          result = await edgeaiStore.connectToNode(nodeId)
-        } else {
-          result = await edgeaiStore.disconnectFromNode(nodeId)
-        }
-
-        if (result.success) {
-          successCount++
-        } else {
-          errorCount++
-        }
-      } catch {
-        errorCount++
-      }
-    }
-
-    if (successCount > 0) {
-      uiStore.addNotification({
-        type: 'success',
-        title: 'Batch Operation Completed',
-        message: `Successfully processed ${successCount} node(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`
-      })
-    }
-
-    if (errorCount > 0 && successCount === 0) {
-      uiStore.addNotification({
-        type: 'error',
-        title: 'Batch Operation Failed',
-        message: `Failed to process ${errorCount} node(s)`
-      })
-    }
-
-    clearSelection()
-  } finally {
-    batchOperationLoading.value = false
-  }
-}
-
-const batchRestartNodes = async () => {
-  batchOperationLoading.value = true
-  const selectedNodeIds = Array.from(selectedNodes.value)
-  let successCount = 0
-  let errorCount = 0
-
-  try {
-    for (const nodeId of selectedNodeIds) {
-      try {
-        const result = await edgeaiStore.restartNode(nodeId)
-        if (result.success) {
-          successCount++
-        } else {
-          errorCount++
-        }
-      } catch {
-        errorCount++
-      }
-    }
-
-    uiStore.addNotification({
-      type: successCount > 0 ? 'success' : 'error',
-      title: 'Batch Restart Completed',
-      message: `Successfully restarted ${successCount} node(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`
-    })
-
-    clearSelection()
-  } finally {
-    batchOperationLoading.value = false
-  }
-}
 
 // Auto-refresh functionality
 const startAutoRefresh = () => {
@@ -1028,7 +844,7 @@ const startAutoRefresh = () => {
 
   if (autoRefreshEnabled.value) {
     refreshInterval.value = setInterval(async () => {
-      if (!refreshing.value && !batchOperationLoading.value) {
+      if (!refreshing.value) {
         await refreshNodes()
       }
     }, 5000) // Refresh every 5 seconds
@@ -1308,6 +1124,31 @@ const getStatusTextColor = (status) => {
     error: 'text-red-600 dark:text-red-400'
   }
   return colors[status] || 'text-gray-600'
+}
+
+// 格式化数据速率
+const formatDataRate = (value) => {
+  if (!value || value === 0) return '0.00 KB/s'
+  return `${value.toFixed(2)} KB/s`
+}
+
+// 格式化心跳时间
+const formatHeartbeat = (heartbeat) => {
+  if (!heartbeat) return 'Unknown'
+  
+  const now = Date.now()
+  const diff = now - heartbeat
+  const seconds = Math.floor(diff / 1000)
+  
+  if (seconds < 60) {
+    return `${seconds} seconds ago`
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60)
+    return `${minutes} minutes ago`
+  } else {
+    const hours = Math.floor(seconds / 3600)
+    return `${hours} hours ago`
+  }
 }
 
 // Lifecycle

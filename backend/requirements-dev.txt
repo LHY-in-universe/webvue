@@ -1,0 +1,41 @@
+# 开发环境依赖
+# 包含开发、测试和调试工具
+
+# 包含所有生产依赖
+-r requirements.txt
+
+# 代码格式化
+black==23.12.1
+isort==5.13.2
+autopep8==2.0.4
+
+# 代码检查
+pylint==3.0.3
+flake8==7.0.0
+mypy==1.8.0
+
+# 测试框架
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2
+
+# 调试工具
+ipython==8.19.0
+ipdb==0.13.13
+
+# 文档生成
+sphinx==7.2.6
+sphinx-rtd-theme==2.0.0
+
+# 性能分析
+memory-profiler==0.61.0
+line-profiler==4.1.1
+
+# 数据库迁移工具
+alembic==1.13.1
+
+# Mock和测试数据
+faker==22.0.0
+factory-boy==3.3.0
+

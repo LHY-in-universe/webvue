@@ -645,12 +645,12 @@ const getDataParticles = (connection) => {
 
   // 双向粒子流 - 正向和反向，优化时序消除卡顿，并加入稳定相位偏移
   const directions = ['forward', 'reverse']
-  // 距离越长粒子越多，但限制范围，避免过密
-  const particleCount = Math.max(6, Math.min(12, Math.floor(distance / 120) + 6))
-  // 每条连接的基础持续时间加入±10%的偏移
-  const baseDuration = 2.4 * (0.9 + seededRandom(seed + 3) * 0.2)
-  // 交错延迟更短，更连续
-  const staggerDelay = 0.12
+  // 距离越长粒子越多，但整体更稀疏，降低上限
+  const particleCount = Math.max(3, Math.min(8, Math.floor(distance / 180) + 3))
+  // 基础持续时间更长（整体流速放缓，减少同屏粒子数）
+  const baseDuration = 3.2 * (0.9 + seededRandom(seed + 3) * 0.2)
+  // 更大的交错延迟，进一步拉开粒子间距
+  const staggerDelay = 0.25
   // 稳定的相位偏移（0-1.5s），使不同连接不同步
   const phaseOffset = seededRandom(seed + 4) * 1.5
 
@@ -684,7 +684,7 @@ const getDataParticles = (connection) => {
         ctrlY: ctrlY,
         endX: endPos.x,
         endY: endPos.y,
-        size: 2.5 + Math.sin(Date.now() / 300 + i) * 1,
+        size: 1.8 + Math.sin(Date.now() / 300 + i) * 0.6,
         color: particleColor,
         duration: `${baseDuration}s`,
         delay: `${delay}s`,

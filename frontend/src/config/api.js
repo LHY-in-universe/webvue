@@ -6,7 +6,7 @@
 // API基础配置
 export const API_CONFIG = {
   // 基础URL - 开发环境
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000',
+  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://175.178.24.56:8000',
   
   // API版本
   VERSION: 'v1',
@@ -18,7 +18,7 @@ export const API_CONFIG = {
   RETRY_ATTEMPTS: 3,
   
   // WebSocket配置
-  WS_URL: import.meta.env.VITE_WS_BASE_URL || 'ws://127.0.0.1:8000'
+  WS_URL: import.meta.env.VITE_WS_BASE_URL || 'ws://175.178.24.56:8000'
 }
 
 // API端点配置
@@ -56,7 +56,14 @@ export const API_ENDPOINTS = {
       MPC: '/api/p2pai/training/mpc/start',
       SESSIONS: '/api/p2pai/training/sessions',
       METRICS: '/api/p2pai/training/metrics/{projectId}',
-      WS: '/api/p2pai/training/ws/{projectId}'
+      WS: '/api/p2pai/training/ws/{projectId}',
+      // 新增训练控制相关API
+      TRAIN: '/api/p2pai/training/train',
+      MONITOR: '/api/p2pai/training/monitor/{taskId}',
+      TASKS_LIST: '/api/p2pai/training/tasksList',
+      TASK_DELETE: '/api/p2pai/training/tasks/{taskId}',
+      RAY_CLUSTER: '/api/p2pai/training/monitorRayCluster/node',
+      ROUND_PROGRESS: '/api/p2pai/training/roundProgress/{taskId}'
     },
     
     // 节点管理

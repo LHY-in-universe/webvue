@@ -312,14 +312,14 @@ const networkChartData = computed(() => ({
   datasets: [
     {
       label: 'Network In',
-      data: metricsHistory.value.networkIn.map(v => v / (1024 * 1024)), // Convert to MB/s
+      data: metricsHistory.value.networkIn.map(v => v / (1024 * 1024)), // Convert to KB/s
       backgroundColor: '#10b98140',
       borderColor: '#10b981',
       tension: 0.4
     },
     {
       label: 'Network Out',
-      data: metricsHistory.value.networkOut.map(v => v / (1024 * 1024)), // Convert to MB/s
+      data: metricsHistory.value.networkOut.map(v => v / (1024 * 1024)), // Convert to KB/s
       backgroundColor: '#ef444440',
       borderColor: '#ef4444',
       tension: 0.4

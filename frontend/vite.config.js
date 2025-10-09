@@ -16,13 +16,13 @@ export default defineConfig({
         }
       }
     }),
-    // 避免 devtools 在某些网络环境下尝试连接 ws://0.0.0.0:* 造成报错
-    vueDevTools({
-      launchEditor: 'code',
-      componentInspector: true,
-      enableToast: false,
-      ui: { port: 0 },
-    }),
+    // Vue DevTools 已禁用 - 移除页面底部的Vue logo
+    // vueDevTools({
+    //   launchEditor: 'code',
+    //   componentInspector: true,
+    //   enableToast: false,
+    //   ui: { port: 0 },
+    // }),
   ],
   resolve: {
     alias: {
@@ -71,8 +71,8 @@ export default defineConfig({
     port: 5173,
     hmr: {
       overlay: false, // Disable error overlay for better performance
-      // 使用浏览器可接受的主机与端口，避免 ws://0.0.0.0:5174 连接失败
-      host: 'localhost',
+      // 使用服务器IP地址，确保HMR在服务器环境下正常工作
+      host: '175.178.24.56',
       clientPort: 5173,
       port: 5173,
       protocol: 'ws'
@@ -84,6 +84,18 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/edge-train/, '')
+      },
+      // 代理monitorRayCluster请求到监控服务
+      '/monitorRayCluster': {
+        target: 'http://12.148.158.61:6677',
+        changeOrigin: true,
+        secure: false
+      },
+      // 代理API请求到后端服务
+      '/api': {
+        target: 'http://175.178.24.56:8000',
+        changeOrigin: true,
+        secure: false
       }
     }
   },

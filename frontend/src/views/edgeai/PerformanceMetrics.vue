@@ -70,7 +70,7 @@
         <StatCard
           title="网络吞吐量"
           :value="networkThroughput"
-          unit="MB/s"
+          unit="KB/s"
           :icon="SignalIcon"
           variant="success"
           :trend="15.3"

@@ -157,7 +157,11 @@ export const projectService = {
    * @returns {Promise<Object>} 项目详情
    */
   async getProject(projectId) {
-    const url = API_ENDPOINTS.EDGE_AI.PROJECTS.DETAIL.replace('{id}', projectId)
+    // 临时修复：直接使用带尾随斜杠的URL
+    const url = `/api/edgeai/projects/${projectId}/`
+    console.log('🔍 getProject URL (fixed):', url)
+    console.log('🔍 API_ENDPOINTS.EDGE_AI.PROJECTS.DETAIL:', API_ENDPOINTS.EDGE_AI.PROJECTS.DETAIL)
+    console.log('🔍 projectId:', projectId)
     const response = await apiClient.get(url)
     return response.data
   },

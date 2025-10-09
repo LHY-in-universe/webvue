@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenTMP LLM Engine Web Application
+After=network.target
+
+[Service]
+Type=forking
+User=root
+WorkingDirectory=/home/webvue
+ExecStart=/home/webvue/start_server_services.sh
+ExecStop=/home/webvue/stop_server_services.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

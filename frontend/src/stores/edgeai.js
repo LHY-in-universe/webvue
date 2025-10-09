@@ -334,7 +334,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
 
     try {
       // Use configurable WebSocket URL from API config
-      const wsUrl = `${import.meta.env.VITE_WS_BASE_URL || 'ws://127.0.0.1:8000'}/api/edgeai/nodes/ws/control-1`
+      const wsUrl = `${import.meta.env.VITE_WS_BASE_URL || 'ws://175.178.24.56:8000'}/api/edgeai/nodes/ws/control-1`
       console.log('Connecting to WebSocket:', wsUrl)
 
       ws.value = new WebSocket(wsUrl)

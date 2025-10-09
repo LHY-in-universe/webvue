@@ -25,11 +25,27 @@ class Project(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     name = Column(String(200), nullable=False)
     description = Column(Text, default="")
+    
+    # Training configuration fields (matching frontend form)
+    training_alg = Column(String(50), default="")
+    fed_alg = Column(String(50), default="")
+    num_rounds = Column(Integer, default=10)
+    num_clients = Column(Integer, default=2)
+    sample_clients = Column(Integer, default=2)
+    max_steps = Column(Integer, default=100)
+    lr = Column(String(20), default="1e-4")
+    dataset_sample = Column(Integer, default=50)
+    model_name_or_path = Column(String(500), default="")
+    dataset_name = Column(String(200), default="")
+    
+    # Legacy fields (for backward compatibility)
     strategy = Column(String(100), default="")
     protocol = Column(String(50), default="")
     epoches = Column(Integer, default=1)
     learning_rate = Column(Float, default=0.0)
     batch_size = Column(Integer, default=1)
+    
+    # Status and metadata
     status = Column(String(50), default="pending")
     progress = Column(Float, default=0.0)
     task_id = Column(String(100), default="")
