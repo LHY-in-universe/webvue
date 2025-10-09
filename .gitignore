@@ -79,3 +79,9 @@ __pycache__/
 *.db
 frontend/.vite/
 frontend/.cache/
+
+# 敏感信息文件
+.git-credentials
+github_ssh_key.txt
+*.pem
+*.key
