@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+import bcrypt
+import hashlib
 from ..schemas.auth import LoginRequest, RegisterRequest, AuthResponse, UserResponse, UpdatePreferencesRequest
 from ..schemas.common import BaseResponse
 
@@ -17,14 +18,31 @@ from database.edgeai.models import User
 
 router = APIRouter()
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
+# Password hashing using bcrypt directly
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """
+    使用 bcrypt 直接哈希密码
+    """
+    # 将密码编码为字节
+    password_bytes = password.encode('utf-8')
+    # 生成盐并哈希密码
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """
+    验证密码是否匹配
+    """
+    try:
+        # 将密码编码为字节
+        password_bytes = plain_password.encode('utf-8')
+        hashed_bytes = hashed_password.encode('utf-8')
+        # 使用 bcrypt 验证密码
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception as e:
+        print(f"Password verification error: {e}")
+        return False
 
 # Mock fallback users (for demo purposes)
 mock_users = {

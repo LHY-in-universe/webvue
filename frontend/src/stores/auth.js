@@ -21,7 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Actions
   const register = async (credentials, moduleType) => {
-    const { notifications } = useNotifications()
+    const notifications = useNotifications()
 
     try {
       loading.value = true
@@ -67,7 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const login = async (credentials, moduleType) => {
-    const { notifications } = useNotifications()
+    const notifications = useNotifications()
 
     try {
       loading.value = true
@@ -142,7 +142,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const logout = async () => {
-    const { notifications } = useNotifications()
+    const notifications = useNotifications()
     
     try {
       loading.value = true

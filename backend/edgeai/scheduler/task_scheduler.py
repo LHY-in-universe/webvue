@@ -12,7 +12,8 @@ from sqlalchemy import and_, or_
 
 from database.edgeai import get_db, Project, TaskQueue
 from database.edgeai.database import SessionLocal
-from ..api.training import start_training_with_api
+# 延迟导入以避免循环导入
+# from ..api.training import start_training_with_api
 from ..config.scheduler_config import get_config
 from ..monitoring.task_monitor import task_monitor
 
@@ -253,7 +254,8 @@ class TaskScheduler:
         try:
             logger.info(f"Executing training task: Queue ID {queue_task.id}")
 
-            # 调用实际的训练API
+            # 调用实际的训练API - 使用延迟导入避免循环导入
+            from ..api.training import start_training_with_api
             result = await start_training_with_api(str(queue_task.project_id), db)
 
             if result.success:
