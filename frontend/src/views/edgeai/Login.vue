@@ -1,5 +1,8 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+    <!-- Notification Manager -->
+    <NotificationManager />
+    
     <Card class="w-full max-w-md bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-slate-200 dark:border-slate-700" padding="lg">
       <template #header>
         <div class="text-center">
@@ -151,7 +154,23 @@
       </div>
 
       <template #footer>
-        <div class="text-center">
+        <div class="text-center space-y-3">
+          <!-- Test notification buttons (for development) -->
+          <div v-if="showTestButtons" class="flex flex-wrap gap-2 justify-center">
+            <Button @click="testSuccess" size="sm" variant="outline" class="text-xs">
+              Test Success
+            </Button>
+            <Button @click="testError" size="sm" variant="outline" class="text-xs">
+              Test Error
+            </Button>
+            <Button @click="testWarning" size="sm" variant="outline" class="text-xs">
+              Test Warning
+            </Button>
+            <Button @click="testInfo" size="sm" variant="outline" class="text-xs">
+              Test Info
+            </Button>
+          </div>
+          
           <Button @click="goBack" variant="ghost" size="sm" class="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             Back
           </Button>
@@ -168,6 +187,7 @@ import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Card from '@/components/ui/Card.vue'
+import NotificationManager from '@/components/ui/NotificationManager.vue'
 import { ComputerDesktopIcon } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -177,6 +197,7 @@ const authStore = useAuthStore()
 const isLogin = ref(true)
 const loading = ref(false)
 const quickLoading = ref(false)
+const showTestButtons = ref(true) // Set to false in production
 
 // Login credentials
 const loginCredentials = ref({
@@ -227,10 +248,18 @@ const handleLogin = async () => {
   try {
     const result = await authStore.login(loginCredentials.value, 'edgeai')
     if (result.success) {
+      // 登录成功，通知系统会自动显示成功消息
       router.push('/edgeai/dashboard')
+    } else {
+      // 登录失败，显示具体错误信息
+      console.error('Login failed:', result.error)
     }
   } catch (error) {
     console.error('Login error:', error)
+    // 网络错误或其他异常
+    const { useNotifications } = await import('@/composables/useNotifications')
+    const notifications = useNotifications()
+    notifications.error('网络连接失败，请检查网络设置')
   } finally {
     loading.value = false
   }
@@ -245,10 +274,18 @@ const handleRegister = async () => {
   try {
     const result = await authStore.register(registerCredentials.value, 'edgeai')
     if (result.success) {
+      // 注册成功，通知系统会自动显示成功消息
       router.push('/edgeai/dashboard')
+    } else {
+      // 注册失败，显示具体错误信息
+      console.error('Register failed:', result.error)
     }
   } catch (error) {
     console.error('Register error:', error)
+    // 网络错误或其他异常
+    const { useNotifications } = await import('@/composables/useNotifications')
+    const notifications = useNotifications()
+    notifications.error('网络连接失败，请检查网络设置')
   } finally {
     loading.value = false
   }
@@ -278,5 +315,30 @@ const quickLogin = async () => {
 
 const goBack = () => {
   router.push('/')
+}
+
+// Test notification functions (for development)
+const testSuccess = async () => {
+  const { useNotifications } = await import('@/composables/useNotifications')
+  const notifications = useNotifications()
+  notifications.success('登录成功！欢迎使用 Edge AI 平台')
+}
+
+const testError = async () => {
+  const { useNotifications } = await import('@/composables/useNotifications')
+  const notifications = useNotifications()
+  notifications.error('登录失败：用户名或密码错误')
+}
+
+const testWarning = async () => {
+  const { useNotifications } = await import('@/composables/useNotifications')
+  const notifications = useNotifications()
+  notifications.warning('请注意：您的账户将在7天后过期')
+}
+
+const testInfo = async () => {
+  const { useNotifications } = await import('@/composables/useNotifications')
+  const notifications = useNotifications()
+  notifications.info('系统维护将在今晚22:00-24:00进行')
 }
 </script>
