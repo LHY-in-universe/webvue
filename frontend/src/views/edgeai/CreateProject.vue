@@ -160,7 +160,7 @@
               <Input
                 v-model="projectData.lr"
                 label="Learning Rate *"
-                placeholder="1e-4"
+                placeholder="0.0001"
                 required
                 :error="errors.lr"
               />
@@ -390,7 +390,7 @@ const projectData = ref({
   total_epochs: 100,                      // 原 epochs，重命名为total_epochs
   num_rounds: 10,                         // 联邦学习轮次
   batch_size: 32,
-  lr: 0.0001,                            // 改为数字类型以便进行精度处理
+  lr: '0.0001',                          // 保持字符串类型
 
   // 模型和数据集配置
   model_name_or_path: 'sshleifer/tiny-gpt2',
@@ -468,6 +468,13 @@ const createProject = async () => {
 
     if (!projectData.value.lr || projectData.value.lr.trim() === '') {
       errors.value.lr = 'Learning rate is required'
+      return
+    }
+    
+    // 验证学习率是否为有效数字且大于0
+    const lrValue = parseFloat(projectData.value.lr.trim())
+    if (isNaN(lrValue) || lrValue <= 0) {
+      errors.value.lr = 'Learning rate must be a valid number greater than 0'
       return
     }
 
