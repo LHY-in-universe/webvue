@@ -609,9 +609,9 @@ async def training_websocket(websocket: WebSocket, project_id: str):
                 
                 # 发送更新数据
                 await websocket.send_text(json.dumps({
-                    "type": "training_update",
-                    "project_id": project_id,
-                    "data": {
+                    "type": "training_progress",
+                    "payload": {
+                        "project_id": project_id,
                         "progress": session["progress"],
                         "current_epoch": session["current_epoch"],
                         "total_epochs": session["total_epochs"],
@@ -623,8 +623,10 @@ async def training_websocket(websocket: WebSocket, project_id: str):
                 # 没有活跃训练会话
                 await websocket.send_text(json.dumps({
                     "type": "no_training",
-                    "project_id": project_id,
-                    "message": "No active training session found"
+                    "payload": {
+                        "project_id": project_id,
+                        "message": "No active training session found"
+                    }
                 }))
             
             await asyncio.sleep(2)  # 每2秒发送一次更新
