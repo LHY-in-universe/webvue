@@ -154,23 +154,7 @@
       </div>
 
       <template #footer>
-        <div class="text-center space-y-3">
-          <!-- Test notification buttons (for development) -->
-          <div v-if="showTestButtons" class="flex flex-wrap gap-2 justify-center">
-            <Button @click="testSuccess" size="sm" variant="outline" class="text-xs">
-              Test Success
-            </Button>
-            <Button @click="testError" size="sm" variant="outline" class="text-xs">
-              Test Error
-            </Button>
-            <Button @click="testWarning" size="sm" variant="outline" class="text-xs">
-              Test Warning
-            </Button>
-            <Button @click="testInfo" size="sm" variant="outline" class="text-xs">
-              Test Info
-            </Button>
-          </div>
-          
+        <div class="text-center">
           <Button @click="goBack" variant="ghost" size="sm" class="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             Back
           </Button>
@@ -197,7 +181,6 @@ const authStore = useAuthStore()
 const isLogin = ref(true)
 const loading = ref(false)
 const quickLoading = ref(false)
-const showTestButtons = ref(true) // Set to false in production
 
 // Login credentials
 const loginCredentials = ref({
@@ -315,30 +298,5 @@ const quickLogin = async () => {
 
 const goBack = () => {
   router.push('/')
-}
-
-// Test notification functions (for development)
-const testSuccess = async () => {
-  const { useNotifications } = await import('@/composables/useNotifications')
-  const notifications = useNotifications()
-  notifications.success('登录成功！欢迎使用 Edge AI 平台')
-}
-
-const testError = async () => {
-  const { useNotifications } = await import('@/composables/useNotifications')
-  const notifications = useNotifications()
-  notifications.error('登录失败：用户名或密码错误')
-}
-
-const testWarning = async () => {
-  const { useNotifications } = await import('@/composables/useNotifications')
-  const notifications = useNotifications()
-  notifications.warning('请注意：您的账户将在7天后过期')
-}
-
-const testInfo = async () => {
-  const { useNotifications } = await import('@/composables/useNotifications')
-  const notifications = useNotifications()
-  notifications.info('系统维护将在今晚22:00-24:00进行')
 }
 </script>
