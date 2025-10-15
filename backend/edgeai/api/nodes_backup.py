@@ -380,7 +380,9 @@ async def node_websocket(websocket: WebSocket, node_id: str):
             if not node:
                 await websocket.send_text(json.dumps({
                     "type": "error",
-                    "message": "Node not found"
+                    "payload": {
+                        "message": "Node not found"
+                    }
                 }))
                 break
             
@@ -402,8 +404,8 @@ async def node_websocket(websocket: WebSocket, node_id: str):
             try:
                 await websocket.send_text(json.dumps({
                     "type": "node_update",
-                    "node_id": node_id,
-                    "data": {
+                    "payload": {
+                        "id": node_id,
                         "status": node["status"],
                         "cpu_usage": node["cpu_usage"],
                         "memory_usage": node["memory_usage"],
