@@ -219,7 +219,7 @@ export const useP2PAIStore = defineStore('p2pai', () => {
     }
 
     try {
-      ws.value = new WebSocket('ws://localhost:8080/p2pai/ws')
+      ws.value = new WebSocket('ws://localhost:8000/p2pai/ws')
       
       ws.value.onopen = () => {
         isConnected.value = true
