@@ -290,7 +290,8 @@ class TaskMonitor:
 
         # 检查数据库连接
         try:
-            db.execute("SELECT 1")
+            from sqlalchemy import text
+            db.execute(text("SELECT 1"))
             health.database_connected = True
         except Exception as e:
             health.database_connected = False

@@ -1019,8 +1019,9 @@ async def health_check():
         db_health = True
         try:
             from database.edgeai.database import SessionLocal
+            from sqlalchemy import text
             db = SessionLocal()
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
             db.close()
         except Exception as e:
             db_health = False
