@@ -239,10 +239,20 @@ const handleLogin = async () => {
     }
   } catch (error) {
     console.error('Login error:', error)
-    // 网络错误或其他异常
+    // 根据错误类型显示不同的错误信息
     const { useNotifications } = await import('@/composables/useNotifications')
     const notifications = useNotifications()
-    notifications.error('网络连接失败，请检查网络设置')
+    
+    // 检查是否是网络错误
+    if (error.code === 'NETWORK_ERROR' || error.message?.includes('Network error')) {
+      notifications.error('网络连接失败，请检查网络设置')
+    } else if (error.error && error.error.includes('用户名') || error.error.includes('密码')) {
+      // 认证错误
+      notifications.error(error.error)
+    } else {
+      // 其他错误
+      notifications.error(error.error || '登录失败，请重试')
+    }
   } finally {
     loading.value = false
   }
@@ -265,10 +275,20 @@ const handleRegister = async () => {
     }
   } catch (error) {
     console.error('Register error:', error)
-    // 网络错误或其他异常
+    // 根据错误类型显示不同的错误信息
     const { useNotifications } = await import('@/composables/useNotifications')
     const notifications = useNotifications()
-    notifications.error('网络连接失败，请检查网络设置')
+    
+    // 检查是否是网络错误
+    if (error.code === 'NETWORK_ERROR' || error.message?.includes('Network error')) {
+      notifications.error('网络连接失败，请检查网络设置')
+    } else if (error.error && (error.error.includes('邮箱') || error.error.includes('用户名') || error.error.includes('密码'))) {
+      // 认证错误
+      notifications.error(error.error)
+    } else {
+      // 其他错误
+      notifications.error(error.error || '注册失败，请重试')
+    }
   } finally {
     loading.value = false
   }

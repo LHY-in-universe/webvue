@@ -58,7 +58,14 @@ export const useAuthStore = defineStore('auth', () => {
         return { success: false, error: error.value }
       }
     } catch (apiError) {
-      error.value = apiError.error || '注册失败，请检查网络连接'
+      // 根据错误类型设置不同的错误信息
+      if (apiError.code === 'NETWORK_ERROR' || apiError.message?.includes('Network error')) {
+        error.value = '网络连接失败，请检查网络设置'
+      } else if (apiError.error && (apiError.error.includes('邮箱') || apiError.error.includes('用户名') || apiError.error.includes('密码'))) {
+        error.value = apiError.error
+      } else {
+        error.value = apiError.error || '注册失败，请重试'
+      }
       notifications.error(error.value)
       return { success: false, error: error.value }
     } finally {
@@ -102,7 +109,14 @@ export const useAuthStore = defineStore('auth', () => {
         return { success: false, error: error.value }
       }
     } catch (apiError) {
-      error.value = apiError.error || '登录失败，请检查网络连接'
+      // 根据错误类型设置不同的错误信息
+      if (apiError.code === 'NETWORK_ERROR' || apiError.message?.includes('Network error')) {
+        error.value = '网络连接失败，请检查网络设置'
+      } else if (apiError.error && (apiError.error.includes('用户名') || apiError.error.includes('密码') || apiError.error.includes('邮箱'))) {
+        error.value = apiError.error
+      } else {
+        error.value = apiError.error || '登录失败，请重试'
+      }
       notifications.error(error.value)
       return { success: false, error: error.value }
     } finally {
