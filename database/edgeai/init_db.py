@@ -16,10 +16,11 @@ from passlib.context import CryptContext
 from datetime import datetime
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import hashlib
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # 使用简单的SHA256哈希，避免bcrypt兼容性问题
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 def init_database():
     """Initialize the EdgeAI database with tables and sample data"""
@@ -67,10 +68,10 @@ def init_database():
                 {
                     "name": "1Image Recognition Model (db)",
                     "description": "A deep learning model for image classification",
-                    "strategy": "Computer Vision",
-                    "protocol": "HTTP",
-                    "epoches": 100,
-                    "learning_rate": 0.001,
+                    "training_alg": "sft",
+                    "fed_alg": "fedavg",
+                    "total_epochs": 100,
+                    "lr": "1e-3",
                     "batch_size": 32,
                     "status": "active",
                     "progress": 25.5,
@@ -80,10 +81,10 @@ def init_database():
                 {
                     "name": "2NLP Sentiment Analysis (db)",
                     "description": "Natural language processing for sentiment analysis",
-                    "strategy": "Natural Language Processing",
-                    "protocol": "gRPC",
-                    "epoches": 50,
-                    "learning_rate": 0.0001,
+                    "training_alg": "sft",
+                    "fed_alg": "fedavg",
+                    "total_epochs": 50,
+                    "lr": "1e-4",
                     "batch_size": 16,
                     "status": "pending",
                     "progress": 0.0,
