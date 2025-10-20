@@ -234,3 +234,20 @@ class TrainingResponse(BaseModel):
     task_id: str
     status: str
     message: Optional[str] = None
+
+# Cluster Schemas
+class ClusterCreateRequest(BaseModel):
+    name: str
+    project_id: Optional[int] = None
+
+class ClusterResponse(BaseModel):
+    id: str
+    name: str
+    user_id: int
+    project_id: Optional[int] = None
+    created_time: str
+    last_updated_time: str
+
+class ClusterUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    project_id: Optional[int] = None

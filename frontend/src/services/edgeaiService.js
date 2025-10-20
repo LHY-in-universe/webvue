@@ -683,6 +683,207 @@ export const taskService = {
 }
 
 /**
+ * 集群管理服务
+ */
+export const clusterService = {
+  /**
+   * 获取集群列表
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 集群列表
+   */
+  async getClusters(params = {}) {
+    const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.CLUSTERS.LIST, { params })
+    return response.data
+  },
+
+  /**
+   * 获取集群详情
+   * @param {string} clusterId - 集群ID
+   * @returns {Promise<Object>} 集群详情
+   */
+  async getCluster(clusterId) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.DETAIL.replace('{id}', clusterId)
+    const response = await apiClient.get(url)
+    return response.data
+  },
+
+  /**
+   * 创建集群
+   * @param {Object} clusterData - 集群数据
+   * @returns {Promise<Object>} 创建结果
+   */
+  async createCluster(clusterData) {
+    const response = await apiClient.post(API_ENDPOINTS.EDGE_AI.CLUSTERS.CREATE, clusterData)
+    return response.data
+  },
+
+  /**
+   * 更新集群
+   * @param {string} clusterId - 集群ID
+   * @param {Object} clusterData - 集群数据
+   * @returns {Promise<Object>} 更新结果
+   */
+  async updateCluster(clusterId, clusterData) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.DETAIL.replace('{id}', clusterId)
+    const response = await apiClient.put(url, clusterData)
+    return response.data
+  },
+
+  /**
+   * 删除集群
+   * @param {string} clusterId - 集群ID
+   * @returns {Promise<Object>} 删除结果
+   */
+  async deleteCluster(clusterId) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.DELETE.replace('{id}', clusterId)
+    const response = await apiClient.delete(url)
+    return response.data
+  },
+
+  /**
+   * 启动集群
+   * @param {string} clusterId - 集群ID
+   * @param {Object} startConfig - 启动配置
+   * @returns {Promise<Object>} 启动结果
+   */
+  async startCluster(clusterId, startConfig = {}) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.START.replace('{id}', clusterId)
+    const response = await apiClient.post(url, startConfig)
+    return response.data
+  },
+
+  /**
+   * 停止集群
+   * @param {string} clusterId - 集群ID
+   * @returns {Promise<Object>} 停止结果
+   */
+  async stopCluster(clusterId) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.STOP.replace('{id}', clusterId)
+    const response = await apiClient.post(url)
+    return response.data
+  },
+
+  /**
+   * 重启集群
+   * @param {string} clusterId - 集群ID
+   * @returns {Promise<Object>} 重启结果
+   */
+  async restartCluster(clusterId) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.RESTART.replace('{id}', clusterId)
+    const response = await apiClient.post(url)
+    return response.data
+  },
+
+  /**
+   * 获取集群统计
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 集群统计
+   */
+  async getClusterStats(params = {}) {
+    const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.CLUSTERS.STATS, { params })
+    return response.data
+  },
+
+  /**
+   * 获取集群性能指标
+   * @param {string} clusterId - 集群ID
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 集群性能指标
+   */
+  async getClusterPerformance(clusterId, params = {}) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.PERFORMANCE.replace('{id}', clusterId)
+    const response = await apiClient.get(url, { params })
+    return response.data
+  },
+
+  /**
+   * 添加节点到集群
+   * @param {string} clusterId - 集群ID
+   * @param {Object} nodeData - 节点数据
+   * @returns {Promise<Object>} 添加结果
+   */
+  async addNodeToCluster(clusterId, nodeData) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.ADD_NODE.replace('{id}', clusterId)
+    const response = await apiClient.post(url, nodeData)
+    return response.data
+  },
+
+  /**
+   * 从集群移除节点
+   * @param {string} clusterId - 集群ID
+   * @param {string} nodeId - 节点ID
+   * @returns {Promise<Object>} 移除结果
+   */
+  async removeNodeFromCluster(clusterId, nodeId) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.REMOVE_NODE.replace('{id}', clusterId).replace('{nodeId}', nodeId)
+    const response = await apiClient.delete(url)
+    return response.data
+  },
+
+  /**
+   * 获取集群节点列表
+   * @param {string} clusterId - 集群ID
+   * @param {Object} params - 查询参数
+   * @returns {Promise<Object>} 集群节点列表
+   */
+  async getClusterNodes(clusterId, params = {}) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.NODES.replace('{id}', clusterId)
+    const response = await apiClient.get(url, { params })
+    return response.data
+  },
+
+  /**
+   * 导出集群配置
+   * @param {string} clusterId - 集群ID
+   * @param {Object} exportConfig - 导出配置
+   * @returns {Promise<Object>} 导出结果
+   */
+  async exportClusterConfig(clusterId, exportConfig = {}) {
+    const url = API_ENDPOINTS.EDGE_AI.CLUSTERS.EXPORT.replace('{id}', clusterId)
+    const response = await apiClient.post(url, exportConfig)
+    return response.data
+  },
+
+  /**
+   * 创建集群WebSocket连接
+   * @param {string} clusterId - 集群ID
+   * @param {Object} callbacks - 回调函数
+   * @returns {WebSocket} WebSocket实例
+   */
+  createClusterWebSocket(clusterId, callbacks = {}) {
+    const wsUrl = WS_ENDPOINTS.EDGE_CLUSTER(clusterId)
+    const ws = new WebSocket(wsUrl)
+
+    ws.onopen = (event) => {
+      console.log('Cluster WebSocket connected:', wsUrl)
+      callbacks.onOpen?.(event)
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        callbacks.onMessage?.(data)
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error)
+        callbacks.onError?.(error)
+      }
+    }
+
+    ws.onerror = (event) => {
+      console.error('Cluster WebSocket error:', event)
+      callbacks.onError?.(event)
+    }
+
+    ws.onclose = (event) => {
+      console.log('Cluster WebSocket closed:', event)
+      callbacks.onClose?.(event)
+    }
+
+    return ws
+  }
+}
+
+/**
  * 模型管理服务
  */
 export const modelService = {
@@ -784,5 +985,6 @@ export default {
   performance: performanceService,
   logs: logService,
   tasks: taskService,
-  models: modelService
+  models: modelService,
+  clusters: clusterService
 }

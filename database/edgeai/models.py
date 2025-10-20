@@ -17,6 +17,7 @@ class User(Base):
     projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
     models = relationship("Model", back_populates="user", cascade="all, delete-orphan")
     nodes = relationship("Node", back_populates="user", cascade="all, delete-orphan")
+    clusters = relationship("Cluster", back_populates="user", cascade="all, delete-orphan")
 
 class Project(Base):
     __tablename__ = "projects"
@@ -62,6 +63,7 @@ class Project(Base):
     models = relationship("Model", back_populates="project", cascade="all, delete-orphan")
     nodes = relationship("Node", back_populates="project", cascade="all, delete-orphan")
     task_queues = relationship("TaskQueue", back_populates="project", cascade="all, delete-orphan")
+    clusters = relationship("Cluster", back_populates="project", cascade="all, delete-orphan")
 
 class Model(Base):
     __tablename__ = "models"
@@ -162,6 +164,30 @@ class TaskQueue(Base):
 
     # 关系
     project = relationship("Project", back_populates="task_queues")
+
+
+class Cluster(Base):
+    """
+    集群表 - 管理集群信息
+    """
+    __tablename__ = "cluster"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    created_time = Column(DateTime(timezone=True), server_default=func.now())
+    last_updated_time = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # 创建索引以优化查询性能
+    __table_args__ = (
+        Index('idx_user_id', 'user_id'),
+        Index('idx_project_id', 'project_id'),
+    )
+
+    # 关系
+    user = relationship("User", back_populates="clusters")
+    project = relationship("Project", back_populates="clusters")
 
 
 # 更新Project模型，添加与TaskQueue的关系
