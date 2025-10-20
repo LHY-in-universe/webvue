@@ -5,7 +5,7 @@ This module provides database models, connections, and utilities for the EdgeAI 
 """
 
 from .database import Base, engine, SessionLocal, get_db, create_tables, drop_tables, get_database_info
-from .models import User, Project, Model, Node, TaskQueue
+from .models import User, Project, Model, Node, TaskQueue, Cluster
 
 __all__ = [
     "Base",
@@ -19,5 +19,6 @@ __all__ = [
     "Project",
     "Model",
     "Node",
-    "TaskQueue"
+    "TaskQueue",
+    "Cluster"
 ]

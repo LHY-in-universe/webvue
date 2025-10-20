@@ -11,7 +11,7 @@ from ..schemas.edgeai import (
     ProjectType
 )
 from common.schemas.common import BaseResponse, PaginatedResponse
-from database.edgeai import get_db, User, Project, Model, Node
+from database.edgeai import get_db, User, Project, Model, Node, Cluster
 import uuid
 from datetime import datetime, timedelta
 

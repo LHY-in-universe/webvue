@@ -32,6 +32,9 @@ const EdgeAI = {
   SystemLogs: () => import('@/views/edgeai/SystemLogs.vue'),
   ModelManagement: () => import('@/views/edgeai/ModelManagement.vue'),
   ModelDetails: () => import('@/views/edgeai/ModelDetails.vue'),
+  ClusterManagement: () => import('@/views/edgeai/ClusterManagement.vue'),
+  ClusterDetails: () => import('@/views/edgeai/ClusterDetails.vue'),
+  CreateCluster: () => import('@/views/edgeai/CreateCluster.vue'),
 }
 
 // Blockchain Module Routes
@@ -253,6 +256,33 @@ const routes = [
     component: EdgeAI.ModelDetails,
     meta: {
       title: 'Edge AI - Model Details',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/edgeai/cluster-management',
+    name: 'EdgeAIClusterManagement',
+    component: EdgeAI.ClusterManagement,
+    meta: {
+      title: 'Edge AI - Cluster Management',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/edgeai/cluster-details/:id',
+    name: 'EdgeAIClusterDetails',
+    component: EdgeAI.ClusterDetails,
+    meta: {
+      title: 'Edge AI - Cluster Details',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/edgeai/create-cluster',
+    name: 'EdgeAICreateCluster',
+    component: EdgeAI.CreateCluster,
+    meta: {
+      title: 'Edge AI - Create Cluster',
       requiresAuth: true
     }
   },

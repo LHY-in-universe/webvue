@@ -169,6 +169,24 @@ export const API_ENDPOINTS = {
       EXPORT: '/api/edgeai/models/{id}/export/',
       STATS: '/api/edgeai/models/stats/overview/',
       PERFORMANCE: '/api/edgeai/models/{id}/performance/'
+    },
+
+    // 集群管理
+    CLUSTERS: {
+      LIST: '/api/edgeai/clusters/',
+      CREATE: '/api/edgeai/clusters/',
+      DETAIL: '/api/edgeai/clusters/{id}/',
+      DELETE: '/api/edgeai/clusters/{id}/',
+      START: '/api/edgeai/clusters/{id}/start/',
+      STOP: '/api/edgeai/clusters/{id}/stop/',
+      RESTART: '/api/edgeai/clusters/{id}/restart/',
+      STATS: '/api/edgeai/clusters/stats/overview/',
+      PERFORMANCE: '/api/edgeai/clusters/{id}/performance/',
+      ADD_NODE: '/api/edgeai/clusters/{id}/nodes/',
+      REMOVE_NODE: '/api/edgeai/clusters/{id}/nodes/{nodeId}/',
+      NODES: '/api/edgeai/clusters/{id}/nodes/',
+      EXPORT: '/api/edgeai/clusters/{id}/export/',
+      WS: '/api/edgeai/clusters/ws/{id}'
     }
   }
 }
@@ -177,7 +195,8 @@ export const API_ENDPOINTS = {
 export const WS_ENDPOINTS = {
   P2P_TRAINING: (projectId) => `${API_CONFIG.WS_URL}/api/p2pai/training/ws/${projectId}`,
   EDGE_TRAINING: (projectId) => `${API_CONFIG.WS_URL}/api/edgeai/training/ws/${projectId}`,
-  EDGE_NODE: (nodeId) => `${API_CONFIG.WS_URL}/api/edgeai/nodes/ws/${nodeId}`
+  EDGE_NODE: (nodeId) => `${API_CONFIG.WS_URL}/api/edgeai/nodes/ws/${nodeId}`,
+  EDGE_CLUSTER: (clusterId) => `${API_CONFIG.WS_URL}/api/edgeai/clusters/ws/${clusterId}`
 }
 
 // HTTP状态码

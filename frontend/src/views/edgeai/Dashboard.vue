@@ -148,6 +148,15 @@
         </Button>
         
         <Button 
+          @click="openClusterManagement"
+          variant="secondary"
+          class="px-6 py-3 rounded-lg font-medium"
+        >
+          <ServerStackIcon class="w-5 h-5 mr-2" />
+          Cluster Management
+        </Button>
+        
+        <Button 
           @click="viewAllNodes"
           variant="secondary" 
           class="px-6 py-3 rounded-lg font-medium"
@@ -359,6 +368,7 @@ import SimpleThemeToggle from '@/components/ui/SimpleThemeToggle.vue'
 import { 
   ComputerDesktopIcon,
   ServerIcon,
+  ServerStackIcon,
   CpuChipIcon,
   ChartBarIcon,
   ClockIcon,
@@ -666,6 +676,10 @@ const openCreateProject = () => {
 
 const openModelManagement = () => {
   router.push('/edgeai/model-management')
+}
+
+const openClusterManagement = () => {
+  router.push('/edgeai/cluster-management')
 }
 
 const openProjectVisualization = (project) => {
