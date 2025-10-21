@@ -95,7 +95,6 @@ class ProjectResponse(BaseModel):
     model: str
     status: ProjectStatus
     progress: float
-    connected_nodes: int
     current_epoch: int
 
     # 统一的训练参数 (合并后的字段)
@@ -132,7 +131,6 @@ class NodeResponse(BaseModel):
     name: str
     type: NodeType
     status: NodeStatus
-    project: Optional[str] = None
     location: str
     cpu_usage: float
     memory_usage: float

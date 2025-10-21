@@ -5,13 +5,13 @@ import os
 import sys
 from pathlib import Path
 
-# Add the root directory to Python path
-root_dir = Path(__file__).parent.parent.parent
-sys.path.append(str(root_dir))
+# Add the current directory to Python path for direct imports
+current_dir = Path(__file__).parent
+sys.path.append(str(current_dir))
 
 from sqlalchemy.exc import IntegrityError
-from database.edgeai.database import engine, SessionLocal, create_tables
-from database.edgeai.models import User, Project, Model, Node
+from .database import engine, SessionLocal, create_tables
+from .models import User, Project, Model, Node, Cluster
 from passlib.context import CryptContext
 from datetime import datetime
 
@@ -60,10 +60,43 @@ def init_database():
             else:
                 created_users.append(existing_user)
                 print(f"• User already exists: {existing_user.email}")
+                
+        print(f"✓ Created users: {created_users}")
+
+        # Create sample clusters  
+        if created_users:
+            admin_user = created_users[0]      
+            clusters_data = [
+                {
+                    "name": "Cluster 1 (db)",
+                "user_id": admin_user.id
+                },
+                {
+                "name": "Cluster 2 (db)",
+                "user_id": admin_user.id
+                }
+            ]
+            created_clusters = []
+            for cluster_data in clusters_data:
+                existing_cluster = db.query(Cluster).filter(
+                    Cluster.name == cluster_data["name"],
+                    Cluster.user_id == cluster_data["user_id"]
+                ).first()
+                if not existing_cluster:
+                    cluster = Cluster(**cluster_data)
+                    db.add(cluster)
+                    db.flush()
+                    created_clusters.append(cluster)
+                    print(f"✓ Created cluster: {cluster.name}")
+                else:
+                    created_clusters.append(existing_cluster)
+                    print(f"• Cluster already exists: {existing_cluster.name}")
+
+        print(f"✓ Created clusters: {created_clusters}")            
 
         # Create sample projects
-        if created_users:
-            admin_user = created_users[0]
+        if created_clusters:
+            cluster_1 = created_clusters[0]
             projects_data = [
                 {
                     "name": "1Image Recognition Model (db)",
@@ -109,6 +142,8 @@ def init_database():
                 else:
                     created_projects.append(existing_project)
                     print(f"• Project already exists: {existing_project.name}")
+
+            print(f"✓ Created projects: {created_projects}")
 
             # Create sample models
             if created_projects:
@@ -156,6 +191,8 @@ def init_database():
                     else:
                         print(f"• Model already exists: {existing_model.name}")
 
+                print(f"✓ Created models: {models_data}")
+
                 # Create sample nodes
                 nodes_data = [
                     {
@@ -167,10 +204,9 @@ def init_database():
                         "cpu": "Intel i9-12900K",
                         "gpu": "RTX 4090 24GB",
                         "memory": "32GB DDR4",
-                        "user_id": admin_user.id,
-                        "project_id": created_projects[0].id
+                        "user_id": admin_user.id
                     },
-                                        {
+                    {
                         "name": "122GPU Training Node 1 (db)",
                         "path_ipv4": "192.168.1.101",
                         "progress": 45.0,
@@ -179,10 +215,9 @@ def init_database():
                         "cpu": "Intel i9-12900K",
                         "gpu": "RTX 4090 24GB",
                         "memory": "32GB DDR4",
-                        "user_id": admin_user.id,
-                        "project_id": created_projects[0].id
+                        "user_id": admin_user.id
                     },
-                                        {
+                    {
                         "name": "2122GPU Training Node 1 (db)",
                         "path_ipv4": "192.168.1.101",
                         "progress": 45.0,
@@ -191,10 +226,9 @@ def init_database():
                         "cpu": "Intel i9-12900K",
                         "gpu": "RTX 4090 24GB",
                         "memory": "32GB DDR4",
-                        "user_id": admin_user.id,
-                        "project_id": created_projects[0].id
+                        "user_id": admin_user.id
                     },
-                                        {
+                    {
                         "name": "222222GPU Training Node 1 (db)",
                         "path_ipv4": "192.168.1.101",
                         "progress": 45.0,
@@ -203,10 +237,9 @@ def init_database():
                         "cpu": "Intel i9-12900K",
                         "gpu": "RTX 4090 24GB",
                         "memory": "32GB DDR4",
-                        "user_id": admin_user.id,
-                        "project_id": created_projects[0].id
+                        "user_id": admin_user.id
                     },
-                                        {
+                    {
                         "name": "322GPU Training Node 1 (db)",
                         "path_ipv4": "192.168.1.101",
                         "progress": 45.0,
@@ -215,10 +248,9 @@ def init_database():
                         "cpu": "Intel i9-12900K",
                         "gpu": "RTX 4090 24GB",
                         "memory": "32GB DDR4",
-                        "user_id": admin_user.id,
-                        "project_id": created_projects[1].id
+                        "user_id": admin_user.id
                     },
-                                        {
+                    {
                         "name": "3422GPU Training Node 1 (db)",
                         "path_ipv4": "192.168.1.101",
                         "progress": 45.0,
@@ -227,8 +259,7 @@ def init_database():
                         "cpu": "Intel i9-12900K",
                         "gpu": "RTX 4090 24GB",
                         "memory": "32GB DDR4",
-                        "user_id": admin_user.id,
-                        "project_id": created_projects[1].id
+                        "user_id": admin_user.id
                     },
                     {
                         "name": "11CPU Processing Node 1 (db)",
@@ -239,8 +270,7 @@ def init_database():
                         "cpu": "AMD Ryzen 7 5800X",
                         "gpu": "",
                         "memory": "16GB DDR4",
-                        "user_id": admin_user.id,
-                        "project_id": created_projects[1].id if len(created_projects) > 1 else created_projects[0].id
+                        "user_id": admin_user.id
                     }
                 ]
 
@@ -276,7 +306,7 @@ def init_database():
 def reset_database():
     """Reset the database by dropping and recreating all tables"""
     print("⚠ Resetting EdgeAI database...")
-    from database.edgeai.database import drop_tables
+    from database import drop_tables
 
     # Drop all tables
     drop_tables()

@@ -10,6 +10,10 @@ from pathlib import Path
 root_dir = Path(__file__).parent.parent
 sys.path.append(str(root_dir))
 
+# Add the backend directory to Python path for router imports
+backend_dir = Path(__file__).parent
+sys.path.append(str(backend_dir))
+
 # Import routers
 from common.api import router as common_router
 from p2pai.api import router as p2pai_router

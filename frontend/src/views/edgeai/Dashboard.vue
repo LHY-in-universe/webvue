@@ -492,7 +492,7 @@ const loadDashboardData = async () => {
         name: node.name,
         status: node.status || 'offline',
         location: node.location || 'Unknown',
-        project: node.project_id || 'Unassigned',
+        project: node.project || 'Unassigned',
         cpuUsage: node.cpu_usage || 0,
         memoryUsage: node.memory_usage || 0,
         gpuUsage: node.gpu_usage || 0,

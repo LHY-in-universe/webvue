@@ -14,7 +14,7 @@ async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Project not found")
 
     # 获取项目关联的真实节点数据
-    project_nodes = db.query(Node).filter(Node.project_id == project_id_int).all()
+    project_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project_id_int).all()
 
     # 获取项目关联的模型数据
     project_models = db.query(Model).filter(Model.project_id == project_id_int).all()

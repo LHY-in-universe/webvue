@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, ForeignKey, JSON, DECIMAL, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, JSON, DECIMAL, Index
+from sqlalchemy.orm import relationship, foreign
 from sqlalchemy.sql import func
 from .database import Base
 
@@ -13,17 +13,12 @@ class User(Base):
     created_time = Column(DateTime(timezone=True), server_default=func.now())
     updated_time = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
-    models = relationship("Model", back_populates="user", cascade="all, delete-orphan")
-    nodes = relationship("Node", back_populates="user", cascade="all, delete-orphan")
-    clusters = relationship("Cluster", back_populates="user", cascade="all, delete-orphan")
 
 class Project(Base):
     __tablename__ = "projects"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, nullable=False)
     name = Column(String(200), nullable=False)
     description = Column(Text, default="")
 
@@ -58,19 +53,13 @@ class Project(Base):
     created_time = Column(DateTime(timezone=True), server_default=func.now())
     updated_time = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    user = relationship("User", back_populates="projects")
-    models = relationship("Model", back_populates="project", cascade="all, delete-orphan")
-    nodes = relationship("Node", back_populates="project", cascade="all, delete-orphan")
-    task_queues = relationship("TaskQueue", back_populates="project", cascade="all, delete-orphan")
-    clusters = relationship("Cluster", back_populates="project", cascade="all, delete-orphan")
 
 class Model(Base):
     __tablename__ = "models"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    user_id = Column(Integer, nullable=False)
+    project_id = Column(Integer, nullable=True)
     name = Column(String(200), nullable=False)
     description = Column(Text, default="")
     file_path = Column(String(500), default="")
@@ -84,16 +73,13 @@ class Model(Base):
     created_time = Column(DateTime(timezone=True), server_default=func.now())
     updated_time = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    user = relationship("User", back_populates="models")
-    project = relationship("Project", back_populates="models")
 
 class Node(Base):
     __tablename__ = "nodes"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    user_id = Column(Integer, nullable=False)
+    cluster_id = Column(Integer, nullable=True)
     name = Column(String(200), nullable=False)
     path_ipv4 = Column(String(15), default="")  # IPv4 address
     progress = Column(DECIMAL(5,2), default=0.00)
@@ -116,10 +102,6 @@ class Node(Base):
     created_time = Column(DateTime(timezone=True), server_default=func.now())
     last_updated_time = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    user = relationship("User", back_populates="nodes")
-    project = relationship("Project", back_populates="nodes")
-
 
 class TaskQueue(Base):
     """
@@ -128,7 +110,7 @@ class TaskQueue(Base):
     __tablename__ = "task_queue"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, nullable=False)
 
     # 队列状态: queued, running, completed, failed, cancelled
     status = Column(String(20), default="queued", nullable=False)
@@ -162,8 +144,6 @@ class TaskQueue(Base):
         Index('idx_project_queue', 'project_id', 'status'),
     )
 
-    # 关系
-    project = relationship("Project", back_populates="task_queues")
 
 
 class Cluster(Base):
@@ -174,8 +154,8 @@ class Cluster(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    user_id = Column(Integer, nullable=False)
+    project_id = Column(Integer, nullable=True)
     created_time = Column(DateTime(timezone=True), server_default=func.now())
     last_updated_time = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -185,9 +165,6 @@ class Cluster(Base):
         Index('idx_project_id', 'project_id'),
     )
 
-    # 关系
-    user = relationship("User", back_populates="clusters")
-    project = relationship("Project", back_populates="clusters")
 
 
 # 更新Project模型，添加与TaskQueue的关系

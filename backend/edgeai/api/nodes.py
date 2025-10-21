@@ -9,7 +9,7 @@ from ..schemas.edgeai import (
     NodeCreateRequest
 )
 from common.schemas.common import BaseResponse
-from database.edgeai import get_db, User, Project, Model, Node
+from database.edgeai import get_db, User, Project, Model, Node, Cluster
 import asyncio
 import json
 import random
@@ -161,7 +161,6 @@ mock_nodes = generate_dynamic_nodes()
 async def get_nodes(
     status: Optional[NodeStatus] = None,
     node_type: Optional[NodeType] = None,
-    project: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -173,13 +172,8 @@ async def get_nodes(
     if status:
         query = query.filter(Node.state == status.value)
 
-    if project:
-        try:
-            project_id = int(project)
-            query = query.filter(Node.project_id == project_id)
-        except ValueError:
-            # If project is not a valid ID, ignore the filter
-            pass
+    if node_type:
+        query = query.filter(Node.type == node_type.value)
 
     nodes = query.all()
 
@@ -191,7 +185,6 @@ async def get_nodes(
             name=node.name,
             type=NodeType.EDGE,  # Default type
             status=NodeStatus(node.state) if node.state in [s.value for s in NodeStatus] else NodeStatus.OFFLINE,
-            project=str(node.project_id) if node.project_id else None,
             location=node.path_ipv4 or "Unknown",
             cpu_usage=random.uniform(10, 80),  # Mock data for now
             memory_usage=random.uniform(20, 90),
@@ -527,7 +520,7 @@ async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Project not found")
 
     # 获取项目关联的真实节点数据
-    project_nodes = db.query(Node).filter(Node.project_id == project_id_int).all()
+    project_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project_id_int).all()
 
     # 获取项目关联的模型数据
     project_models = db.query(Model).filter(Model.project_id == project_id_int).all()
@@ -621,9 +614,24 @@ async def create_node(
             )
         
         # 创建新节点
+        cluster_id = None
+        if project_id:
+            # 查找或创建对应的cluster
+            cluster = db.query(Cluster).filter(Cluster.project_id == project_id).first()
+            if not cluster:
+                # 创建新的cluster
+                cluster = Cluster(
+                    name=f"Cluster for Project {project_id}",
+                    user_id=1,  # 默认用户ID
+                    project_id=project_id
+                )
+                db.add(cluster)
+                db.flush()  # 获取cluster的ID
+            cluster_id = cluster.id
+        
         new_node = Node(
             user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
-            project_id=project_id,  # 关联到指定项目
+            cluster_id=cluster_id,  # 关联到cluster
             path_ipv4=node_data.ip,
             name=node_data.name or f"Node {node_data.ip}",
             state="idle",  # 默认为空闲状态
