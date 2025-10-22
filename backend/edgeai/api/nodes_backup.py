@@ -175,7 +175,8 @@ async def get_nodes(
     if project:
         try:
             project_id = int(project)
-            query = query.filter(Node.project_id == project_id)
+            # Filter by cluster_id through the cluster's project_id
+            query = query.join(Cluster).filter(Cluster.project_id == project_id)
         except ValueError:
             # If project is not a valid ID, ignore the filter
             pass
@@ -462,7 +463,7 @@ async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Project not found")
 
     # 获取项目关联的真实节点数据
-    project_nodes = db.query(Node).filter(Node.project_id == project_id_int).all()
+    project_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project_id_int).all()
 
     # 获取项目关联的模型数据
     project_models = db.query(Model).filter(Model.project_id == project_id_int).all()

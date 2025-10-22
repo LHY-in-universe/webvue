@@ -206,7 +206,6 @@ async def get_projects(
             model="",  # Will be filled from related models
             status=ProjectStatus.CREATED if not project.status or project.status not in [e.value for e in ProjectStatus] else ProjectStatus(project.status),
             progress=project.progress or 0.0,
-            connected_nodes=db.query(Node).filter(Node.project_id == project.id).count(),
             current_epoch=0,  # Could be calculated from training status
 
             # 统一的训练参数
@@ -258,7 +257,7 @@ async def get_project(project_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get related data
-    connected_nodes = db.query(Node).filter(Node.project_id == project.id).count()
+    connected_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project.id).count()
 
     return ProjectResponse(
         id=str(project.id),
@@ -344,12 +343,21 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
     db.commit()
     db.refresh(new_project)
 
+    # Create cluster for the project
+    new_cluster = Cluster(
+        name=f"Cluster for {new_project.name}",
+        user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
+        project_id=new_project.id
+    )
+    db.add(new_cluster)
+    db.flush()  # 获取cluster的ID
+    
     # Create nodes for the project
     created_nodes = []
     for node_data in request.nodes:
         new_node = Node(
             user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
-            project_id=new_project.id,
+            cluster_id=new_cluster.id,
             name=node_data.name or f"Node {node_data.ip}",
             path_ipv4=node_data.ip,
             state="idle",  # 使用idle而不是offline
@@ -462,8 +470,8 @@ async def delete_project(project_id: str, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # 删除项目关联的节点
-    project_nodes = db.query(Node).filter(Node.project_id == project_id_int).all()
+    # 删除项目关联的节点（通过cluster）
+    project_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project_id_int).all()
     for node in project_nodes:
         db.delete(node)
     
@@ -568,7 +576,7 @@ async def get_project_visualization(project_id: str, db: Session = Depends(get_d
     models = db.query(Model).filter(Model.project_id == project.id).all()
 
     # 获取关联的节点
-    nodes = db.query(Node).filter(Node.project_id == project.id).all()
+    nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project.id).all()
 
     # 构建可视化数据
     visualization_data = {

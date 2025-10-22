@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from ..schemas.edgeai import NodeResponse, NodeStatus, NodeType
 from common.schemas.common import BaseResponse
-from database.edgeai import get_db, User, Project, Model, Node
+from database.edgeai import get_db, User, Project, Model, Node, Cluster
 import httpx
 import asyncio
 import logging
@@ -117,7 +117,7 @@ def transform_ray_node_to_db_node(ray_node: Dict[str, Any], user_id: int = 1, pr
         # 创建Node对象
         db_node = Node(
             user_id=user_id,
-            project_id=project_id,
+            cluster_id=None,  # 需要后续设置cluster_id
             name=node_name,
             path_ipv4=node_ip,
             progress=progress,
@@ -375,7 +375,7 @@ async def get_ray_nodes_from_db(
         
         # 按项目过滤
         if project_id:
-            query = query.filter(Node.project_id == project_id)
+            query = query.join(Cluster).filter(Cluster.project_id == project_id)
         
         nodes = query.all()
         
