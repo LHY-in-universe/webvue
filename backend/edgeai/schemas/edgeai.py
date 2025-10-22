@@ -20,9 +20,14 @@ class NodeStatus(str, Enum):
     ERROR = "error"
 
 class NodeType(str, Enum):
+    #中央节点
     CONTROL = "control"
+    #边缘节点
     EDGE = "edge"
-    GATEWAY = "gateway"
+    #训练节点
+    Training = "training"
+    #MPC节点
+    MPC = "mpc"
 
 class ProjectType(str, Enum):
     MANUFACTURING = "manufacturing"
@@ -158,8 +163,7 @@ class TrainingMetrics(BaseModel):
     recall: float
 
 class NodeOperationRequest(BaseModel):
-    operation: str  # start, stop, restart, assign
-    project_id: Optional[str] = None
+    operation: str  # start, stop, restart
     config: Optional[Dict[str, Any]] = None
 
 class ProjectImportRequest(BaseModel):

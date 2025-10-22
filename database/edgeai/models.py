@@ -84,7 +84,7 @@ class Node(Base):
     path_ipv4 = Column(String(15), default="")  # IPv4 address
     progress = Column(DECIMAL(5,2), default=0.00)
     state = Column(String(50), default="idle")  # alive, dead, idle
-    role = Column(String(50), default="worker")  # computer node, model node, worker node, coordinator node
+    type = Column(String(50), nullable=False)
 
     # Resource information to match testapi format
     cpu_usage = Column(DECIMAL(5,2), default=0.00)     # CPU usage percentage

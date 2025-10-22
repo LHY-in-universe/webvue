@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from ..schemas.edgeai import (
@@ -8,6 +8,7 @@ from ..schemas.edgeai import (
     NodeType,
     NodeCreateRequest
 )
+from pydantic import BaseModel
 from common.schemas.common import BaseResponse
 from database.edgeai import get_db, User, Project, Model, Node, Cluster
 import asyncio
@@ -17,145 +18,9 @@ from datetime import datetime, timedelta
 
 router = APIRouter()
 
-def generate_dynamic_nodes():
-    """生成动态节点数据"""
-    node_templates = [
-        # 控制节点
-        {"name": "Control Center Alpha", "type": "control", "location": "US East - Virginia", "projects": ["System"], "tier": "primary"},
-        {"name": "Control Center Beta", "type": "control", "location": "US West - Oregon", "projects": ["System"], "tier": "secondary"},
-        {"name": "Control Center Gamma", "type": "control", "location": "EU Central - Frankfurt", "projects": ["System"], "tier": "backup"},
+class BatchDeleteRequest(BaseModel):
+    node_ids: List[str]
 
-        # 边缘节点 - 制造业
-        {"name": "Smart Factory Detroit", "type": "edge", "location": "US Midwest - Detroit", "projects": ["Smart Manufacturing Monitor"], "industry": "Manufacturing"},
-        {"name": "Industrial Plant Houston", "type": "edge", "location": "US South - Houston", "projects": ["Smart Manufacturing Monitor"], "industry": "Manufacturing"},
-        {"name": "Factory Complex Shanghai", "type": "edge", "location": "Asia Pacific - Shanghai", "projects": ["Smart Manufacturing Monitor"], "industry": "Manufacturing"},
-
-        # 边缘节点 - 交通
-        {"name": "Traffic Hub Los Angeles", "type": "edge", "location": "US West - Los Angeles", "projects": ["Urban Traffic Optimization"], "industry": "Transportation"},
-        {"name": "Metro Control London", "type": "edge", "location": "EU West - London", "projects": ["Urban Traffic Optimization"], "industry": "Transportation"},
-        {"name": "Smart City Singapore", "type": "edge", "location": "Asia Pacific - Singapore", "projects": ["Urban Traffic Optimization"], "industry": "Transportation"},
-
-        # 边缘节点 - 医疗
-        {"name": "Medical Center Boston", "type": "edge", "location": "US East - Boston", "projects": ["Medical Image Diagnosis"], "industry": "Healthcare"},
-        {"name": "Hospital Network Berlin", "type": "edge", "location": "EU Central - Berlin", "projects": ["Medical Image Diagnosis"], "industry": "Healthcare"},
-        {"name": "Healthcare Tokyo", "type": "edge", "location": "Asia Pacific - Tokyo", "projects": ["Medical Image Diagnosis"], "industry": "Healthcare"},
-
-        # 边缘节点 - 金融
-        {"name": "Financial District NYC", "type": "edge", "location": "US East - New York", "projects": ["Financial Fraud Detection"], "industry": "Finance"},
-        {"name": "Banking Hub Zurich", "type": "edge", "location": "EU West - Zurich", "projects": ["Financial Fraud Detection"], "industry": "Finance"},
-        {"name": "FinTech Center Hong Kong", "type": "edge", "location": "Asia Pacific - Hong Kong", "projects": ["Financial Fraud Detection"], "industry": "Finance"},
-
-        # 边缘节点 - 零售
-        {"name": "Retail Analytics Seattle", "type": "edge", "location": "US West - Seattle", "projects": ["Retail Customer Analytics"], "industry": "Retail"},
-        {"name": "Shopping District Milan", "type": "edge", "location": "EU South - Milan", "projects": ["Retail Customer Analytics"], "industry": "Retail"},
-        {"name": "E-commerce Hub Seoul", "type": "edge", "location": "Asia Pacific - Seoul", "projects": ["Retail Customer Analytics"], "industry": "Retail"},
-
-        # 边缘节点 - 农业
-        {"name": "AgriTech Farm Iowa", "type": "edge", "location": "US Midwest - Iowa", "projects": ["Smart Agriculture Monitor"], "industry": "Agriculture"},
-        {"name": "Smart Farm Netherlands", "type": "edge", "location": "EU West - Amsterdam", "projects": ["Smart Agriculture Monitor"], "industry": "Agriculture"},
-        {"name": "Precision Farm Australia", "type": "edge", "location": "Asia Pacific - Sydney", "projects": ["Smart Agriculture Monitor"], "industry": "Agriculture"}
-    ]
-
-    statuses = ["online", "offline", "training", "idle", "error"]
-    nodes = []
-
-    for i, template in enumerate(node_templates):
-        # 动态状态分配
-        status = random.choice(statuses)
-
-        # 根据状态设置资源使用率
-        if status == "training":
-            cpu_usage = random.uniform(60, 95)
-            memory_usage = random.uniform(50, 90)
-            gpu_usage = random.uniform(70, 95) if template["type"] == "edge" else 0
-            progress = random.uniform(1, 99)
-            current_epoch = int(progress) if progress > 0 else None
-            total_epochs = random.randint(100, 300) if current_epoch else None
-        elif status == "online":
-            cpu_usage = random.uniform(15, 50)
-            memory_usage = random.uniform(20, 60)
-            gpu_usage = random.uniform(0, 30) if template["type"] == "edge" else 0
-            progress = 0.0
-            current_epoch = None
-            total_epochs = None
-        elif status == "idle":
-            cpu_usage = random.uniform(5, 25)
-            memory_usage = random.uniform(10, 40)
-            gpu_usage = 0.0
-            progress = 0.0
-            current_epoch = None
-            total_epochs = None
-        elif status == "error":
-            cpu_usage = 0.0
-            memory_usage = random.uniform(5, 20)
-            gpu_usage = 0.0
-            progress = random.uniform(0, 50)  # 中断的进度
-            current_epoch = int(progress) if progress > 0 else None
-            total_epochs = random.randint(100, 300) if current_epoch else None
-        else:  # offline
-            cpu_usage = 0.0
-            memory_usage = 0.0
-            gpu_usage = 0.0
-            progress = 0.0
-            current_epoch = None
-            total_epochs = None
-
-        # 最后在线时间
-        if status == "offline" or status == "error":
-            last_seen_minutes = random.randint(30, 1440)  # 30分钟到24小时前
-            if last_seen_minutes < 60:
-                last_seen = f"{last_seen_minutes} minutes ago"
-            else:
-                hours = last_seen_minutes // 60
-                last_seen = f"{hours} hours ago"
-        else:
-            last_seen_seconds = random.randint(1, 300)  # 1秒到5分钟前
-            if last_seen_seconds < 60:
-                last_seen = f"{last_seen_seconds} seconds ago"
-            else:
-                minutes = last_seen_seconds // 60
-                last_seen = f"{minutes} minutes ago"
-
-        # 连接信息
-        if template["type"] == "control":
-            # 控制节点连接到其他边缘节点
-            connections = [f"edge-{j+1}" for j in range(random.randint(3, 8))]
-        else:
-            # 边缘节点连接到控制节点
-            connections = ["control-1"] if status != "offline" and status != "error" else []
-
-        node = {
-            "id": f"{template['type']}-{i+1}",
-            "name": template["name"],
-            "type": template["type"],
-            "status": status,
-            "project": random.choice(template["projects"]) if template["projects"] else None,
-            "location": template["location"],
-            "industry": template.get("industry", "System"),
-            "tier": template.get("tier", "standard"),
-            "cpu_usage": round(cpu_usage, 1),
-            "memory_usage": round(memory_usage, 1),
-            "gpu_usage": round(gpu_usage, 1),
-            "progress": round(progress, 1),
-            "current_epoch": current_epoch,
-            "total_epochs": total_epochs,
-            "last_seen": last_seen,
-            "connections": connections,
-            "uptime": random.uniform(85.5, 99.9) if status != "offline" else 0.0,
-            "network_latency": random.randint(5, 150) if status == "online" or status == "training" else None,
-            "hardware_info": {
-                "cpu_cores": random.choice([4, 8, 16, 32]),
-                "memory_gb": random.choice([8, 16, 32, 64, 128]),
-                "gpu_model": random.choice(["RTX 4090", "A100", "V100", "RTX 3080", "GTX 1080"]) if template["type"] == "edge" else None,
-                "storage_gb": random.choice([256, 512, 1024, 2048])
-            }
-        }
-        nodes.append(node)
-
-    return nodes
-
-# 生成初始节点数据
-mock_nodes = generate_dynamic_nodes()
 
 @router.get("/", response_model=List[NodeResponse])
 async def get_nodes(
@@ -180,19 +45,43 @@ async def get_nodes(
     # Convert database nodes to response format
     result = []
     for node in nodes:
+        # 计算最后在线时间
+        if node.last_updated_time:
+            time_diff = datetime.now() - node.last_updated_time
+            if time_diff.total_seconds() < 60:
+                last_seen = f"{int(time_diff.total_seconds())} seconds ago"
+            elif time_diff.total_seconds() < 3600:
+                minutes = int(time_diff.total_seconds() / 60)
+                last_seen = f"{minutes} minutes ago"
+            else:
+                hours = int(time_diff.total_seconds() / 3600)
+                last_seen = f"{hours} hours ago"
+        else:
+            last_seen = "never"
+        
+        # 确定节点类型
+        node_type_enum = NodeType.EDGE  # 默认为边缘节点
+        if hasattr(node, 'type') and node.type:
+            if node.type in ["coordinator", "model"]:
+                node_type_enum = NodeType.CONTROL
+            elif node.type == "training":
+                node_type_enum = NodeType.Training
+            elif node.type == "mpc":
+                node_type_enum = NodeType.MPC
+        
         node_response = NodeResponse(
             id=str(node.id),
             name=node.name,
-            type=NodeType.EDGE,  # Default type
+            type=node_type_enum,
             status=NodeStatus(node.state) if node.state in [s.value for s in NodeStatus] else NodeStatus.OFFLINE,
             location=node.path_ipv4 or "Unknown",
-            cpu_usage=random.uniform(10, 80),  # Mock data for now
-            memory_usage=random.uniform(20, 90),
-            gpu_usage=random.uniform(0, 100) if node.gpu else 0,
-            progress=node.progress,
+            cpu_usage=float(node.cpu_usage) if node.cpu_usage else 0.0,
+            memory_usage=float(node.memory_usage) if node.memory_usage else 0.0,
+            gpu_usage=0.0,  # 暂时设为0，后续可以从硬件信息中获取
+            progress=float(node.progress) if node.progress else 0.0,
             current_epoch=None,
             total_epochs=None,
-            last_seen=node.last_updated_time.isoformat() if node.last_updated_time else "",
+            last_seen=last_seen,
             connections=[]
         )
         result.append(node_response)
@@ -200,128 +89,233 @@ async def get_nodes(
     return result
 
 @router.get("/{node_id}", response_model=NodeResponse)
-async def get_node(node_id: str):
+async def get_node(node_id: str, db: Session = Depends(get_db)):
     """
     获取特定节点详情
     """
-    for node in mock_nodes:
-        if node["id"] == node_id:
-            return NodeResponse(**node)
+    try:
+        node_id_int = int(node_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    raise HTTPException(status_code=404, detail="Node not found")
+    node = db.query(Node).filter(Node.id == node_id_int).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    # 计算最后在线时间
+    if node.last_updated_time:
+        time_diff = datetime.now() - node.last_updated_time
+        if time_diff.total_seconds() < 60:
+            last_seen = f"{int(time_diff.total_seconds())} seconds ago"
+        elif time_diff.total_seconds() < 3600:
+            minutes = int(time_diff.total_seconds() / 60)
+            last_seen = f"{minutes} minutes ago"
+        else:
+            hours = int(time_diff.total_seconds() / 3600)
+            last_seen = f"{hours} hours ago"
+    else:
+        last_seen = "never"
+    
+    # 确定节点类型
+    node_type_enum = NodeType.EDGE  # 默认为边缘节点
+    if hasattr(node, 'type') and node.type:
+        if node.type in ["coordinator", "model"]:
+            node_type_enum = NodeType.CONTROL
+        elif node.type == "training":
+            node_type_enum = NodeType.Training
+        elif node.type == "mpc":
+            node_type_enum = NodeType.MPC
+    
+    return NodeResponse(
+        id=str(node.id),
+        name=node.name,
+        type=node_type_enum,
+        status=NodeStatus(node.state) if node.state in [s.value for s in NodeStatus] else NodeStatus.OFFLINE,
+        location=node.path_ipv4 or "Unknown",
+        cpu_usage=float(node.cpu_usage) if node.cpu_usage else 0.0,
+        memory_usage=float(node.memory_usage) if node.memory_usage else 0.0,
+        gpu_usage=0.0,  # 暂时设为0，后续可以从硬件信息中获取
+        progress=float(node.progress) if node.progress else 0.0,
+        current_epoch=None,
+        total_epochs=None,
+        last_seen=last_seen,
+        connections=[]
+    )
 
 @router.post("/{node_id}/operation", response_model=BaseResponse)
-async def perform_node_operation(node_id: str, request: NodeOperationRequest):
+async def perform_node_operation(node_id: str, request: NodeOperationRequest, db: Session = Depends(get_db)):
     """
     执行节点操作
     """
-    for node in mock_nodes:
-        if node["id"] == node_id:
-            if request.operation == "start":
-                node["status"] = "online"
-                node["cpu_usage"] = 25.0
-                node["memory_usage"] = 30.0
-                node["last_seen"] = "just now"
-            elif request.operation == "stop":
-                node["status"] = "offline"
-                node["cpu_usage"] = 0.0
-                node["memory_usage"] = 0.0
-                node["gpu_usage"] = 0.0
-            elif request.operation == "restart":
-                node["status"] = "online"
-                node["cpu_usage"] = 20.0
-                node["memory_usage"] = 25.0
-                node["gpu_usage"] = 0.0
-                node["last_seen"] = "just now"
-            elif request.operation == "assign" and request.project_id:
-                node["project"] = request.project_id
-            
-            return BaseResponse(
-                success=True,
-                message=f"Node {node_id} {request.operation} operation completed"
-            )
+    try:
+        node_id_int = int(node_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    raise HTTPException(status_code=404, detail="Node not found")
+    node = db.query(Node).filter(Node.id == node_id_int).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    try:
+        if request.operation == "start":
+            node.state = "online"
+            node.cpu_usage = 25.0
+            node.memory_usage = 30.0
+        elif request.operation == "stop":
+            node.state = "offline"
+            node.cpu_usage = 0.0
+            node.memory_usage = 0.0
+        elif request.operation == "restart":
+            node.state = "online"
+            node.cpu_usage = 20.0
+            node.memory_usage = 25.0
+        
+        # 更新最后更新时间
+        node.last_updated_time = datetime.now()
+        
+        db.commit()
+        
+        return BaseResponse(
+            success=True,
+            message=f"Node {node_id} {request.operation} operation completed"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to perform operation: {str(e)}"
+        )
 
 @router.post("/{node_id}/start-training", response_model=BaseResponse)
-async def start_node_training(node_id: str):
+async def start_node_training(node_id: str, db: Session = Depends(get_db)):
     """
     启动节点训练
     """
-    for node in mock_nodes:
-        if node["id"] == node_id:
-            if node["status"] != "online":
-                raise HTTPException(status_code=400, detail="Node must be online to start training")
-            
-            node["status"] = "training"
-            node["cpu_usage"] = 75.0
-            node["memory_usage"] = 68.0
-            node["gpu_usage"] = 85.0
-            node["progress"] = 0.0
-            node["current_epoch"] = 0
-            node["total_epochs"] = 100
-            node["last_seen"] = "just now"
-            
-            return BaseResponse(
-                success=True,
-                message=f"Training started on node {node_id}"
-            )
+    try:
+        node_id_int = int(node_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    raise HTTPException(status_code=404, detail="Node not found")
+    node = db.query(Node).filter(Node.id == node_id_int).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    if node.state != "online":
+        raise HTTPException(status_code=400, detail="Node must be online to start training")
+    
+    try:
+        node.state = "training"
+        node.cpu_usage = 75.0
+        node.memory_usage = 68.0
+        node.progress = 0.0
+        node.last_updated_time = datetime.now()
+        
+        db.commit()
+        
+        return BaseResponse(
+            success=True,
+            message=f"Training started on node {node_id}"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start training: {str(e)}"
+        )
 
 @router.post("/{node_id}/stop-training", response_model=BaseResponse)
-async def stop_node_training(node_id: str):
+async def stop_node_training(node_id: str, db: Session = Depends(get_db)):
     """
     停止节点训练
     """
-    for node in mock_nodes:
-        if node["id"] == node_id:
-            if node["status"] != "training":
-                raise HTTPException(status_code=400, detail="Node is not currently training")
-            
-            node["status"] = "idle"
-            node["cpu_usage"] = 15.0
-            node["memory_usage"] = 25.0
-            node["gpu_usage"] = 0.0
-            node["last_seen"] = "just now"
-            
-            return BaseResponse(
-                success=True,
-                message=f"Training stopped on node {node_id}"
-            )
+    try:
+        node_id_int = int(node_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    raise HTTPException(status_code=404, detail="Node not found")
+    node = db.query(Node).filter(Node.id == node_id_int).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    if node.state != "training":
+        raise HTTPException(status_code=400, detail="Node is not currently training")
+    
+    try:
+        node.state = "idle"
+        node.cpu_usage = 15.0
+        node.memory_usage = 25.0
+        node.last_updated_time = datetime.now()
+        
+        db.commit()
+        
+        return BaseResponse(
+            success=True,
+            message=f"Training stopped on node {node_id}"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to stop training: {str(e)}"
+        )
 
 @router.post("/{node_id}/restart", response_model=BaseResponse)
-async def restart_node(node_id: str):
+async def restart_node(node_id: str, db: Session = Depends(get_db)):
     """
     重启节点
     """
-    for node in mock_nodes:
-        if node["id"] == node_id:
-            node["status"] = "online"
-            node["cpu_usage"] = 20.0
-            node["memory_usage"] = 25.0
-            node["gpu_usage"] = 0.0
-            node["last_seen"] = "just now"
-            
-            return BaseResponse(
-                success=True,
-                message=f"Node {node_id} restarted successfully"
-            )
+    try:
+        node_id_int = int(node_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    raise HTTPException(status_code=404, detail="Node not found")
+    node = db.query(Node).filter(Node.id == node_id_int).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    try:
+        node.state = "online"
+        node.cpu_usage = 20.0
+        node.memory_usage = 25.0
+        node.last_updated_time = datetime.now()
+        
+        db.commit()
+        
+        return BaseResponse(
+            success=True,
+            message=f"Node {node_id} restarted successfully"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to restart node: {str(e)}"
+        )
 
 @router.get("/stats/overview")
-async def get_node_stats():
+async def get_node_stats(db: Session = Depends(get_db)):
     """
     获取节点统计信息
     """
-    total_nodes = len(mock_nodes)
-    online_nodes = len([n for n in mock_nodes if n["status"] == "online"])
-    training_nodes = len([n for n in mock_nodes if n["status"] == "training"])
-    idle_nodes = len([n for n in mock_nodes if n["status"] == "idle"])
-    error_nodes = len([n for n in mock_nodes if n["status"] == "error"])
+    # 获取所有节点
+    all_nodes = db.query(Node).all()
+    total_nodes = len(all_nodes)
+    
+    # 统计各状态节点数量
+    online_nodes = len([n for n in all_nodes if n.state == "online"])
+    training_nodes = len([n for n in all_nodes if n.state == "training"])
+    idle_nodes = len([n for n in all_nodes if n.state == "idle"])
+    error_nodes = len([n for n in all_nodes if n.state == "error"])
+    
+    # 计算平均使用率
+    if total_nodes > 0:
+        avg_cpu_usage = sum(float(n.cpu_usage) for n in all_nodes if n.cpu_usage) / total_nodes
+        avg_memory_usage = sum(float(n.memory_usage) for n in all_nodes if n.memory_usage) / total_nodes
+        avg_gpu_usage = 0.0  # 暂时设为0，后续可以从硬件信息中获取
+    else:
+        avg_cpu_usage = 0.0
+        avg_memory_usage = 0.0
+        avg_gpu_usage = 0.0
     
     return {
         "total_nodes": total_nodes,
@@ -329,31 +323,50 @@ async def get_node_stats():
         "training_nodes": training_nodes,
         "idle_nodes": idle_nodes,
         "error_nodes": error_nodes,
-        "avg_cpu_usage": sum(n["cpu_usage"] for n in mock_nodes) / total_nodes if total_nodes > 0 else 0,
-        "avg_memory_usage": sum(n["memory_usage"] for n in mock_nodes) / total_nodes if total_nodes > 0 else 0,
-        "avg_gpu_usage": sum(n["gpu_usage"] for n in mock_nodes) / total_nodes if total_nodes > 0 else 0
+        "avg_cpu_usage": round(avg_cpu_usage, 1),
+        "avg_memory_usage": round(avg_memory_usage, 1),
+        "avg_gpu_usage": round(avg_gpu_usage, 1)
     }
 
 @router.get("/{node_id}/metrics")
-async def get_node_metrics(node_id: str):
+async def get_node_metrics(node_id: str, db: Session = Depends(get_db)):
     """
     获取节点性能指标
     """
-    for node in mock_nodes:
-        if node["id"] == node_id:
-            return {
-                "node_id": node_id,
-                "cpu_usage": node["cpu_usage"],
-                "memory_usage": node["memory_usage"],
-                "gpu_usage": node["gpu_usage"],
-                "progress": node["progress"],
-                "current_epoch": node["current_epoch"],
-                "total_epochs": node["total_epochs"],
-                "last_seen": node["last_seen"],
-                "status": node["status"]
-            }
+    try:
+        node_id_int = int(node_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    raise HTTPException(status_code=404, detail="Node not found")
+    node = db.query(Node).filter(Node.id == node_id_int).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    # 计算最后在线时间
+    if node.last_updated_time:
+        time_diff = datetime.now() - node.last_updated_time
+        if time_diff.total_seconds() < 60:
+            last_seen = f"{int(time_diff.total_seconds())} seconds ago"
+        elif time_diff.total_seconds() < 3600:
+            minutes = int(time_diff.total_seconds() / 60)
+            last_seen = f"{minutes} minutes ago"
+        else:
+            hours = int(time_diff.total_seconds() / 3600)
+            last_seen = f"{hours} hours ago"
+    else:
+        last_seen = "never"
+    
+    return {
+        "node_id": node_id,
+        "cpu_usage": float(node.cpu_usage) if node.cpu_usage else 0.0,
+        "memory_usage": float(node.memory_usage) if node.memory_usage else 0.0,
+        "gpu_usage": 0.0,  # 暂时设为0，后续可以从硬件信息中获取
+        "progress": float(node.progress) if node.progress else 0.0,
+        "current_epoch": None,  # 暂时设为None，后续可以从训练信息中获取
+        "total_epochs": None,    # 暂时设为None，后续可以从训练信息中获取
+        "last_seen": last_seen,
+        "status": node.state
+    }
 
 @router.websocket("/ws/{node_id}")
 async def node_websocket(websocket: WebSocket, node_id: str):
@@ -363,56 +376,71 @@ async def node_websocket(websocket: WebSocket, node_id: str):
     await websocket.accept()
     
     try:
+        node_id_int = int(node_id)
+    except ValueError:
+        await websocket.send_text(json.dumps({
+            "type": "error",
+            "payload": {
+                "message": "Invalid node ID format"
+            }
+        }))
+        await websocket.close()
+        return
+    
+    try:
         while True:
-            # 查找指定节点
-            node = None
-            for n in mock_nodes:
-                if n["id"] == node_id:
-                    node = n
-                    break
+            # 从数据库获取节点信息
+            from database.edgeai import get_db
+            db = next(get_db())
             
-            if not node:
-                await websocket.send_text(json.dumps({
-                    "type": "error",
-                    "payload": {
-                        "message": "Node not found"
-                    }
-                }))
-                break
-            
-            # 模拟实时数据更新
-            if node["status"] == "training":
-                # 模拟训练进度更新
-                if node["progress"] < 100:
-                    node["progress"] += 1.0
-                    if node["current_epoch"] is not None:
-                        node["current_epoch"] = int(node["progress"])
-                
-                # 模拟资源使用率变化
-                node["cpu_usage"] = max(50, min(95, node["cpu_usage"] + (0.5 - 0.1)))
-                node["memory_usage"] = max(40, min(90, node["memory_usage"] + (0.3 - 0.1)))
-                if node["gpu_usage"] > 0:
-                    node["gpu_usage"] = max(60, min(95, node["gpu_usage"] + (0.4 - 0.1)))
-            
-            # 发送更新数据，检查连接状态
             try:
-                await websocket.send_text(json.dumps({
-                    "type": "node_update",
-                    "payload": {
-                        "id": node_id,
-                        "status": node["status"],
-                        "cpu_usage": node["cpu_usage"],
-                        "memory_usage": node["memory_usage"],
-                        "gpu_usage": node["gpu_usage"],
-                        "progress": node["progress"],
-                        "current_epoch": node["current_epoch"],
-                        "total_epochs": node["total_epochs"],
-                        "last_seen": node["last_seen"]
-                    }
-                }))
-            except Exception:
-                # WebSocket已关闭，退出循环
-                break
+                node = db.query(Node).filter(Node.id == node_id_int).first()
+                
+                if not node:
+                    await websocket.send_text(json.dumps({
+                        "type": "error",
+                        "payload": {
+                            "message": "Node not found"
+                        }
+                    }))
+                    break
+                
+                # 计算最后在线时间
+                if node.last_updated_time:
+                    time_diff = datetime.now() - node.last_updated_time
+                    if time_diff.total_seconds() < 60:
+                        last_seen = f"{int(time_diff.total_seconds())} seconds ago"
+                    elif time_diff.total_seconds() < 3600:
+                        minutes = int(time_diff.total_seconds() / 60)
+                        last_seen = f"{minutes} minutes ago"
+                    else:
+                        hours = int(time_diff.total_seconds() / 3600)
+                        last_seen = f"{hours} hours ago"
+                else:
+                    last_seen = "never"
+                
+                # 发送更新数据，检查连接状态
+                try:
+                    await websocket.send_text(json.dumps({
+                        "type": "node_update",
+                        "payload": {
+                            "id": node_id,
+                            "status": node.state,
+                            "cpu_usage": float(node.cpu_usage) if node.cpu_usage else 0.0,
+                            "memory_usage": float(node.memory_usage) if node.memory_usage else 0.0,
+                            "gpu_usage": 0.0,  # 暂时设为0，后续可以从硬件信息中获取
+                            "progress": float(node.progress) if node.progress else 0.0,
+                            "current_epoch": None,  # 暂时设为None，后续可以从训练信息中获取
+                            "total_epochs": None,    # 暂时设为None，后续可以从训练信息中获取
+                            "last_seen": last_seen
+                        }
+                    }))
+                except Exception:
+                    # WebSocket已关闭，退出循环
+                    break
+                
+            finally:
+                db.close()
             
             await asyncio.sleep(2)  # 每2秒发送一次更新
             
@@ -425,20 +453,166 @@ async def node_websocket(websocket: WebSocket, node_id: str):
         except Exception:
             pass  # 连接可能已经关闭
 
-@router.post("/{node_id}/assign-project")
-async def assign_node_to_project(node_id: str, project_id: str):
+@router.post("/{node_id}/assign-cluster")
+async def assign_node_to_cluster(node_id: str, cluster_id: str, db: Session = Depends(get_db)):
     """
-    将节点分配到项目
+    将节点分配到集群
     """
-    for node in mock_nodes:
-        if node["id"] == node_id:
-            node["project"] = project_id
+    try:
+        node_id_int = int(node_id)
+        cluster_id_int = int(cluster_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid node ID or cluster ID format")
+    
+    node = db.query(Node).filter(Node.id == node_id_int).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # 只有空闲或离线节点才可以进入或者退出集群
+    if node.state not in ["idle", "offline"]:
+        raise HTTPException(status_code=400, detail="Node must be idle or offline to assign to a cluster")
+
+    # 每一个节点只能加入一个集群
+    if node.cluster_id is not None:
+        raise HTTPException(status_code=400, detail="Node already assigned to a cluster")
+    
+    # 检查cluster是否存在
+    cluster = db.query(Cluster).filter(Cluster.id == cluster_id_int).first()
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+
+    # 集群与主节点是一一对应的关系, 主节点只能属于一个集群
+    if node.type == "control":
+        cluster_center_node = db.query(Node).filter(Node.cluster_id == cluster_id_int, Node.type == "control").first()
+        if cluster_center_node:
+            raise HTTPException(status_code=400, detail="Cluster already has a center node")
+
+    try:
+        # 将节点分配到cluster
+        node.cluster_id = cluster.id
+        node.last_updated_time = datetime.now()
+        
+        db.commit()
+        
+        return BaseResponse(
+            success=True,
+            message=f"Node {node_id} assigned to cluster {cluster_id}"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to assign node to cluster: {str(e)}"
+        )
+
+@router.post("/{node_id}/exit-cluster")
+async def exit_node_from_cluster(node_id: str, db: Session = Depends(get_db)):
+    """
+    将节点退出集群
+    """
+    try:
+        node_id_int = int(node_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid node ID format")
+    
+    node = db.query(Node).filter(Node.id == node_id_int).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # 只有空闲或离线节点才可以进入或者退出集群
+    if node.state not in ["idle", "offline"]:
+        raise HTTPException(status_code=400, detail="Node must be idle or offline to exit from a cluster")
+
+    # 节点必须加入一个集群才可以退出
+    if node.cluster_id is None:
+        raise HTTPException(status_code=400, detail="Node is not assigned to any cluster")
+    
+    # 检查cluster是否存在
+    try:
+        # 将节点退出集群
+        node.cluster_id = None
+        node.last_updated_time = datetime.now()
+        
+        db.commit()
+        
+        return BaseResponse(
+            success=True,
+            message=f"Node {node_id} exited from cluster successfully"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to assign node to cluster: {str(e)}"
+        )
+
+@router.delete("/batch", response_model=BaseResponse)
+async def batch_delete_nodes(request: Request, db: Session = Depends(get_db)):
+    """
+    批量删除节点
+    """
+    try:
+        body = await request.json()
+        node_ids = body if isinstance(body, list) else body.get('node_ids', [])
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
+    
+    if not node_ids:
+        raise HTTPException(status_code=400, detail="No node IDs provided")
+    
+    deleted_count = 0
+    failed_count = 0
+    errors = []
+
+    try:
+        for node_id in node_ids:
+            try:
+                # 确保node_id是字符串且可以转换为整数
+                if not isinstance(node_id, str):
+                    node_id = str(node_id)
+                
+                # 验证node_id格式
+                if not node_id.isdigit():
+                    failed_count += 1
+                    errors.append(f"Invalid node ID format: {node_id} (must be numeric)")
+                    continue
+                
+                node_id_int = int(node_id)
+                node = db.query(Node).filter(Node.id == node_id_int).first()
+                
+                if node:
+                    db.delete(node)
+                    deleted_count += 1
+                else:
+                    failed_count += 1
+                    errors.append(f"Node {node_id} not found")
+            except ValueError as e:
+                failed_count += 1
+                errors.append(f"Invalid node ID format: {node_id} - {str(e)}")
+            except Exception as e:
+                failed_count += 1
+                errors.append(f"Error deleting node {node_id}: {str(e)}")
+
+        db.commit()
+
+        if failed_count > 0:
+            return BaseResponse(
+                success=False,
+                message=f"Batch delete completed with errors. Deleted: {deleted_count}, Failed: {failed_count}",
+                error="; ".join(errors)
+            )
+        else:
             return BaseResponse(
                 success=True,
-                message=f"Node {node_id} assigned to project {project_id}"
+                message=f"Successfully deleted {deleted_count} node(s)"
             )
-
-    raise HTTPException(status_code=404, detail="Node not found")
+            
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to perform batch delete: {str(e)}"
+        )
 
 @router.delete("/{node_id}", response_model=BaseResponse)
 async def delete_node(node_id: str, db: Session = Depends(get_db)):
@@ -463,47 +637,6 @@ async def delete_node(node_id: str, db: Session = Depends(get_db)):
         message=f"Node {node_id} deleted successfully"
     )
 
-@router.delete("/batch", response_model=BaseResponse)
-async def batch_delete_nodes(node_ids: List[str], db: Session = Depends(get_db)):
-    """
-    批量删除节点
-    """
-    deleted_count = 0
-    failed_count = 0
-    errors = []
-
-    for node_id in node_ids:
-        try:
-            node_id_int = int(node_id)
-            node = db.query(Node).filter(Node.id == node_id_int).first()
-            
-            if node:
-                db.delete(node)
-                deleted_count += 1
-            else:
-                failed_count += 1
-                errors.append(f"Node {node_id} not found")
-        except ValueError:
-            failed_count += 1
-            errors.append(f"Invalid node ID format: {node_id}")
-        except Exception as e:
-            failed_count += 1
-            errors.append(f"Error deleting node {node_id}: {str(e)}")
-
-    db.commit()
-
-    if failed_count > 0:
-        return BaseResponse(
-            success=False,
-            message=f"Batch delete completed with errors. Deleted: {deleted_count}, Failed: {failed_count}",
-            error="; ".join(errors)
-        )
-    else:
-        return BaseResponse(
-            success=True,
-            message=f"Successfully deleted {deleted_count} node(s)"
-        )
-
 @router.get("/visualization/{project_id}/")
 async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)):
     """
@@ -514,91 +647,121 @@ async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    # 获取项目信息
-    project = db.query(Project).filter(Project.id == project_id_int).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        # 获取项目信息
+        project = db.query(Project).filter(Project.id == project_id_int).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
 
-    # 获取项目关联的真实节点数据
-    project_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project_id_int).all()
+        # 获取项目关联的真实节点数据 - 修复JOIN查询
+        project_nodes = []
+        try:
+            # 先尝试通过cluster关联查询
+            project_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project_id_int).all()
+        except Exception:
+            # 如果JOIN失败，直接查询所有节点作为fallback
+            project_nodes = db.query(Node).all()
 
-    # 获取项目关联的模型数据
-    project_models = db.query(Model).filter(Model.project_id == project_id_int).all()
+        # 获取项目关联的模型数据
+        project_models = []
+        try:
+            project_models = db.query(Model).filter(Model.project_id == project_id_int).all()
+        except Exception:
+            # 如果模型查询失败，使用空列表
+            project_models = []
 
-    # 构建可视化节点数据
-    visualization_nodes = []
+        # 构建可视化节点数据
+        visualization_nodes = []
 
-    # 添加真实的数据库节点
-    for node in project_nodes:
-        visualization_nodes.append({
-            "id": f"node-{node.id}",
-            "name": node.name,  # 这将包含 "(db)" 标识
-            "type": "training",
-            "status": node.state,  # 应该是 "training"
-            "role": node.role,
-            "user": "EdgeAI System",
-            "ip_address": node.path_ipv4,
-            "connected_nodes": f"{len(project_nodes)} nodes",
-            "last_heartbeat": "1 second ago",
-            "resources": {
-                "cpu": int(node.progress) if node.progress else 0,
-                "memory": node.memory or "Unknown",
-                "gpu": node.gpu or "None"
+        # 添加真实的数据库节点
+        for node in project_nodes:
+            try:
+                visualization_nodes.append({
+                    "id": f"node-{node.id}",
+                    "name": node.name or f"Node {node.id}",
+                    "type": "training",
+                    "status": node.state or "idle",
+                    "role": node.role or "worker",
+                    "user": "EdgeAI System",
+                    "ip_address": node.path_ipv4 or "Unknown",
+                    "connected_nodes": f"{len(project_nodes)} nodes",
+                    "last_heartbeat": "1 second ago",
+                    "resources": {
+                        "cpu": int(float(node.progress)) if node.progress else 0,
+                        "memory": node.memory or "Unknown",
+                        "gpu": node.gpu or "None"
+                    },
+                    "priority": 7,
+                    "progress": float(node.progress) if node.progress else 0,
+                    "hardware": {
+                        "cpu_model": node.cpu or "Unknown",
+                        "gpu_model": node.gpu or "None",
+                        "memory_size": node.memory or "Unknown"
+                    }
+                })
+            except Exception as e:
+                # 如果单个节点处理失败，跳过该节点
+                print(f"Error processing node {node.id}: {str(e)}")
+                continue
+
+        # 基于真实模型数据添加模型服务器节点
+        control_nodes = []
+        for i, model in enumerate(project_models):
+            try:
+                control_nodes.append({
+                    "id": f"model-{model.id}",
+                    "name": f"{model.name or 'Model'} Server",
+                    "type": "model",
+                    "status": model.status or "idle",
+                    "role": "Model Aggregator",
+                    "user": "EdgeAI System",
+                    "ip_address": f"192.168.1.{100 + i}",
+                    "connected_nodes": f"{len(project_nodes)} nodes",
+                    "last_heartbeat": "1 second ago",
+                    "resources": {
+                        "cpu": int(float(model.progress)) if model.progress else 0,
+                        "memory": f"{model.size}MB" if model.size else "Unknown",
+                        "gpu": 0
+                    },
+                    "priority": 10 - i,
+                    "accuracy": float(model.accuracy) if model.accuracy else 0.0,
+                    "version": model.version or "1.0"
+                })
+            except Exception as e:
+                # 如果单个模型处理失败，跳过该模型
+                print(f"Error processing model {model.id}: {str(e)}")
+                continue
+
+        # 合并所有节点
+        all_nodes = control_nodes + visualization_nodes
+
+        return {
+            "nodes": all_nodes,
+            "project_id": project_id,
+            "project_name": project.name or f"Project {project_id}",
+            "total_nodes": len(all_nodes),
+            "control_nodes": len(control_nodes),
+            "training_nodes": len(visualization_nodes),
+            "network_topology": {
+                "architecture": "federated_learning",
+                "coordination_type": "centralized",
+                "communication_protocol": "secure_aggregation"
             },
-            "priority": 7,
-            "progress": node.progress or 0,
-            "hardware": {
-                "cpu_model": node.cpu,
-                "gpu_model": node.gpu,
-                "memory_size": node.memory
-            }
-        })
-
-    # 基于真实模型数据添加模型服务器节点
-    control_nodes = []
-    for i, model in enumerate(project_models):
-        control_nodes.append({
-            "id": f"model-{model.id}",
-            "name": f"{model.name} Server",  # 包含 "(db)" 标识
-            "type": "model",
-            "status": model.status,
-            "role": "Model Aggregator",
-            "user": "EdgeAI System",
-            "ip_address": f"192.168.1.{100 + i}",
-            "connected_nodes": f"{len(project_nodes)} nodes",
-            "last_heartbeat": "1 second ago",
-            "resources": {
-                "cpu": int(model.progress) if model.progress else 0,
-                "memory": f"{model.size}MB" if model.size else "Unknown",
-                "gpu": 0
-            },
-            "priority": 10 - i,
-            "accuracy": model.accuracy,
-            "version": model.version
-        })
-
-    # 合并所有节点
-    all_nodes = control_nodes + visualization_nodes
-
-    return {
-        "nodes": all_nodes,
-        "project_id": project_id,
-        "project_name": project.name,  # 包含 "(db)" 标识
-        "total_nodes": len(all_nodes),
-        "control_nodes": len(control_nodes),
-        "training_nodes": len(visualization_nodes),
-        "network_topology": {
-            "architecture": "federated_learning",
-            "coordination_type": "centralized",
-            "communication_protocol": "secure_aggregation"
-        },
-        "last_updated": project.updated_time.isoformat() if project.updated_time else project.created_time.isoformat()
-    }
+            "last_updated": project.updated_time.isoformat() if project.updated_time else project.created_time.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get visualization nodes: {str(e)}"
+        )
 
 @router.post("/", response_model=NodeResponse)
 async def create_node(
     node_data: NodeCreateRequest,
-    project_id: Optional[int] = None,
+    cluster_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -613,29 +776,13 @@ async def create_node(
                 detail=f"Node with IP address {node_data.ip} already exists"
             )
         
-        # 创建新节点
-        cluster_id = None
-        if project_id:
-            # 查找或创建对应的cluster
-            cluster = db.query(Cluster).filter(Cluster.project_id == project_id).first()
-            if not cluster:
-                # 创建新的cluster
-                cluster = Cluster(
-                    name=f"Cluster for Project {project_id}",
-                    user_id=1,  # 默认用户ID
-                    project_id=project_id
-                )
-                db.add(cluster)
-                db.flush()  # 获取cluster的ID
-            cluster_id = cluster.id
-        
         new_node = Node(
             user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
             cluster_id=cluster_id,  # 关联到cluster
             path_ipv4=node_data.ip,
             name=node_data.name or f"Node {node_data.ip}",
             state="idle",  # 默认为空闲状态
-            role="worker",  # 默认为工作节点
+            type="worker",  # 默认为工作节点
             progress=0.0,
             cpu="",
             gpu="",
@@ -650,14 +797,13 @@ async def create_node(
         return NodeResponse(
             id=str(new_node.id),
             name=new_node.name,
-            type="edge",  # 默认为边缘节点类型
-            status=new_node.state,
-            project=None,  # 新创建的节点暂时不关联项目
-            location="Unknown",
+            type=NodeType.EDGE,  # 默认为边缘节点类型
+            status=NodeStatus(new_node.state) if new_node.state in [s.value for s in NodeStatus] else NodeStatus.OFFLINE,
+            location=new_node.path_ipv4 or "Unknown",
             cpu_usage=0.0,
             memory_usage=0.0,
             gpu_usage=0.0,
-            progress=new_node.progress,
+            progress=float(new_node.progress) if new_node.progress else 0.0,
             current_epoch=None,
             total_epochs=None,
             last_seen=datetime.now().isoformat(),
