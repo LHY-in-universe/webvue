@@ -1,3 +1,4 @@
+from database.edgeai.models import Node
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -101,7 +102,7 @@ async def create_cluster(request: ClusterCreateRequest, db: Session = Depends(ge
         last_updated_time=new_cluster.last_updated_time.isoformat() if new_cluster.last_updated_time else ""
     )
 
-@router.put("/{cluster_id}/", response_model=ClusterResponse)
+@router.put("/{cluster_id}", response_model=ClusterResponse)
 async def update_cluster(cluster_id: str, request: ClusterUpdateRequest, db: Session = Depends(get_db)):
     """
     更新集群信息
@@ -135,7 +136,7 @@ async def update_cluster(cluster_id: str, request: ClusterUpdateRequest, db: Ses
         last_updated_time=cluster.last_updated_time.isoformat() if cluster.last_updated_time else ""
     )
 
-@router.delete("/{cluster_id}/", response_model=BaseResponse)
+@router.delete("/{cluster_id}", response_model=BaseResponse)
 async def delete_cluster(cluster_id: str, db: Session = Depends(get_db)):
     """
     删除集群
@@ -148,6 +149,10 @@ async def delete_cluster(cluster_id: str, db: Session = Depends(get_db)):
     cluster = db.query(Cluster).filter(Cluster.id == cluster_id_int).first()
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
+
+    nodes = db.query(Node).filter(Node.cluster_id == cluster_id_int).all()
+    if nodes:
+        raise HTTPException(status_code=400, detail="Cluster has nodes, cannot be deleted")
 
     cluster_name = cluster.name
     db.delete(cluster)

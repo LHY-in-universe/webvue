@@ -17,157 +17,6 @@ from datetime import datetime, timedelta
 
 router = APIRouter()
 
-# Mock data generation removed - now using database
-
-def generate_dynamic_projects_OLD():
-    """生成动态项目数据"""
-    project_templates = [
-        {
-            "name": "Smart Manufacturing Monitor",
-            "description": "EdgeAI-based real-time factory equipment monitoring and predictive maintenance system",
-            "type": "manufacturing",
-            "model_type": "cnn",
-            "industry": "Industrial"
-        },
-        {
-            "name": "Urban Traffic Optimization",
-            "description": "Intelligent traffic signal control and flow prediction system",
-            "type": "traffic",
-            "model_type": "rnn",
-            "industry": "Transportation"
-        },
-        {
-            "name": "Medical Image Diagnosis",
-            "description": "Distributed medical imaging AI diagnostic system for early disease detection",
-            "type": "medical",
-            "model_type": "transformer",
-            "industry": "Healthcare"
-        },
-        {
-            "name": "Retail Customer Analytics",
-            "description": "AI-powered customer behavior analysis and inventory optimization system",
-            "type": "retail",
-            "model_type": "lstm",
-            "industry": "Retail"
-        },
-        {
-            "name": "Smart Agriculture Monitor",
-            "description": "Precision farming with AI-driven crop monitoring and yield prediction",
-            "type": "agriculture",
-            "model_type": "cnn",
-            "industry": "Agriculture"
-        },
-        {
-            "name": "Financial Fraud Detection",
-            "description": "Real-time financial transaction fraud detection using federated learning",
-            "type": "finance",
-            "model_type": "transformer",
-            "industry": "Finance"
-        },
-        {
-            "name": "Energy Grid Optimization",
-            "description": "Smart grid energy distribution and consumption optimization system",
-            "type": "energy",
-            "model_type": "gru",
-            "industry": "Energy"
-        },
-        {
-            "name": "Autonomous Vehicle Navigation",
-            "description": "Distributed AI system for autonomous vehicle coordination and safety",
-            "type": "automotive",
-            "model_type": "cnn",
-            "industry": "Automotive"
-        },
-        {
-            "name": "Cybersecurity Threat Detection",
-            "description": "AI-powered network security monitoring and intrusion detection system",
-            "type": "security",
-            "model_type": "rnn",
-            "industry": "Cybersecurity"
-        },
-        {
-            "name": "Environmental Monitoring System",
-            "description": "Large-scale environmental data analysis for climate change research",
-            "type": "environment",
-            "model_type": "transformer",
-            "industry": "Environmental"
-        }
-    ]
-
-    statuses = [ProjectStatus.CREATED, ProjectStatus.TRAINING, ProjectStatus.ACTIVE, ProjectStatus.PAUSED, ProjectStatus.COMPLETED, ProjectStatus.IDLE]
-    projects = []
-
-    for i, template in enumerate(project_templates):
-        # 动态计算时间
-        created_days_ago = random.randint(1, 30)
-        created_date = datetime.now() - timedelta(days=created_days_ago)
-
-        # 动态状态和进度
-        status = random.choice(statuses)
-        if status == ProjectStatus.COMPLETED:
-            progress = 100.0
-            current_epoch = random.randint(80, 150)
-        elif status == ProjectStatus.TRAINING:
-            progress = random.uniform(10, 95)
-            current_epoch = int(progress)
-        elif status == ProjectStatus.ACTIVE:
-            progress = 100.0
-            current_epoch = random.randint(100, 200)
-        elif status == ProjectStatus.PAUSED:
-            progress = random.uniform(20, 80)
-            current_epoch = int(progress)
-        else:  # created, idle
-            progress = random.uniform(0, 20)
-            current_epoch = int(progress)
-
-        # 动态指标
-        base_accuracy = random.uniform(75, 98)
-        accuracy_variance = random.uniform(-5, 5)
-        current_accuracy = max(0, min(100, base_accuracy + accuracy_variance))
-
-        # 最后更新时间
-        last_update_minutes = random.randint(1, 1440)  # 1分钟到24小时前
-        if last_update_minutes < 60:
-            last_update = f"{last_update_minutes} minutes ago"
-        elif last_update_minutes < 1440:
-            hours = last_update_minutes // 60
-            last_update = f"{hours} hours ago"
-        else:
-            days = last_update_minutes // 1440
-            last_update = f"{days} days ago"
-
-        project = {
-            "id": f"proj-{str(i+1).zfill(3)}",
-            "name": template["name"],
-            "description": template["description"],
-            "model": random.choice(["Gemma", "OpenVLA", "LLaMA", "Qwen"]),
-            "status": status,
-            "progress": round(progress, 1),
-            "connected_nodes": random.randint(3, 25),
-            "current_epoch": current_epoch,
-            "total_epochs": random.randint(100, 300),
-            "training_strategy": random.choice([TrainingStrategy.SFT, TrainingStrategy.DPO, TrainingStrategy.GRPO, TrainingStrategy.IPO, TrainingStrategy.KTO]),
-            "protocol": random.choice([Protocol.FEDAVG, Protocol.FEDYGI, Protocol.FEDADAM, Protocol.FEDAVGM]),
-            "epochs": random.randint(100, 300),
-            "batch_size": random.choice([16, 32, 64, 128]),
-            "learning_rate": random.choice([0.0001, 0.0005, 0.001, 0.005, 0.01]),
-            "node_ip": f"192.168.1.{random.randint(100, 254)}",
-            "created_time": created_date.strftime("%Y-%m-%d %H:%M:%S"),
-            "last_update": last_update,
-            "metrics": {
-                "accuracy": round(current_accuracy, 1),
-                "loss": round(random.uniform(0.05, 0.8), 3),
-                "f1_score": round(current_accuracy * random.uniform(0.85, 0.98), 1),
-                "precision": round(current_accuracy * random.uniform(0.85, 0.95), 1),
-                "recall": round(current_accuracy * random.uniform(0.80, 0.95), 1)
-            }
-        }
-        projects.append(project)
-
-    return projects
-
-# Mock data removed - now using database
-
 @router.get("/", response_model=List[ProjectResponse])
 async def get_projects(
     status: Optional[ProjectStatus] = None,
@@ -256,9 +105,6 @@ async def get_project(project_id: str, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Get related data
-    connected_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project.id).count()
-
     return ProjectResponse(
         id=str(project.id),
         name=project.name,
@@ -266,7 +112,6 @@ async def get_project(project_id: str, db: Session = Depends(get_db)):
         model="",  # Will be filled from related models
         status=ProjectStatus.CREATED if not project.status or project.status not in [e.value for e in ProjectStatus] else ProjectStatus(project.status),
         progress=project.progress or 0.0,
-        connected_nodes=connected_nodes,
         current_epoch=0,  # Could be calculated from training status
 
         # 统一的训练参数
@@ -343,35 +188,6 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
     db.commit()
     db.refresh(new_project)
 
-    # Create cluster for the project
-    new_cluster = Cluster(
-        name=f"Cluster for {new_project.name}",
-        user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
-        project_id=new_project.id
-    )
-    db.add(new_cluster)
-    db.flush()  # 获取cluster的ID
-    
-    # Create nodes for the project
-    created_nodes = []
-    for node_data in request.nodes:
-        new_node = Node(
-            user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
-            cluster_id=new_cluster.id,
-            name=node_data.name or f"Node {node_data.ip}",
-            path_ipv4=node_data.ip,
-            state="idle",  # 使用idle而不是offline
-            role="worker",  # 使用worker而不是edge
-            progress=0.0,
-            cpu="",  # 使用字符串而不是数字
-            gpu="",  # 使用字符串而不是数字
-            memory=""  # 使用字符串而不是数字
-        )
-        db.add(new_node)
-        created_nodes.append(new_node)
-
-    db.commit()
-
     return ProjectResponse(
         id=str(new_project.id),
         name=new_project.name,
@@ -379,7 +195,6 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
         model=request.model,
         status=ProjectStatus.CREATED,
         progress=0.0,
-        connected_nodes=len(created_nodes),
         current_epoch=0,
 
         # 统一的训练参数
@@ -429,7 +244,24 @@ async def update_project(project_id: str, request: ProjectCreateRequest, db: Ses
     # Update project fields
     project.name = request.name
     project.description = request.description
-    project.strategy = request.type.value
+    
+    # Update training parameters
+    project.training_alg = request.training_alg
+    project.fed_alg = request.fed_alg
+    project.secure_aggregation = request.secure_aggregation
+    project.total_epochs = request.total_epochs
+    project.num_rounds = request.num_rounds
+    project.batch_size = request.batch_size
+    project.lr = request.lr
+    project.num_computers = request.num_computers
+    project.threshold = request.threshold
+    project.num_clients = request.num_clients
+    project.sample_clients = request.sample_clients
+    project.max_steps = request.max_steps
+    project.model_name_or_path = request.model_name_or_path
+    project.dataset_name = request.dataset_name
+    project.dataset_sample = request.dataset_sample
+    
     project.updated_time = datetime.now()
 
     db.commit()
@@ -439,18 +271,36 @@ async def update_project(project_id: str, request: ProjectCreateRequest, db: Ses
         id=str(project.id),
         name=project.name,
         description=project.description,
-        model="",
+        model="",  # Will be filled from related models
         status=ProjectStatus.CREATED if not project.status or project.status not in [e.value for e in ProjectStatus] else ProjectStatus(project.status),
-        type=ProjectType.COMPUTER_VISION,
-        model_type=request.model_type,
         progress=project.progress or 0.0,
-        total_epochs=project.epoches,
-        training_strategy=TrainingStrategy(project.strategy),
-        protocol=Protocol(project.protocol),
-        epochs=project.epoches,
-        batch_size=project.batch_size,
-        learning_rate=project.learning_rate,
-        node_ip="",
+        current_epoch=0,  # Could be calculated from training status
+
+        # 统一的训练参数
+        training_alg=project.training_alg or "sft",
+        fed_alg=project.fed_alg or "fedavg",
+        secure_aggregation=project.secure_aggregation or "shamir_threshold",
+
+        # 训练配置
+        total_epochs=project.total_epochs or 100,
+        num_rounds=project.num_rounds or 10,
+        batch_size=project.batch_size or 32,
+        lr=project.lr or "1e-4",
+
+        # 高级训练参数
+        num_computers=project.num_computers or 3,
+        threshold=project.threshold or 2,
+        num_clients=project.num_clients or 2,
+        sample_clients=project.sample_clients or 2,
+        max_steps=project.max_steps or 100,
+
+        # 模型和数据集配置
+        model_name_or_path=project.model_name_or_path or "sshleifer/tiny-gpt2",
+        dataset_name=project.dataset_name or "vicgalle/alpaca-gpt4",
+        dataset_sample=project.dataset_sample or 50,
+
+        # 其他信息
+        node_ip="",  # Could be from related nodes
         created_time=project.created_time.isoformat() if project.created_time else "",
         last_update=project.updated_time.isoformat() if project.updated_time else "",
         metrics={}
@@ -459,7 +309,7 @@ async def update_project(project_id: str, request: ProjectCreateRequest, db: Ses
 @router.delete("/{project_id}", response_model=BaseResponse)
 async def delete_project(project_id: str, db: Session = Depends(get_db)):
     """
-    删除项目及其相关数据
+    删除项目
     """
     try:
         project_id_int = int(project_id)
@@ -470,15 +320,6 @@ async def delete_project(project_id: str, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # 删除项目关联的节点（通过cluster）
-    project_nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project_id_int).all()
-    for node in project_nodes:
-        db.delete(node)
-    
-    # 删除项目关联的模型
-    project_models = db.query(Model).filter(Model.project_id == project_id_int).all()
-    for model in project_models:
-        db.delete(model)
     
     # 删除项目本身
     db.delete(project)
@@ -542,8 +383,21 @@ async def export_project(project_id: str, request: ProjectExportRequest, db: Ses
         "id": str(project.id),
         "name": project.name,
         "description": project.description,
-        "strategy": project.strategy,
-        "protocol": project.protocol,
+        "training_alg": project.training_alg,
+        "fed_alg": project.fed_alg,
+        "secure_aggregation": project.secure_aggregation,
+        "total_epochs": project.total_epochs,
+        "num_rounds": project.num_rounds,
+        "batch_size": project.batch_size,
+        "lr": project.lr,
+        "num_computers": project.num_computers,
+        "threshold": project.threshold,
+        "num_clients": project.num_clients,
+        "sample_clients": project.sample_clients,
+        "max_steps": project.max_steps,
+        "model_name_or_path": project.model_name_or_path,
+        "dataset_name": project.dataset_name,
+        "dataset_sample": project.dataset_sample,
         "status": project.status,
         "progress": project.progress,
         "exported_at": datetime.now().isoformat(),
@@ -575,8 +429,11 @@ async def get_project_visualization(project_id: str, db: Session = Depends(get_d
     # 获取关联的模型
     models = db.query(Model).filter(Model.project_id == project.id).all()
 
-    # 获取关联的节点
-    nodes = db.query(Node).join(Cluster).filter(Cluster.project_id == project.id).all()
+    # 获取关联的集群
+    nodes = []
+    clusters = db.query(Cluster).filter(Cluster.project_id == project.id).all()
+    for cluster in clusters:
+        nodes.extend(db.query(Node).filter(Node.cluster_id == cluster.id).all())
 
     # 构建可视化数据
     visualization_data = {
@@ -586,11 +443,21 @@ async def get_project_visualization(project_id: str, db: Session = Depends(get_d
             "description": project.description,
             "status": project.status,
             "progress": project.progress,
-            "strategy": project.strategy,
-            "protocol": project.protocol,
-            "epochs": project.epoches,
+            "training_alg": project.training_alg,
+            "fed_alg": project.fed_alg,
+            "secure_aggregation": project.secure_aggregation,
+            "total_epochs": project.total_epochs,
+            "num_rounds": project.num_rounds,
             "batch_size": project.batch_size,
-            "learning_rate": project.learning_rate,
+            "lr": project.lr,
+            "num_computers": project.num_computers,
+            "threshold": project.threshold,
+            "num_clients": project.num_clients,
+            "sample_clients": project.sample_clients,
+            "max_steps": project.max_steps,
+            "model_name_or_path": project.model_name_or_path,
+            "dataset_name": project.dataset_name,
+            "dataset_sample": project.dataset_sample,
             "created_time": project.created_time.isoformat() if project.created_time else None,
             "updated_time": project.updated_time.isoformat() if project.updated_time else None
         },
@@ -680,17 +547,37 @@ async def duplicate_project(project_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
 
     new_project = Project(
-        name=f"{original_project.name} (Copy) (db)",
+        user_id=original_project.user_id,
+        name=f"{original_project.name} (Copy)",
         description=original_project.description,
-        strategy=original_project.strategy,
-        protocol=original_project.protocol,
-        epoches=original_project.epoches,
-        learning_rate=original_project.learning_rate,
-        batch_size=original_project.batch_size,
+        
+        # 统一的训练参数
+        training_alg=original_project.training_alg or "sft",
+        fed_alg=original_project.fed_alg or "fedavg",
+        secure_aggregation=original_project.secure_aggregation or "shamir_threshold",
+        
+        # 训练配置
+        total_epochs=original_project.total_epochs or 100,
+        num_rounds=original_project.num_rounds or 10,
+        batch_size=original_project.batch_size or 32,
+        lr=original_project.lr or "1e-4",
+        
+        # 高级训练参数
+        num_computers=original_project.num_computers or 3,
+        threshold=original_project.threshold or 2,
+        num_clients=original_project.num_clients or 2,
+        sample_clients=original_project.sample_clients or 2,
+        max_steps=original_project.max_steps or 100,
+        
+        # 模型和数据集配置
+        model_name_or_path=original_project.model_name_or_path or "sshleifer/tiny-gpt2",
+        dataset_name=original_project.dataset_name or "vicgalle/alpaca-gpt4",
+        dataset_sample=original_project.dataset_sample or 50,
+        
+        # 项目状态
         status="created",
         progress=0.0,
-        task_id=f"task_{uuid.uuid4().hex[:8]}",
-        user_id=original_project.user_id
+        task_id=f"task-{uuid.uuid4().hex[:8]}"
     )
 
     db.add(new_project)
