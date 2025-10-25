@@ -2,6 +2,7 @@
 """
 EdgeAI Nodes API 测试脚本
 测试 backend/edgeai/api/nodes.py 中的所有API端点
+Updated with proper authentication flow
 """
 
 import requests
@@ -11,7 +12,13 @@ import asyncio
 import websockets
 from typing import Dict, Any, List
 import sys
+import os
 from datetime import datetime
+
+# 添加项目路径
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+from test_auth_helper import TestAuthHelper
 
 class NodesAPITester:
     def __init__(self, base_url: str = "http://localhost:8000"):
@@ -19,6 +26,78 @@ class NodesAPITester:
         self.api_base = f"{base_url}/api/edgeai/nodes"
         self.test_results = []
         self.created_node_ids = []
+        self.created_project_id = None
+        self.created_cluster_id = None
+        self.auth_helper = TestAuthHelper()
+    
+    def get_headers(self):
+        """获取带认证的请求头"""
+        return self.auth_helper.get_headers()
+    
+    def create_test_project(self):
+        """创建测试项目"""
+        try:
+            project_data = {
+                "name": "Test Project for Nodes",
+                "description": "Test project for node testing",
+                "model": "test-model",
+                "nodes": [{"id": "test-node", "name": "test-node", "type": "edge", "ip": "192.168.1.100"}],
+                "training_alg": "sft",
+                "fed_alg": "fedavg",
+                "secure_aggregation": "shamir_threshold",
+                "total_epochs": 100,
+                "num_rounds": 10,
+                "batch_size": 32,
+                "lr": "1e-4",
+                "num_computers": 3,
+                "threshold": 2,
+                "num_clients": 2,
+                "sample_clients": 2,
+                "max_steps": 100,
+                "model_name_or_path": "sshleifer/tiny-gpt2",
+                "dataset_name": "vicgalle/alpaca-gpt4",
+                "dataset_sample": 50
+            }
+            
+            response = requests.post(f"{self.base_url}/api/edgeai/projects/", 
+                                   json=project_data, 
+                                   headers=self.get_headers())
+            
+            if response.status_code == 200:
+                project = response.json()
+                self.created_project_id = project.get("id")
+                print(f"✅ 创建测试项目成功: ID {self.created_project_id}")
+                return True
+            else:
+                print(f"❌ 创建项目失败: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ 创建项目异常: {str(e)}")
+            return False
+    
+    def create_test_cluster(self):
+        """创建测试集群"""
+        try:
+            cluster_data = {
+                "name": "Test Cluster for Nodes",
+                "project_id": int(self.created_project_id) if self.created_project_id else 1
+            }
+            
+            response = requests.post(f"{self.base_url}/api/edgeai/clusters/", 
+                                   json=cluster_data, 
+                                   headers=self.get_headers())
+            
+            if response.status_code == 200:
+                cluster = response.json()
+                self.created_cluster_id = cluster.get("id")
+                print(f"✅ 创建测试集群成功: ID {self.created_cluster_id}")
+                return True
+            else:
+                print(f"❌ 创建集群失败: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ 创建集群异常: {str(e)}")
+            return False
         
     def log_test(self, test_name: str, success: bool, message: str = "", response_data: Any = None):
         """记录测试结果"""
@@ -40,11 +119,11 @@ class NodesAPITester:
     def make_request(self, method: str, endpoint: str, data: Dict = None, params: Dict = None) -> tuple:
         """发送HTTP请求并返回响应"""
         url = f"{self.api_base}{endpoint}"
-        headers = {"Content-Type": "application/json"}
+        headers = self.get_headers()
         
         try:
             if method.upper() == "GET":
-                response = requests.get(url, params=params, timeout=10)
+                response = requests.get(url, params=params, headers=headers, timeout=10)
             elif method.upper() == "POST":
                 response = requests.post(url, json=data, headers=headers, timeout=10)
             elif method.upper() == "DELETE":
@@ -77,9 +156,21 @@ class NodesAPITester:
         """测试获取特定节点"""
         print("\n🔍 测试获取特定节点...")
         
-        # 测试存在的节点
-        success1, data = self.make_request("GET", "/1")
-        self.log_test("GET /nodes/1", success1, "获取节点1详情", data)
+        # 如果有创建的节点，测试第一个
+        if self.created_node_ids:
+            node_id = self.created_node_ids[0]
+            success1, data = self.make_request("GET", f"/{node_id}")
+            self.log_test(f"GET /nodes/{node_id}", success1, f"获取节点{node_id}详情", data)
+        else:
+            # 如果没有创建的节点，先创建一个
+            success_create = self.test_create_node()
+            if success_create and self.created_node_ids:
+                node_id = self.created_node_ids[0]
+                success1, data = self.make_request("GET", f"/{node_id}")
+                self.log_test(f"GET /nodes/{node_id}", success1, f"获取节点{node_id}详情", data)
+            else:
+                success1 = False
+                self.log_test("GET /nodes/{id}", False, "无法创建测试节点")
         
         # 测试不存在的节点
         success2, data = self.make_request("GET", "/99999")
@@ -107,8 +198,16 @@ class NodesAPITester:
         """测试获取节点性能指标"""
         print("\n📈 测试获取节点性能指标...")
         
-        success, data = self.make_request("GET", "/1/metrics")
-        self.log_test("GET /nodes/1/metrics", success, "获取节点1性能指标", data)
+        if not self.created_node_ids:
+            # 如果没有节点，先创建一个
+            success_create = self.test_create_node()
+            if not success_create:
+                self.log_test("GET /nodes/{id}/metrics", False, "无法创建测试节点")
+                return False
+        
+        node_id = self.created_node_ids[0]
+        success, data = self.make_request("GET", f"/{node_id}/metrics")
+        self.log_test(f"GET /nodes/{node_id}/metrics", success, f"获取节点{node_id}性能指标", data)
         
         fields_valid = True
         if success and data:
@@ -123,21 +222,30 @@ class NodesAPITester:
         """测试节点操作"""
         print("\n⚙️ 测试节点操作...")
         
+        if not self.created_node_ids:
+            # 如果没有节点，先创建一个
+            success_create = self.test_create_node()
+            if not success_create:
+                self.log_test("POST /nodes/{id}/operation", False, "无法创建测试节点")
+                return False
+        
+        node_id = self.created_node_ids[0]
+        
         # 测试启动操作
-        success, data = self.make_request("POST", "/1/operation", {"operation": "start"})
-        self.log_test("POST /nodes/1/operation (start)", success, "启动节点操作", data)
+        success, data = self.make_request("POST", f"/{node_id}/operation", {"operation": "start"})
+        self.log_test(f"POST /nodes/{node_id}/operation (start)", success, "启动节点操作", data)
         
         # 测试停止操作
-        success, data = self.make_request("POST", "/1/operation", {"operation": "stop"})
-        self.log_test("POST /nodes/1/operation (stop)", success, "停止节点操作", data)
+        success, data = self.make_request("POST", f"/{node_id}/operation", {"operation": "stop"})
+        self.log_test(f"POST /nodes/{node_id}/operation (stop)", success, "停止节点操作", data)
         
         # 测试重启操作
-        success, data = self.make_request("POST", "/1/operation", {"operation": "restart"})
-        self.log_test("POST /nodes/1/operation (restart)", success, "重启节点操作", data)
+        success, data = self.make_request("POST", f"/{node_id}/operation", {"operation": "restart"})
+        self.log_test(f"POST /nodes/{node_id}/operation (restart)", success, "重启节点操作", data)
         
         # 测试分配项目操作
-        success, data = self.make_request("POST", "/1/operation", {"operation": "assign", "project_id": "1"})
-        self.log_test("POST /nodes/1/operation (assign)", success, "分配节点到项目", data)
+        success, data = self.make_request("POST", f"/{node_id}/operation", {"operation": "assign", "project_id": self.created_project_id})
+        self.log_test(f"POST /nodes/{node_id}/operation (assign)", success, "分配节点到项目", data)
         
         return success
     
@@ -145,17 +253,26 @@ class NodesAPITester:
         """测试训练操作"""
         print("\n🏋️ 测试训练操作...")
         
+        if not self.created_node_ids:
+            # 如果没有节点，先创建一个
+            success_create = self.test_create_node()
+            if not success_create:
+                self.log_test("POST /nodes/{id}/start-training", False, "无法创建测试节点")
+                return False
+        
+        node_id = self.created_node_ids[0]
+        
         # 先确保节点在线
-        self.make_request("POST", "/1/operation", {"operation": "start"})
+        self.make_request("POST", f"/{node_id}/operation", {"operation": "start"})
         time.sleep(1)
         
         # 测试启动训练
-        success, data = self.make_request("POST", "/1/start-training")
-        self.log_test("POST /nodes/1/start-training", success, "启动节点训练", data)
+        success, data = self.make_request("POST", f"/{node_id}/start-training")
+        self.log_test(f"POST /nodes/{node_id}/start-training", success, "启动节点训练", data)
         
         # 测试停止训练
-        success, data = self.make_request("POST", "/1/stop-training")
-        self.log_test("POST /nodes/1/stop-training", success, "停止节点训练", data)
+        success, data = self.make_request("POST", f"/{node_id}/stop-training")
+        self.log_test(f"POST /nodes/{node_id}/stop-training", success, "停止节点训练", data)
         
         return success
     
@@ -163,8 +280,16 @@ class NodesAPITester:
         """测试重启节点"""
         print("\n🔄 测试重启节点...")
         
-        success, data = self.make_request("POST", "/1/restart")
-        self.log_test("POST /nodes/1/restart", success, "重启节点", data)
+        if not self.created_node_ids:
+            # 如果没有节点，先创建一个
+            success_create = self.test_create_node()
+            if not success_create:
+                self.log_test("POST /nodes/{id}/restart", False, "无法创建测试节点")
+                return False
+        
+        node_id = self.created_node_ids[0]
+        success, data = self.make_request("POST", f"/{node_id}/restart")
+        self.log_test(f"POST /nodes/{node_id}/restart", success, "重启节点", data)
         
         return success
     
@@ -191,16 +316,32 @@ class NodesAPITester:
         """测试分配节点到集群"""
         print("\n🔗 测试分配节点到集群...")
         
-        # 先确保节点1处于idle状态
-        self.make_request("POST", "/1/operation", {"operation": "stop"})
+        if not self.created_node_ids:
+            # 如果没有节点，先创建一个
+            success_create = self.test_create_node()
+            if not success_create:
+                self.log_test("POST /nodes/{id}/assign-cluster", False, "无法创建测试节点")
+                return False
+        
+        if not self.created_cluster_id:
+            # 如果没有集群，先创建一个
+            success_create = self.create_test_cluster()
+            if not success_create:
+                self.log_test("POST /nodes/{id}/assign-cluster", False, "无法创建测试集群")
+                return False
+        
+        node_id = self.created_node_ids[0]
+        
+        # 先确保节点处于idle状态
+        self.make_request("POST", f"/{node_id}/operation", {"operation": "stop"})
         time.sleep(1)
         
         # 如果节点已经在集群中，先退出
-        self.make_request("POST", "/1/exit-cluster")
+        self.make_request("POST", f"/{node_id}/exit-cluster")
         time.sleep(1)
         
-        success, data = self.make_request("POST", "/1/assign-cluster?cluster_id=1")
-        self.log_test("POST /nodes/1/assign-cluster", success, "分配节点到集群", data)
+        success, data = self.make_request("POST", f"/{node_id}/assign-cluster?cluster_id={self.created_cluster_id}")
+        self.log_test(f"POST /nodes/{node_id}/assign-cluster", success, "分配节点到集群", data)
         
         return success
     
@@ -208,17 +349,27 @@ class NodesAPITester:
         """测试节点退出集群"""
         print("\n🔓 测试节点退出集群...")
         
-        # 先确保节点1处于idle状态
-        self.make_request("POST", "/1/operation", {"operation": "stop"})
+        if not self.created_node_ids:
+            # 如果没有节点，先创建一个
+            success_create = self.test_create_node()
+            if not success_create:
+                self.log_test("POST /nodes/{id}/exit-cluster", False, "无法创建测试节点")
+                return False
+        
+        node_id = self.created_node_ids[0]
+        
+        # 先确保节点处于idle状态
+        self.make_request("POST", f"/{node_id}/operation", {"operation": "stop"})
         time.sleep(1)
         
         # 如果节点不在集群中，先分配到集群
-        self.make_request("POST", "/1/assign-cluster?cluster_id=1")
-        time.sleep(1)
+        if self.created_cluster_id:
+            self.make_request("POST", f"/{node_id}/assign-cluster?cluster_id={self.created_cluster_id}")
+            time.sleep(1)
         
         # 测试退出集群
-        success, data = self.make_request("POST", "/1/exit-cluster")
-        self.log_test("POST /nodes/1/exit-cluster", success, "节点退出集群", data)
+        success, data = self.make_request("POST", f"/{node_id}/exit-cluster")
+        self.log_test(f"POST /nodes/{node_id}/exit-cluster", success, "节点退出集群", data)
         
         return success
     
@@ -268,8 +419,15 @@ class NodesAPITester:
         """测试获取可视化节点数据"""
         print("\n📊 测试获取可视化节点数据...")
         
-        success, data = self.make_request("GET", "/visualization/1/")
-        self.log_test("GET /nodes/visualization/1/", success, "获取项目1的可视化节点数据", data)
+        if not self.created_project_id:
+            # 如果没有项目，先创建一个
+            success_create = self.create_test_project()
+            if not success_create:
+                self.log_test("GET /nodes/visualization/{id}/", False, "无法创建测试项目")
+                return False
+        
+        success, data = self.make_request("GET", f"/visualization/{self.created_project_id}/")
+        self.log_test(f"GET /nodes/visualization/{self.created_project_id}/", success, f"获取项目{self.created_project_id}的可视化节点数据", data)
         
         fields_valid = True
         if success and data:
@@ -284,25 +442,34 @@ class NodesAPITester:
         """测试WebSocket连接"""
         print("\n🔌 测试WebSocket连接...")
         
+        if not self.created_node_ids:
+            # 如果没有节点，先创建一个
+            success_create = self.test_create_node()
+            if not success_create:
+                self.log_test("WebSocket /nodes/ws/{id}", False, "无法创建测试节点")
+                return False
+        
+        node_id = self.created_node_ids[0]
+        
         try:
-            uri = f"ws://localhost:8000/api/edgeai/nodes/ws/1"
+            uri = f"ws://localhost:8000/api/edgeai/nodes/ws/{node_id}"
             async with websockets.connect(uri) as websocket:
                 # 等待接收消息
                 message = await asyncio.wait_for(websocket.recv(), timeout=5.0)
                 data = json.loads(message)
                 
                 if data.get("type") == "node_update":
-                    self.log_test("WebSocket /nodes/ws/1", True, "WebSocket连接成功，收到节点更新", data)
+                    self.log_test(f"WebSocket /nodes/ws/{node_id}", True, "WebSocket连接成功，收到节点更新", data)
                     return True
                 else:
-                    self.log_test("WebSocket /nodes/ws/1", False, "WebSocket消息格式不正确", data)
+                    self.log_test(f"WebSocket /nodes/ws/{node_id}", False, "WebSocket消息格式不正确", data)
                     return False
                     
         except asyncio.TimeoutError:
-            self.log_test("WebSocket /nodes/ws/1", False, "WebSocket连接超时", {})
+            self.log_test(f"WebSocket /nodes/ws/{node_id}", False, "WebSocket连接超时", {})
             return False
         except Exception as e:
-            self.log_test("WebSocket /nodes/ws/1", False, f"WebSocket连接失败: {str(e)}", {})
+            self.log_test(f"WebSocket /nodes/ws/{node_id}", False, f"WebSocket连接失败: {str(e)}", {})
             return False
     
     def run_all_tests(self):
@@ -310,33 +477,48 @@ class NodesAPITester:
         print("🚀 开始EdgeAI Nodes API测试...")
         print("=" * 60)
         
-        # 检查服务器是否运行
-        try:
-            response = requests.get(f"{self.base_url}/docs", timeout=5)
-            if response.status_code != 200:
-                print("❌ 服务器未运行或无法访问")
-                return False
-        except:
-            print("❌ 无法连接到服务器，请确保后端服务正在运行")
+        # 设置认证
+        print("🔐 Setting up authentication...")
+        if not self.auth_helper.setup_auth():
+            print("❌ Failed to setup authentication. Cannot run tests.")
             return False
         
-        print("✅ 服务器连接正常")
+        try:
+            # 检查服务器是否运行
+            try:
+                response = requests.get(f"{self.base_url}/docs", timeout=5)
+                if response.status_code != 200:
+                    print("❌ 服务器未运行或无法访问")
+                    return False
+            except:
+                print("❌ 无法连接到服务器，请确保后端服务正在运行")
+                return False
+            
+            print("✅ 服务器连接正常")
+        except Exception as e:
+            print(f"❌ 服务器检查失败: {str(e)}")
+            return False
+        
+        # 先创建必要的测试资源
+        print("\n🔧 创建测试资源...")
+        self.create_test_project()
+        self.create_test_cluster()
         
         # 运行所有测试
         tests = [
             self.test_get_nodes,
+            self.test_create_node,  # 先创建节点
             self.test_get_node_by_id,
             self.test_get_node_stats,
             self.test_get_node_metrics,
             self.test_node_operations,
             self.test_training_operations,
             self.test_restart_node,
-            self.test_create_node,
             self.test_assign_node_to_cluster,
             self.test_exit_node_from_cluster,
             self.test_visualization_nodes,
-            self.test_delete_node,
             self.test_batch_delete_nodes,
+            self.test_delete_node,  # 最后删除节点
         ]
         
         passed_tests = 0

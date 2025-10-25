@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
 from sqlalchemy.orm import Session
 import bcrypt
 import hashlib
+import secrets
+import string
 from ..schemas.auth import LoginRequest, RegisterRequest, AuthResponse, UserResponse, UpdatePreferencesRequest
 from ..schemas.common import BaseResponse
 
@@ -17,6 +19,42 @@ from database.edgeai.database import SessionLocal, get_db
 from database.edgeai.models import User
 
 router = APIRouter()
+
+# Token generation function
+def generate_random_token(length: int = 32) -> str:
+    """
+    生成安全的随机token
+    """
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+# Authentication dependency
+async def get_current_user_id(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> int:
+    """
+    从Authorization header中获取当前用户ID
+    现在从数据库的active_token字段查询用户
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    try:
+        # 解析Bearer token
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Invalid authorization format")
+        
+        token = authorization.replace("Bearer ", "")
+        
+        # 从数据库查询token对应的用户
+        user = db.query(User).filter(User.active_token == token).first()
+        if user:
+            return user.id
+        else:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid user ID in token")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Token validation failed: {str(e)}")
 
 # Password hashing using bcrypt directly
 def hash_password(password: str) -> str:
@@ -95,8 +133,10 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
 
-        # 生成token
-        token = f"edgeai_token_{new_user.id}_{request.module}"
+        # 生成随机token并保存到数据库
+        token = generate_random_token()
+        new_user.active_token = token
+        db.commit()
 
         # 构建用户响应
         user_response = UserResponse(
@@ -159,7 +199,10 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         if user and request.password:
             # 验证密码
             if verify_password(request.password, user.password):
-                token = f"edgeai_token_{user.id}_{request.module}"
+                # 生成新的随机token并保存到数据库
+                token = generate_random_token()
+                user.active_token = token
+                db.commit()
 
                 user_response = UserResponse(
                     id=user.id,
@@ -218,14 +261,29 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         )
 
 @router.post("/logout", response_model=BaseResponse)
-async def logout():
+async def logout(
+    current_user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
     """
-    用户登出接口
+    用户登出接口 - 清除用户的active_token
     """
-    return BaseResponse(
-        success=True,
-        message="Logout successful"
-    )
+    try:
+        # 清除用户的active_token
+        user = db.query(User).filter(User.id == current_user_id).first()
+        if user:
+            user.active_token = None
+            db.commit()
+        
+        return BaseResponse(
+            success=True,
+            message="Logout successful"
+        )
+    except Exception as e:
+        return BaseResponse(
+            success=False,
+            error=f"Logout failed: {str(e)}"
+        )
 
 @router.get("/user/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int):
@@ -275,3 +333,6 @@ async def get_user_preferences(user_id: int):
             return user["preferences"]
     
     raise HTTPException(status_code=404, detail="User not found")
+
+# Export the authentication dependency for use in other modules
+__all__ = ["router", "get_current_user_id"]

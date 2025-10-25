@@ -6,10 +6,7 @@ import os
 from typing import Generator
 
 # Database configuration
-# Get the root directory of the project (where this file's parent's parent is)
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DEFAULT_DB_PATH = os.path.join(ROOT_DIR, "database", "edgeai", "edgeai.db")
-DATABASE_URL = os.getenv("EDGEAI_DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")
+DATABASE_URL = os.getenv("EDGEAI_DATABASE_URL", "postgresql://postgres:12345678@localhost:5432/backend")
 
 # Create SQLAlchemy engine
 if DATABASE_URL.startswith("sqlite"):
@@ -20,7 +17,14 @@ if DATABASE_URL.startswith("sqlite"):
         echo=False
     )
 else:
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True, echo=False)
+    # PostgreSQL configuration
+    engine = create_engine(
+        DATABASE_URL, 
+        pool_pre_ping=True, 
+        pool_size=10,
+        max_overflow=20,
+        echo=False
+    )
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

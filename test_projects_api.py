@@ -2,6 +2,7 @@
 """
 Comprehensive API test cases for projects.py endpoints
 Tests all endpoints and identifies issues
+Updated with proper authentication flow
 """
 
 import requests
@@ -9,6 +10,12 @@ import json
 import time
 from typing import Dict, Any, List
 import sys
+import os
+
+# 添加项目路径
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+from test_auth_helper import TestAuthHelper
 
 # Base URL for the API
 BASE_URL = "http://localhost:8000"
@@ -19,6 +26,11 @@ class APITester:
         self.session = requests.Session()
         self.test_results = []
         self.created_project_id = None
+        self.auth_helper = TestAuthHelper()
+    
+    def get_headers(self):
+        """获取带认证的请求头"""
+        return self.auth_helper.get_headers()
         
     def log_test(self, test_name: str, success: bool, message: str = "", response_data: Any = None):
         """Log test results"""
@@ -39,7 +51,7 @@ class APITester:
     def test_get_projects(self):
         """Test GET /edgeai/projects/ - Get all projects"""
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/")
+            response = self.session.get(f"{PROJECTS_BASE}/", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/", 
@@ -56,7 +68,7 @@ class APITester:
         """Test GET /edgeai/projects/ with query parameters"""
         try:
             # Test with status filter
-            response = self.session.get(f"{PROJECTS_BASE}/?status=created")
+            response = self.session.get(f"{PROJECTS_BASE}/?status=created", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/ with status filter", 
@@ -66,7 +78,7 @@ class APITester:
             )
             
             # Test with search parameter
-            response = self.session.get(f"{PROJECTS_BASE}/?search=test")
+            response = self.session.get(f"{PROJECTS_BASE}/?search=test", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/ with search filter", 
@@ -108,7 +120,7 @@ class APITester:
                 "dataset_sample": 100
             }
             
-            response = self.session.post(f"{PROJECTS_BASE}/", json=project_data)
+            response = self.session.post(f"{PROJECTS_BASE}/", json=project_data, headers=self.get_headers())
             success = response.status_code == 200
             
             if success:
@@ -140,7 +152,7 @@ class APITester:
             return False
             
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/{self.created_project_id}/")
+            response = self.session.get(f"{PROJECTS_BASE}/{self.created_project_id}/", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/{id}/", 
@@ -184,7 +196,7 @@ class APITester:
                 "dataset_sample": 200
             }
             
-            response = self.session.put(f"{PROJECTS_BASE}/{self.created_project_id}", json=update_data)
+            response = self.session.put(f"{PROJECTS_BASE}/{self.created_project_id}", json=update_data, headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "PUT /projects/{id}", 
@@ -211,7 +223,7 @@ class APITester:
         
         for operation, test_name in operations:
             try:
-                response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/{operation}")
+                response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/{operation}", headers=self.get_headers())
                 success = response.status_code == 200
                 self.log_test(
                     test_name, 
@@ -229,7 +241,7 @@ class APITester:
             return False
             
         try:
-            response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/duplicate")
+            response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/duplicate", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "POST /projects/{id}/duplicate", 
@@ -249,7 +261,7 @@ class APITester:
             return False
             
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/{self.created_project_id}/visualization")
+            response = self.session.get(f"{PROJECTS_BASE}/{self.created_project_id}/visualization", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/{id}/visualization", 
@@ -274,7 +286,7 @@ class APITester:
                 "overwrite": False
             }
             
-            response = self.session.post(f"{PROJECTS_BASE}/import", json=import_data)
+            response = self.session.post(f"{PROJECTS_BASE}/import", json=import_data, headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "POST /projects/import", 
@@ -300,7 +312,7 @@ class APITester:
                 "format": "json"
             }
             
-            response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/export", json=export_data)
+            response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/export", json=export_data, headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "POST /projects/{id}/export", 
@@ -316,7 +328,7 @@ class APITester:
     def test_system_stats(self):
         """Test GET /edgeai/projects/stats/overview - Get system stats"""
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/stats/overview")
+            response = self.session.get(f"{PROJECTS_BASE}/stats/overview", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/stats/overview", 
@@ -332,7 +344,7 @@ class APITester:
     def test_project_templates(self):
         """Test GET /edgeai/projects/templates - Get project templates"""
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/templates")
+            response = self.session.get(f"{PROJECTS_BASE}/templates", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/templates", 
@@ -348,7 +360,7 @@ class APITester:
     def test_import_history(self):
         """Test GET /edgeai/projects/import-history - Get import history"""
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/import-history")
+            response = self.session.get(f"{PROJECTS_BASE}/import-history", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/import-history", 
@@ -368,7 +380,7 @@ class APITester:
                 "url": "https://example.com/project-config.json"
             }
             
-            response = self.session.post(f"{PROJECTS_BASE}/load-from-url", json=url_data)
+            response = self.session.post(f"{PROJECTS_BASE}/load-from-url", json=url_data, headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "POST /projects/load-from-url", 
@@ -388,7 +400,7 @@ class APITester:
             return False
             
         try:
-            response = self.session.delete(f"{PROJECTS_BASE}/{self.created_project_id}")
+            response = self.session.delete(f"{PROJECTS_BASE}/{self.created_project_id}", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "DELETE /projects/{id}", 
@@ -405,7 +417,7 @@ class APITester:
         """Test error cases"""
         # Test invalid project ID
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/invalid_id/")
+            response = self.session.get(f"{PROJECTS_BASE}/invalid_id/", headers=self.get_headers())
             success = response.status_code == 400
             self.log_test(
                 "GET /projects/invalid_id/ (error case)", 
@@ -418,7 +430,7 @@ class APITester:
         
         # Test non-existent project ID
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/99999/")
+            response = self.session.get(f"{PROJECTS_BASE}/99999/", headers=self.get_headers())
             success = response.status_code == 404
             self.log_test(
                 "GET /projects/99999/ (not found)", 
@@ -430,40 +442,52 @@ class APITester:
             self.log_test("GET /projects/99999/ (not found)", False, f"Exception: {str(e)}")
     
     def run_all_tests(self):
-        """Run all test cases"""
+        """Run all test cases with authentication"""
         print("🚀 Starting comprehensive API tests for projects.py endpoints...")
         print("=" * 80)
         
-        # Test basic endpoints first
-        self.test_get_projects()
-        self.test_get_projects_with_filters()
-        self.test_system_stats()
-        self.test_project_templates()
-        self.test_import_history()
+        # 设置认证
+        print("🔐 Setting up authentication...")
+        if not self.auth_helper.setup_auth():
+            print("❌ Failed to setup authentication. Cannot run tests.")
+            return
         
-        # Test project creation and management
-        self.test_create_project()
-        if self.created_project_id:
-            self.test_get_project_by_id()
-            self.test_update_project()
-            self.test_project_operations()
-            self.test_duplicate_project()
-            self.test_project_visualization()
-            self.test_export_project()
-        
-        # Test import functionality
-        self.test_import_project()
-        self.test_load_from_url()
-        
-        # Test error cases
-        self.test_error_cases()
-        
-        # Clean up - delete created project
-        if self.created_project_id:
-            self.test_delete_project()
-        
-        # Print summary
-        self.print_summary()
+        try:
+            # Test basic endpoints first
+            self.test_get_projects()
+            self.test_get_projects_with_filters()
+            self.test_system_stats()
+            self.test_project_templates()
+            self.test_import_history()
+            
+            # Test project creation and management
+            self.test_create_project()
+            if self.created_project_id:
+                self.test_get_project_by_id()
+                self.test_update_project()
+                self.test_project_operations()
+                self.test_duplicate_project()
+                self.test_project_visualization()
+                self.test_export_project()
+            
+            # Test import functionality
+            self.test_import_project()
+            self.test_load_from_url()
+            
+            # Test error cases
+            self.test_error_cases()
+            
+            # Clean up - delete created project
+            if self.created_project_id:
+                self.test_delete_project()
+            
+            # Print summary
+            self.print_summary()
+            
+        finally:
+            # 清理认证
+            print("\n🔐 Cleaning up authentication...")
+            self.auth_helper.cleanup_auth()
     
     def print_summary(self):
         """Print test summary"""
