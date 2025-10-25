@@ -306,7 +306,7 @@ def init_database():
 def reset_database():
     """Reset the database by dropping and recreating all tables"""
     print("⚠ Resetting EdgeAI database...")
-    from database import drop_tables
+    from .database import drop_tables
 
     # Drop all tables
     drop_tables()
