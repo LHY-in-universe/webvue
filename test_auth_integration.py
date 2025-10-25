@@ -170,21 +170,25 @@ def test_mock_user():
     """测试mock用户认证"""
     base_url = "http://localhost:8000"
     
-    print("\n🧪 测试Mock用户认证...")
+    print("\n🧪 测试新注册用户认证...")
     
-    # 使用mock用户登录
-    login_data = {
-        "username": "admin",
-        "password": "admin123",
+    # 注册新用户
+    import time
+    email = f"mockuser{int(time.time())}@example.com"
+    register_data = {
+        "name": "Mock测试用户",
+        "email": email,
+        "password": "test123456",
+        "confirm_password": "test123456",
         "module": "edgeai"
     }
     
     try:
-        response = requests.post(f"{base_url}/api/common/auth/login", json=login_data)
+        response = requests.post(f"{base_url}/api/common/auth/register", json=register_data)
         if response.status_code == 200:
             auth_data = response.json()
             if auth_data.get("success"):
-                print("✅ Mock用户登录成功")
+                print("✅ Mock用户注册成功")
                 token = auth_data.get("token")
                 user_id = auth_data.get("user", {}).get("id")
                 print(f"   Token: {token}")
@@ -222,12 +226,14 @@ def test_mock_user():
                     print(f"   用户ID: {project_response.get('user_id', 'N/A')}")
                 else:
                     print(f"❌ Mock用户项目创建失败: {response.status_code}")
+                    print(f"   响应内容: {response.text}")
                     return False
             else:
-                print(f"❌ Mock用户登录失败: {auth_data.get('error')}")
+                print(f"❌ Mock用户注册失败: {auth_data.get('error')}")
                 return False
         else:
-            print(f"❌ Mock用户登录请求失败: {response.status_code}")
+            print(f"❌ Mock用户注册请求失败: {response.status_code}")
+            print(f"   响应内容: {response.text}")
             return False
     except Exception as e:
         print(f"❌ Mock用户测试异常: {e}")

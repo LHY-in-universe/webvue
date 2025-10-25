@@ -340,6 +340,9 @@ class NodesAPITester:
                 return False
             
             print("✅ 服务器连接正常")
+        except Exception as e:
+            print(f"❌ 服务器检查失败: {str(e)}")
+            return False
         
         # 运行所有测试
         tests = [
@@ -383,15 +386,10 @@ class NodesAPITester:
         print(f"失败测试: {total_tests - passed_tests}")
         print(f"成功率: {(passed_tests/total_tests)*100:.1f}%")
         
-            # 保存详细测试结果
-            self.save_test_results()
-            
-            return passed_tests == total_tests
-            
-        finally:
-            # 清理认证
-            print("\n🔐 Cleaning up authentication...")
-            self.auth_helper.cleanup_auth()
+        # 保存详细测试结果
+        self.save_test_results()
+        
+        return passed_tests == total_tests
     
     def save_test_results(self):
         """保存测试结果到文件"""

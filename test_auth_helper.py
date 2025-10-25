@@ -18,7 +18,9 @@ class TestAuthHelper:
     def register_user(self, email: str = None, password: str = "test123456") -> bool:
         """注册新用户"""
         if not email:
-            email = f"testuser{int(time.time())}@example.com"
+            import time
+            timestamp = int(time.time() * 1000000)  # Use microseconds for better uniqueness
+            email = f"testuser{timestamp}@example.com"
         
         register_data = {
             "name": "测试用户",
