@@ -8,6 +8,7 @@ from ..schemas.edgeai import (
     ClusterUpdateRequest
 )
 from common.schemas.common import BaseResponse, PaginatedResponse
+from common.api.auth import get_current_user_id
 from database.edgeai import get_db, User, Project, Cluster
 from datetime import datetime
 
@@ -78,14 +79,18 @@ async def get_cluster(cluster_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/", response_model=ClusterResponse)
-async def create_cluster(request: ClusterCreateRequest, db: Session = Depends(get_db)):
+async def create_cluster(
+    request: ClusterCreateRequest, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     创建新集群
     """
     # Create new cluster in database
     new_cluster = Cluster(
         name=request.name,
-        user_id=1,  # TODO: Get from authenticated user
+        user_id=current_user_id,  # 使用认证用户的ID
         project_id=request.project_id
     )
 

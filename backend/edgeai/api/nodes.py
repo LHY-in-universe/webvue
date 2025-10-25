@@ -10,6 +10,7 @@ from ..schemas.edgeai import (
 )
 from pydantic import BaseModel
 from common.schemas.common import BaseResponse
+from common.api.auth import get_current_user_id
 from database.edgeai import get_db, User, Project, Model, Node, Cluster
 import asyncio
 import json
@@ -762,7 +763,8 @@ async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)
 async def create_node(
     node_data: NodeCreateRequest,
     cluster_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     创建新节点
@@ -777,7 +779,7 @@ async def create_node(
             )
         
         new_node = Node(
-            user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
+            user_id=current_user_id,  # 使用认证用户的ID
             cluster_id=cluster_id,  # 关联到cluster
             path_ipv4=node_data.ip,
             name=node_data.name or f"Node {node_data.ip}",

@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from ..schemas.edgeai import TrainingMetrics, TrainRequest, TrainingParameters, TrainingResponse
 from common.schemas.common import BaseResponse
+from common.api.auth import get_current_user_id
 from database.edgeai import get_db, User, Project, Model, Node, TaskQueue
 from ..scheduler.task_scheduler import task_scheduler
 import asyncio
@@ -135,7 +136,7 @@ async def make_http_request(method: str, url: str, **kwargs):
             logger.error(f"curl fallback failed: {curl_e}")
             return 502, None
 
-async def sync_nodes_from_testapi(db: Session):
+async def sync_nodes_from_testapi(db: Session, user_id: int = 1):
     """
     Sync node information from testapi with enhanced error handling
     """
@@ -185,7 +186,7 @@ async def sync_nodes_from_testapi(db: Session):
                         # Create new node with validation
                         try:
                             new_node = Node(
-                                user_id=1,  # Default user, should be parameterized
+                                user_id=user_id,  # 使用传入的用户ID
                                 name=f"Node-{ip_address}",
                                 path_ipv4=ip_address,
                                 cpu_usage=round(float(node_data.get("cpu_usage", 0.0)), 2),
@@ -940,12 +941,15 @@ async def stop_training_task(task_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"API connection error: {str(e)}")
 
 @router.post("/sync-nodes")
-async def sync_nodes_manually(db: Session = Depends(get_db)):
+async def sync_nodes_manually(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     Manually sync node data from test API
     """
     try:
-        success = await sync_nodes_from_testapi(db)
+        success = await sync_nodes_from_testapi(db, current_user_id)
         if success:
             return BaseResponse(success=True, message="Nodes synchronized successfully")
         else:

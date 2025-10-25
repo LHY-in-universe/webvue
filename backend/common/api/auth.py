@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
 from sqlalchemy.orm import Session
 import bcrypt
@@ -17,6 +17,57 @@ from database.edgeai.database import SessionLocal, get_db
 from database.edgeai.models import User
 
 router = APIRouter()
+
+# Authentication dependency
+async def get_current_user_id(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> int:
+    """
+    从Authorization header中获取当前用户ID
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    try:
+        # 解析Bearer token
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Invalid authorization format")
+        
+        token = authorization.replace("Bearer ", "")
+        
+        # 解析token格式: edgeai_token_{user_id}_{module} 或 mock_token_{user_id}_{module}
+        if token.startswith("edgeai_token_"):
+            # 从数据库token中提取用户ID
+            parts = token.split("_")
+            if len(parts) >= 3:
+                user_id = int(parts[2])
+                # 验证用户是否存在
+                user = db.query(User).filter(User.id == user_id).first()
+                if user:
+                    return user_id
+                else:
+                    raise HTTPException(status_code=401, detail="User not found")
+            else:
+                raise HTTPException(status_code=401, detail="Invalid token format")
+        
+        elif token.startswith("mock_token_"):
+            # 从mock token中提取用户ID
+            parts = token.split("_")
+            if len(parts) >= 3:
+                user_id = int(parts[2])
+                # 验证mock用户是否存在
+                if user_id in [user_data["id"] for user_data in mock_users.values()]:
+                    return user_id
+                else:
+                    raise HTTPException(status_code=401, detail="Mock user not found")
+            else:
+                raise HTTPException(status_code=401, detail="Invalid mock token format")
+        
+        else:
+            raise HTTPException(status_code=401, detail="Invalid token type")
+    
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid user ID in token")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Token validation failed: {str(e)}")
 
 # Password hashing using bcrypt directly
 def hash_password(password: str) -> str:
@@ -275,3 +326,6 @@ async def get_user_preferences(user_id: int):
             return user["preferences"]
     
     raise HTTPException(status_code=404, detail="User not found")
+
+# Export the authentication dependency for use in other modules
+__all__ = ["router", "get_current_user_id"]

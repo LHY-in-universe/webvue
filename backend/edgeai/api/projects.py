@@ -11,6 +11,7 @@ from ..schemas.edgeai import (
     ProjectType
 )
 from common.schemas.common import BaseResponse, PaginatedResponse
+from common.api.auth import get_current_user_id
 from database.edgeai import get_db, User, Project, Model, Node, Cluster
 import uuid
 from datetime import datetime, timedelta
@@ -145,13 +146,17 @@ async def get_project(project_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/", response_model=ProjectResponse)
-async def create_project(request: ProjectCreateRequest, db: Session = Depends(get_db)):
+async def create_project(
+    request: ProjectCreateRequest, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     创建新项目
     """
     # Create new project in database (使用合并后的字段)
     new_project = Project(
-        user_id=1,  # TODO: Get from authenticated user
+        user_id=current_user_id,  # 使用认证用户的ID
         name=request.name,
         description=request.description,
 
@@ -331,7 +336,11 @@ async def delete_project(project_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/import", response_model=BaseResponse)
-async def import_project(request: ProjectImportRequest, db: Session = Depends(get_db)):
+async def import_project(
+    request: ProjectImportRequest, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     导入项目
     """
@@ -347,7 +356,7 @@ async def import_project(request: ProjectImportRequest, db: Session = Depends(ge
             status="created",
             progress=0.0,
             task_id=f"task_{uuid.uuid4().hex[:8]}",
-            user_id=1  # Default to admin user
+            user_id=current_user_id  # 使用认证用户的ID
         )
 
         db.add(new_project)
