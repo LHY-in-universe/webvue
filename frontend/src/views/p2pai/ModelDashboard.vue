@@ -217,20 +217,15 @@
                   @change="toggleModelSelection(model.id)"
                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <div 
-                  :class="[
-                    'w-12 h-12 rounded-lg flex items-center justify-center',
-                    getArchitectureIcon(model.architecture).bgClass
-                  ]"
-                >
-                  <component :is="getArchitectureIcon(model.architecture).icon" class="w-6 h-6 text-white" />
+                <div class="w-12 h-12 rounded-lg flex items-center justify-center bg-blue-500">
+                  <CpuChipIcon class="w-6 h-6 text-white" />
                 </div>
                 <div class="flex-1">
                   <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                     {{ model.name }}
                   </h3>
                   <p class="text-sm text-gray-500 dark:text-gray-400">
-                    {{ model.architecture }} • v{{ model.version }}
+                    {{ model.version }}
                   </p>
                 </div>
               </div>
@@ -251,25 +246,24 @@
             <div class="space-y-3 mb-4">
               <div class="flex justify-between text-sm">
                 <span class="text-gray-600 dark:text-gray-400">Accuracy:</span>
-                <span class="font-medium text-green-600">{{ model.accuracy.toFixed(2) }}%</span>
+                <span class="font-medium text-green-600">{{ (model.accuracy * 100).toFixed(2) }}%</span>
               </div>
               <div class="flex justify-between text-sm">
-                <span class="text-gray-600 dark:text-gray-400">Parameters:</span>
-                <span class="font-medium">{{ formatNumber(model.parameters) }}</span>
+                <span class="text-gray-600 dark:text-gray-400">Loss:</span>
+                <span class="font-medium">{{ model.loss ? model.loss.toFixed(6) : 'N/A' }}</span>
               </div>
               <div class="flex justify-between text-sm">
                 <span class="text-gray-600 dark:text-gray-400">Size:</span>
                 <span class="font-medium">{{ formatFileSize(model.size) }}</span>
               </div>
               <div class="flex justify-between text-sm">
-                <span class="text-gray-600 dark:text-gray-400">Created:</span>
-                <span class="font-medium">{{ formatDate(model.createdAt) }}</span>
+                <span class="text-gray-600 dark:text-gray-400">File Path:</span>
+                <span class="font-medium text-xs truncate max-w-[150px]" :title="model.file_path">{{ model.file_path }}</span>
               </div>
-            </div>
-
-            <!-- Performance Chart Placeholder -->
-            <div class="h-20 bg-gray-50 dark:bg-slate-700 rounded-lg mb-4 flex items-center justify-center">
-              <ChartBarIcon class="w-8 h-8 text-gray-400" />
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600 dark:text-gray-400">Created:</span>
+                <span class="font-medium">{{ formatDate(model.created_time) }}</span>
+              </div>
             </div>
 
             <!-- Training Progress (if training) -->
@@ -282,7 +276,7 @@
                 size="sm"
               />
               <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                Training: Epoch {{ model.currentEpoch }} / {{ model.totalEpochs }}
+                Training Progress: {{ model.progress.toFixed(2) }}%
               </p>
             </div>
 
@@ -362,13 +356,16 @@
                   Model
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Architecture
+                  File Path
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Size
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Accuracy
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Parameters
+                  Loss
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Status
@@ -399,32 +396,30 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center">
-                    <div 
-                      :class="[
-                        'w-8 h-8 rounded-lg flex items-center justify-center mr-3',
-                        getArchitectureIcon(model.architecture).bgClass
-                      ]"
-                    >
-                      <component :is="getArchitectureIcon(model.architecture).icon" class="w-4 h-4 text-white" />
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3 bg-blue-500">
+                      <CpuChipIcon class="w-4 h-4 text-white" />
                     </div>
                     <div>
                       <div class="text-sm font-medium text-gray-900 dark:text-white">
                         {{ model.name }}
                       </div>
                       <div class="text-sm text-gray-500 dark:text-gray-400">
-                        v{{ model.version }}
+                        {{ model.version }}
                       </div>
                     </div>
                   </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                  {{ model.architecture }}
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <span class="truncate max-w-[200px] inline-block" :title="model.file_path">{{ model.file_path }}</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                  <span class="text-green-600 font-medium">{{ model.accuracy.toFixed(2) }}%</span>
+                  {{ formatFileSize(model.size) }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                  {{ formatNumber(model.parameters) }}
+                  <span class="text-green-600 font-medium">{{ (model.accuracy * 100).toFixed(2) }}%</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  {{ model.loss ? model.loss.toFixed(6) : 'N/A' }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span 
@@ -437,7 +432,7 @@
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                  {{ formatDate(model.createdAt) }}
+                  {{ formatDate(model.created_time) }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div class="flex items-center space-x-2">
@@ -509,66 +504,43 @@
             ></textarea>
           </div>
           
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Architecture
-              </label>
-              <select v-model="newModel.architecture" class="input-base">
-                <option value="CNN">Convolutional Neural Network</option>
-                <option value="RNN">Recurrent Neural Network</option>
-                <option value="Transformer">Transformer</option>
-                <option value="ResNet">ResNet</option>
-                <option value="LSTM">LSTM</option>
-                <option value="GAN">Generative Adversarial Network</option>
-              </select>
-            </div>
-            
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Task Type
-              </label>
-              <select v-model="newModel.taskType" class="input-base">
-                <option value="classification">Classification</option>
-                <option value="regression">Regression</option>
-                <option value="detection">Object Detection</option>
-                <option value="segmentation">Segmentation</option>
-                <option value="nlp">Natural Language Processing</option>
-                <option value="generation">Generation</option>
-              </select>
-            </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              File Path
+            </label>
+            <input
+              v-model="newModel.file_path"
+              type="text"
+              placeholder="e.g., /models/my-model.pth"
+              class="input-base"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Model file storage path on server</p>
           </div>
           
-          <!-- Model Configuration -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Version
+            </label>
+            <input
+              v-model="newModel.version"
+              type="text"
+              placeholder="e.g., v1.0"
+              class="input-base"
+            />
+          </div>
+          
+          <!-- Model Configuration (JSON) -->
           <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
             <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              Model Configuration
+              Class Configuration (JSON)
             </h4>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                  Input Shape
-                </label>
-                <input
-                  v-model="newModel.inputShape"
-                  type="text"
-                  placeholder="e.g., (224, 224, 3)"
-                  class="input-base text-sm"
-                />
-              </div>
-              
-              <div>
-                <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                  Output Classes
-                </label>
-                <input
-                  v-model="newModel.outputClasses"
-                  type="number"
-                  min="1"
-                  class="input-base text-sm"
-                />
-              </div>
-            </div>
+            <textarea
+              v-model="newModel.class_config"
+              placeholder='{"num_classes": 10, "input_shape": [3, 224, 224]}'
+              rows="4"
+              class="input-base font-mono text-sm"
+            ></textarea>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">JSON configuration for model classes and structure</p>
           </div>
         </div>
       </div>
@@ -596,63 +568,44 @@
       :title="`Model Details: ${selectedModel?.name || ''}`"
       size="xl"
     >
-      <div v-if="selectedModel" class="space-y-6">
+      <div v-if="selectedModel" class="space-y-6 px-4">
         <!-- Model Overview -->
-        <div class="grid grid-cols-2 gap-6">
+        <div class="grid grid-cols-2 gap-8">
           <div>
-            <h4 class="font-medium text-gray-900 dark:text-white mb-2">Model Information</h4>
-            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <p>Architecture: {{ selectedModel.architecture }}</p>
-              <p>Version: v{{ selectedModel.version }}</p>
-              <p>Parameters: {{ formatNumber(selectedModel.parameters) }}</p>
-              <p>Size: {{ formatFileSize(selectedModel.size) }}</p>
-              <p>Status: {{ selectedModel.status }}</p>
+            <h4 class="font-medium text-gray-900 dark:text-white mb-3">Model Information</h4>
+            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-2 pl-2">
+              <p><span class="font-medium">Name:</span> {{ selectedModel.name }}</p>
+              <p><span class="font-medium">Version:</span> {{ selectedModel.version }}</p>
+              <p><span class="font-medium">File Path:</span> {{ selectedModel.file_path }}</p>
+              <p><span class="font-medium">Size:</span> {{ formatFileSize(selectedModel.size) }}</p>
+              <p><span class="font-medium">Status:</span> {{ selectedModel.status }}</p>
             </div>
           </div>
           
           <div>
-            <h4 class="font-medium text-gray-900 dark:text-white mb-2">Performance Metrics</h4>
-            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <p>Accuracy: {{ selectedModel.accuracy.toFixed(2) }}%</p>
-              <p>Loss: {{ selectedModel.loss?.toFixed(4) || 'N/A' }}</p>
-              <p>F1 Score: {{ selectedModel.f1Score?.toFixed(3) || 'N/A' }}</p>
-              <p>Inference Time: {{ selectedModel.inferenceTime || 'N/A' }}ms</p>
-              <p>Memory Usage: {{ selectedModel.memoryUsage || 'N/A' }} MB</p>
+            <h4 class="font-medium text-gray-900 dark:text-white mb-3">Performance Metrics</h4>
+            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-2 pl-2">
+              <p><span class="font-medium">Accuracy:</span> {{ (selectedModel.accuracy * 100).toFixed(2) }}%</p>
+              <p><span class="font-medium">Loss:</span> {{ selectedModel.loss ? selectedModel.loss.toFixed(6) : 'N/A' }}</p>
+              <p><span class="font-medium">Progress:</span> {{ selectedModel.progress.toFixed(2) }}%</p>
+              <p><span class="font-medium">Created:</span> {{ formatDate(selectedModel.created_time) }}</p>
+              <p><span class="font-medium">Updated:</span> {{ formatDate(selectedModel.updated_time) }}</p>
             </div>
           </div>
         </div>
         
-        <!-- Performance Chart -->
+        <!-- Class Configuration -->
         <div>
-          <h4 class="font-medium text-gray-900 dark:text-white mb-2">Training History</h4>
-          <div class="h-64 bg-gray-50 dark:bg-slate-700 rounded-lg flex items-center justify-center">
-            <div class="text-center">
-              <ChartBarIcon class="w-12 h-12 text-gray-400 mx-auto mb-2" />
-              <p class="text-gray-500 dark:text-gray-400">Training metrics chart</p>
-              <p class="text-xs text-gray-400 mt-1">Chart.js integration pending</p>
-            </div>
+          <h4 class="font-medium text-gray-900 dark:text-white mb-3">Class Configuration</h4>
+          <div class="bg-gray-50 dark:bg-slate-700 rounded-lg p-4">
+            <pre class="text-xs font-mono text-gray-800 dark:text-gray-200 overflow-auto">{{ JSON.stringify(selectedModel.class_config, null, 2) }}</pre>
           </div>
         </div>
 
-        <!-- Model Deployment Info -->
-        <div v-if="selectedModel.status === 'deployed'">
-          <h4 class="font-medium text-gray-900 dark:text-white mb-2">Deployment Information</h4>
-          <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-            <div class="text-sm space-y-2">
-              <div class="flex justify-between">
-                <span class="text-green-700 dark:text-green-300">Endpoint:</span>
-                <span class="font-mono text-green-800 dark:text-green-200">{{ selectedModel.endpoint || '/api/model/' + selectedModel.id }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-green-700 dark:text-green-300">Requests Today:</span>
-                <span class="font-medium text-green-800 dark:text-green-200">{{ selectedModel.requestsToday || Math.floor(Math.random() * 1000) }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-green-700 dark:text-green-300">Avg Response Time:</span>
-                <span class="font-medium text-green-800 dark:text-green-200">{{ selectedModel.avgResponseTime || Math.floor(Math.random() * 100) + 50 }}ms</span>
-              </div>
-            </div>
-          </div>
+        <!-- Description -->
+        <div>
+          <h4 class="font-medium text-gray-900 dark:text-white mb-3">Description</h4>
+          <p class="text-sm text-gray-600 dark:text-gray-400 pl-2">{{ selectedModel.description }}</p>
         </div>
       </div>
       
@@ -752,10 +705,9 @@ const selectedModel = ref(null)
 const newModel = ref({
   name: '',
   description: '',
-  architecture: 'CNN',
-  taskType: 'classification',
-  inputShape: '',
-  outputClasses: 10
+  file_path: '',
+  version: '',
+  class_config: {}
 })
 
 // Real data state
@@ -782,7 +734,7 @@ const deployedModels = computed(() => models.value.filter(m => m.status === 'dep
 const trainingModels = computed(() => models.value.filter(m => m.status === 'training').length)
 const deploymentRate = computed(() => (deployedModels.value / totalModels.value) * 100)
 const averageAccuracy = computed(() => {
-  const accuracies = models.value.filter(m => m.accuracy).map(m => m.accuracy)
+  const accuracies = models.value.filter(m => m.accuracy).map(m => m.accuracy * 100)
   return accuracies.length > 0 ? accuracies.reduce((sum, acc) => sum + acc, 0) / accuracies.length : 0
 })
 
@@ -790,12 +742,44 @@ const canCreateModel = computed(() => {
   return newModel.value.name && newModel.value.description
 })
 
+// 🔧 前端硬编码数据 - FRONTEND HARDCODED DATA
+// 📁 文件位置: /frontend/src/views/p2pai/ModelDashboard.vue
+// ⚠️ 这是前端硬编码的示例模型数据，仅用于展示
+// 📋 数据库表: client_models (id, name, description, created_time, updated_time, user_id, project_id, file_path, version, size, class_config, status, progress, loss, accuracy)
+const HARDCODED_MODELS = [
+  {
+    id: 1,
+    name: '【前端硬编码】Image Classifier CNN',
+    description: '⚠️ 前端硬编码示例数据 - 用于图像分类的卷积神经网络模型，训练于ImageNet数据集',
+    file_path: '/models/hardcoded/image_classifier_cnn_v1.pth',
+    version: 'v1.0',
+    size: 95 * 1024 * 1024, // 95MB
+    class_config: { num_classes: 10, input_shape: [3, 224, 224], output_layer: 'softmax' },
+    status: 'deployed',
+    progress: 100.00,
+    loss: 0.045123,
+    accuracy: 0.9450,
+    created_time: new Date('2024-01-15'),
+    updated_time: new Date('2024-03-20')
+  }
+]
+
 // Real data loading
 const loadModels = async () => {
   const pageMonitor = performanceMonitor.monitorPageLoad('P2PAI-ModelDashboard')
   loading.value.models = true
   
   try {
+    // 🔧 使用前端硬编码数据 - Using frontend hardcoded data
+    console.warn('⚠️ 使用前端硬编码模型数据 - Using hardcoded model data')
+    models.value = [...HARDCODED_MODELS]
+    console.log('✅ Models loaded:', models.value)
+    console.log('📊 Total models:', models.value.length)
+    loading.value.models = false
+    pageMonitor.end()
+    return
+    
+    // 以下是实际API调用代码（已禁用）
     const result = await cachedApiCall(
       'p2pai-models', 
       () => p2paiService.models.getModels(), 
@@ -807,6 +791,7 @@ const loadModels = async () => {
         id: model.id,
         name: model.name,
         description: model.description,
+        file_path: model.file_path || model.storage_path || model.path || `/models/${model.id}`,
         architecture: model.architecture || 'CNN',
         version: model.version || '1.0',
         parameters: model.parameters || 0,
@@ -1028,13 +1013,22 @@ const createModel = async () => {
   loading.value.operations = true
   
   try {
+    // Parse class_config if it's a string
+    let classConfig = newModel.value.class_config
+    if (typeof classConfig === 'string') {
+      try {
+        classConfig = JSON.parse(classConfig)
+      } catch (e) {
+        classConfig = {}
+      }
+    }
+    
     const modelData = {
       name: newModel.value.name,
       description: newModel.value.description,
-      architecture: newModel.value.architecture,
-      task_type: newModel.value.taskType,
-      input_shape: newModel.value.inputShape,
-      output_classes: newModel.value.outputClasses
+      file_path: newModel.value.file_path || `/models/${newModel.value.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}.pth`,
+      version: newModel.value.version || 'v1.0',
+      class_config: classConfig
     }
     
     const result = await p2paiService.models.createModel?.(modelData)
@@ -1044,10 +1038,9 @@ const createModel = async () => {
       newModel.value = {
         name: '',
         description: '',
-        architecture: 'CNN',
-        taskType: 'classification',
-        inputShape: '',
-        outputClasses: 10
+        file_path: '',
+        version: '',
+        class_config: {}
       }
       
       showCreateModal.value = false

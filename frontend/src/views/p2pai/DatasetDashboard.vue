@@ -219,13 +219,8 @@
               </div>
               
               <div class="flex items-center space-x-2">
-                <span 
-                  :class="[
-                    'px-2 py-1 text-xs font-medium rounded-full',
-                    getStatusClasses(dataset.status)
-                  ]"
-                >
-                  {{ dataset.status }}
+                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  {{ dataset.version }}
                 </span>
               </div>
             </div>
@@ -233,35 +228,21 @@
             <!-- Dataset Info -->
             <div class="space-y-3 mb-4">
               <div class="flex justify-between text-sm">
-                <span class="text-gray-600 dark:text-gray-400">Samples:</span>
-                <span class="font-medium">{{ dataset.samples.toLocaleString() }}</span>
+                <span class="text-gray-600 dark:text-gray-400">Size:</span>
+                <span class="font-medium">{{ formatFileSize(dataset.size) }}</span>
               </div>
               <div class="flex justify-between text-sm">
-                <span class="text-gray-600 dark:text-gray-400">Features:</span>
-                <span class="font-medium">{{ dataset.features }}</span>
+                <span class="text-gray-600 dark:text-gray-400">Path:</span>
+                <span class="font-medium text-xs truncate max-w-[150px]" :title="dataset.path">{{ dataset.path }}</span>
               </div>
               <div class="flex justify-between text-sm">
                 <span class="text-gray-600 dark:text-gray-400">Created:</span>
-                <span class="font-medium">{{ formatDate(dataset.createdAt) }}</span>
+                <span class="font-medium">{{ formatDate(dataset.created_time) }}</span>
               </div>
               <div class="flex justify-between text-sm">
-                <span class="text-gray-600 dark:text-gray-400">Last Used:</span>
-                <span class="font-medium">{{ formatDate(dataset.lastUsed) }}</span>
+                <span class="text-gray-600 dark:text-gray-400">Updated:</span>
+                <span class="font-medium">{{ formatDate(dataset.updated_time) }}</span>
               </div>
-            </div>
-
-            <!-- Progress Bar (if processing) -->
-            <div v-if="dataset.status === 'processing'" class="mb-4">
-              <ProgressBar 
-                :percentage="dataset.progress || 0"
-                variant="primary"
-                :animated="true"
-                :show-percentage="true"
-                size="sm"
-              />
-              <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                Processing...
-              </p>
             </div>
 
             <!-- Dataset Actions -->
@@ -327,13 +308,13 @@
                   Type
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Samples
+                  Path
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Size
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Status
+                  Version
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Created
@@ -382,24 +363,17 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                   {{ dataset.type }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                  {{ dataset.samples.toLocaleString() }}
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {{ dataset.path }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                   {{ formatFileSize(dataset.size) }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span 
-                    :class="[
-                      'px-2 py-1 text-xs font-medium rounded-full',
-                      getStatusClasses(dataset.status)
-                    ]"
-                  >
-                    {{ dataset.status }}
-                  </span>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  {{ dataset.version }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                  {{ formatDate(dataset.createdAt) }}
+                  {{ formatDate(dataset.created_time) }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div class="flex items-center space-x-2">
@@ -464,6 +438,19 @@
             ></textarea>
           </div>
           
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Storage Path
+            </label>
+            <input
+              v-model="newDataset.path"
+              type="text"
+              placeholder="e.g., /data/my-dataset"
+              class="input-base"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Dataset storage path on the server</p>
+          </div>
+          
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -479,14 +466,14 @@
             
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Format
+                Version
               </label>
-              <select v-model="newDataset.format" class="input-base">
-                <option value="csv">CSV</option>
-                <option value="json">JSON</option>
-                <option value="parquet">Parquet</option>
-                <option value="hdf5">HDF5</option>
-              </select>
+              <input
+                v-model="newDataset.version"
+                type="text"
+                placeholder="e.g., v1.0"
+                class="input-base"
+              />
             </div>
           </div>
           
@@ -550,39 +537,32 @@
       :title="`Preview: ${selectedDataset?.name || ''}`"
       size="xl"
     >
-      <div v-if="selectedDataset" class="space-y-6">
+      <div v-if="selectedDataset" class="space-y-6 px-4">
         <!-- Dataset Info -->
-        <div class="grid grid-cols-2 gap-6">
+        <div class="grid grid-cols-2 gap-8">
           <div>
-            <h4 class="font-medium text-gray-900 dark:text-white mb-2">Dataset Information</h4>
-            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <p>Type: {{ selectedDataset.type }}</p>
-              <p>Samples: {{ selectedDataset.samples.toLocaleString() }}</p>
-              <p>Features: {{ selectedDataset.features }}</p>
-              <p>Size: {{ formatFileSize(selectedDataset.size) }}</p>
+            <h4 class="font-medium text-gray-900 dark:text-white mb-3">Dataset Information</h4>
+            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-2 pl-2">
+              <p><span class="font-medium">Name:</span> {{ selectedDataset.name }}</p>
+              <p><span class="font-medium">Type:</span> {{ selectedDataset.type }}</p>
+              <p><span class="font-medium">Path:</span> {{ selectedDataset.path }}</p>
+              <p><span class="font-medium">Size:</span> {{ formatFileSize(selectedDataset.size) }}</p>
             </div>
           </div>
           
           <div>
-            <h4 class="font-medium text-gray-900 dark:text-white mb-2">Statistics</h4>
-            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <p>Created: {{ formatDate(selectedDataset.createdAt) }}</p>
-              <p>Last Modified: {{ formatDate(selectedDataset.lastUsed) }}</p>
-              <p>Status: {{ selectedDataset.status }}</p>
+            <h4 class="font-medium text-gray-900 dark:text-white mb-3">Version & Timestamps</h4>
+            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-2 pl-2">
+              <p><span class="font-medium">Version:</span> {{ selectedDataset.version }}</p>
+              <p><span class="font-medium">Created:</span> {{ formatDate(selectedDataset.created_time) }}</p>
+              <p><span class="font-medium">Updated:</span> {{ formatDate(selectedDataset.updated_time) }}</p>
             </div>
           </div>
         </div>
         
-        <!-- Data Preview -->
         <div>
-          <h4 class="font-medium text-gray-900 dark:text-white mb-2">Data Preview</h4>
-          <div class="bg-gray-50 dark:bg-slate-700 rounded-lg p-4 h-64 overflow-auto">
-            <div class="text-center text-gray-500 dark:text-gray-400">
-              <CircleStackIcon class="w-12 h-12 mx-auto mb-2" />
-              <p>Dataset preview will be displayed here</p>
-              <p class="text-xs mt-1">Preview functionality coming soon</p>
-            </div>
-          </div>
+          <h4 class="font-medium text-gray-900 dark:text-white mb-3">Description</h4>
+          <p class="text-sm text-gray-600 dark:text-gray-400 pl-2">{{ selectedDataset.description }}</p>
         </div>
       </div>
       
@@ -661,8 +641,9 @@ const fileInput = ref(null)
 const newDataset = ref({
   name: '',
   description: '',
+  path: '',
   type: 'image',
-  format: 'csv'
+  version: ''
 })
 
 // Dataset data - will be loaded from API
@@ -674,6 +655,24 @@ const datasetStats = ref({
   processingQueue: 0
 })
 
+// 🔧 前端硬编码数据 - FRONTEND HARDCODED DATA
+// 📁 文件位置: /frontend/src/views/p2pai/DatasetDashboard.vue
+// ⚠️ 这是前端硬编码的示例数据集数据，仅用于展示
+// 📋 数据库表: client_datasets (id, user_id, project_id, name, description, path, size, type, version, updated_time, created_time)
+const HARDCODED_DATASETS = [
+  {
+    id: 1,
+    name: '【前端硬编码】ImageNet-Mini',
+    description: '⚠️ 前端硬编码示例数据 - ImageNet数据集的精简版本，包含1000个类别的图像数据',
+    path: '/data/hardcoded/imagenet_mini',
+    type: 'image',
+    size: 5.2 * 1024 * 1024 * 1024, // 5.2GB
+    version: 'v1.0',
+    created_time: new Date('2024-01-10'),
+    updated_time: new Date('2024-03-15')
+  }
+]
+
 // Load datasets from API
 const loadDatasetsData = async () => {
   const pageMonitor = performanceMonitor.monitorPageLoad('DatasetDashboard')
@@ -681,7 +680,25 @@ const loadDatasetsData = async () => {
   error.value = null
   
   try {
-    // Load datasets and statistics in parallel
+    // 🔧 使用前端硬编码数据 - Using frontend hardcoded data
+    console.warn('⚠️ 使用前端硬编码数据集数据 - Using hardcoded dataset data')
+    datasets.value = HARDCODED_DATASETS
+    
+    // 计算统计数据
+    const totalSize = HARDCODED_DATASETS.reduce((sum, ds) => sum + ds.size, 0)
+    datasetStats.value = {
+      totalDatasets: HARDCODED_DATASETS.length,
+      totalStorage: totalSize / (1024 * 1024 * 1024), // Convert to GB
+      activeDatasets: HARDCODED_DATASETS.length, // All datasets are active
+      processingQueue: 0 // No processing queue
+    }
+    
+    loading.value = false
+    pageMonitor.end()
+    console.log('✅ 数据集硬编码数据加载完成')
+    return
+    
+    // 以下是实际API调用代码（已禁用）
     const [datasetsResponse, statsResponse] = await Promise.all([
       cachedApiCall('datasets-list', () => p2paiService.datasets.getDatasets(), 2 * 60 * 1000),
       cachedApiCall('datasets-stats', () => p2paiService.datasets.getDatasetStats(), 5 * 60 * 1000)
@@ -693,7 +710,9 @@ const loadDatasetsData = async () => {
         id: dataset.id,
         name: dataset.name,
         description: dataset.description,
+        path: dataset.path || dataset.address || dataset.storage_path || `/data/${dataset.id}`,
         type: dataset.type,
+        format: dataset.format || 'csv',
         samples: dataset.samples || dataset.total_samples || 0,
         features: dataset.features || dataset.feature_count || 0,
         size: dataset.size || dataset.size_bytes || 0,
@@ -767,16 +786,6 @@ const getTypeIcon = (type) => {
     audio: { icon: SpeakerWaveIcon, bgClass: 'bg-orange-500' }
   }
   return icons[type] || icons.tabular
-}
-
-const getStatusClasses = (status) => {
-  const classes = {
-    ready: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    processing: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    error: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-    pending: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-  }
-  return classes[status] || classes.pending
 }
 
 const formatFileSize = (bytes) => {
@@ -931,8 +940,9 @@ const createDataset = async () => {
     const datasetData = {
       name: newDataset.value.name,
       description: newDataset.value.description,
+      path: newDataset.value.path || `/data/${newDataset.value.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`,
       type: newDataset.value.type,
-      format: newDataset.value.format
+      version: newDataset.value.version || 'v1.0'
     }
     
     const response = await p2paiService.datasets.createDataset(datasetData)
@@ -942,8 +952,9 @@ const createDataset = async () => {
       newDataset.value = {
         name: '',
         description: '',
+        path: '',
         type: 'image',
-        format: 'csv'
+        version: ''
       }
       
       showCreateModal.value = false

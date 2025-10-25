@@ -16,6 +16,7 @@ const P2PAI = {
   TrainingMonitor: () => import('@/views/p2pai/TrainingMonitor.vue'),
   ProjectOverview: () => import('@/views/p2pai/ProjectOverview.vue'),
   ProjectVisualization: () => import('@/views/p2pai/ProjectVisualization.vue'),
+  LocalTrainingVisualization: () => import('@/views/p2pai/LocalTrainingVisualization.vue'),
 }
 
 // EdgeAI Module Routes  
@@ -63,13 +64,13 @@ const routes = [
     path: '/p2pai/login',
     name: 'P2PAILogin',
     component: P2PAI.Login,
-    meta: { title: 'P2P AI - 登录' }
+    meta: { title: 'P2P AI - Login' }
   },
   {
     path: '/p2pai/user-type-select',
     name: 'P2PAIUserSelect', 
     component: P2PAI.UserTypeSelect,
-    meta: { title: 'P2P AI - 用户类型选择' }
+    meta: { title: 'P2P AI - User Type Selection' }
   },
   {
     path: '/p2pai/dashboard',
@@ -150,6 +151,57 @@ const routes = [
     meta: {
       title: 'P2P AI - Project Visualization',
       requiresAuth: true
+    }
+  },
+  {
+    path: '/p2pai/local-visualization/:projectId?',
+    name: 'P2PAILocalTrainingVisualization',
+    component: P2PAI.LocalTrainingVisualization,
+    meta: {
+      title: 'P2P AI - Local Training Visualization',
+      requiresAuth: true
+    }
+  },
+  
+  // P2P AI Server Routes
+  {
+    path: '/p2pai/server/rays',
+    name: 'P2PAIServerRays',
+    component: () => import('@/views/p2pai/server/RayClusterManagement.vue'),
+    meta: {
+      title: 'P2P AI - Ray Cluster Management',
+      requiresAuth: true,
+      requiresServer: true
+    }
+  },
+  {
+    path: '/p2pai/server/projects',
+    name: 'P2PAIServerProjects',
+    component: () => import('@/views/p2pai/server/ServerProjectManagement.vue'),
+    meta: {
+      title: 'P2P AI - Server Projects',
+      requiresAuth: true,
+      requiresServer: true
+    }
+  },
+  {
+    path: '/p2pai/server/requests',
+    name: 'P2PAIServerRequests',
+    component: () => import('@/views/p2pai/server/TrainingRequestManagement.vue'),
+    meta: {
+      title: 'P2P AI - Training Requests',
+      requiresAuth: true,
+      requiresServer: true
+    }
+  },
+  {
+    path: '/p2pai/server/models',
+    name: 'P2PAIServerModels',
+    component: () => import('@/views/p2pai/server/ServerModelManagement.vue'),
+    meta: {
+      title: 'P2P AI - Server Models',
+      requiresAuth: true,
+      requiresServer: true
     }
   },
 

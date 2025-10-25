@@ -83,8 +83,10 @@ export const API_ENDPOINTS = {
     // 模型管理
     MODELS: {
       LIST: '/api/p2pai/models',
+      CREATE: '/api/p2pai/models',
       EXPORT: '/api/p2pai/models/{id}/export',
       DEPLOY: '/api/p2pai/models/{id}/deploy',
+      STOP: '/api/p2pai/models/{id}/stop',
       EVALUATE: '/api/p2pai/models/{id}/evaluate',
       VERSIONS: '/api/p2pai/models/{id}/versions',
       STATS: '/api/p2pai/models/stats/overview'

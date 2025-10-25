@@ -37,35 +37,53 @@
     <!-- Training Configuration Header -->
     <div class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
           <!-- Training Mode -->
           <div class="text-center">
-            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Training Mode</div>
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ trainingConfig.mode }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Training Mode</div>
+            <div class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ trainingConfig.mode }}</div>
           </div>
           
           <!-- AI Model -->
           <div class="text-center">
-            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">AI Model</div>
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ trainingConfig.aiModel }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">AI Model</div>
+            <div class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ trainingConfig.aiModel }}</div>
           </div>
           
-          <!-- Privacy Level -->
+          <!-- Training Algorithm -->
           <div class="text-center">
-            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Privacy Level</div>
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ trainingConfig.privacy }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Training Alg</div>
+            <div class="text-sm font-semibold text-blue-600 dark:text-blue-400 truncate">{{ trainingConfig.trainingAlg || 'N/A' }}</div>
           </div>
           
-          <!-- Visible Nodes -->
+          <!-- Federated Algorithm -->
+          <div class="text-center" v-if="trainingConfig.fedAlg">
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Fed Alg</div>
+            <div class="text-sm font-semibold text-purple-600 dark:text-purple-400 truncate">{{ trainingConfig.fedAlg }}</div>
+          </div>
+          
+          <!-- Dataset -->
           <div class="text-center">
-            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Visible Nodes</div>
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ visibleNodesCount }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Dataset</div>
+            <div class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ trainingConfig.dataset || 'N/A' }}</div>
+          </div>
+          
+          <!-- Batch Size -->
+          <div class="text-center">
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Batch Size</div>
+            <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ trainingConfig.batchSize || 'N/A' }}</div>
+          </div>
+          
+          <!-- Learning Rate -->
+          <div class="text-center">
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Learning Rate</div>
+            <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ trainingConfig.lr || 'N/A' }}</div>
           </div>
           
           <!-- Status -->
           <div class="text-center">
-            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Status</div>
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ projectStatus }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</div>
+            <div class="text-sm font-semibold text-green-600 dark:text-green-400">{{ projectStatus }}</div>
           </div>
         </div>
       </div>
@@ -144,7 +162,7 @@
             <div>
               <div class="flex justify-between mb-2">
                 <span class="text-xs font-medium text-gray-600 dark:text-gray-300">CPU Usage</span>
-                <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources?.cpu || '---' }}%</span>
+                <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources?.cpu ? selectedNode.resources.cpu.toFixed(2) : '---' }}%</span>
               </div>
               <div v-if="selectedNode.resources?.cpu" class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full">
                 <div 
@@ -158,7 +176,7 @@
             <div>
               <div class="flex justify-between mb-2">
                 <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Memory Usage</span>
-                <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources?.memory || '---' }}%</span>
+                <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources?.memory ? selectedNode.resources.memory.toFixed(2) : '---' }}%</span>
               </div>
               <div v-if="selectedNode.resources?.memory" class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full">
                 <div 
@@ -172,7 +190,7 @@
             <div v-if="selectedNode.resources?.gpu">
               <div class="flex justify-between mb-2">
                 <span class="text-xs font-medium text-gray-600 dark:text-gray-300">GPU Usage</span>
-                <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources.gpu }}%</span>
+                <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.resources.gpu.toFixed(2) }}%</span>
               </div>
               <div class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full">
                 <div 
@@ -190,7 +208,7 @@
               <div>
                 <div class="flex justify-between mb-2">
                   <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Training Progress</span>
-                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.trainingProgress || '---' }}%</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.trainingProgress ? selectedNode.trainingProgress.toFixed(2) : '---' }}%</span>
                 </div>
                 <div v-if="selectedNode.trainingProgress" class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full">
                   <div 
@@ -212,7 +230,7 @@
               <div>
                 <div class="flex justify-between mb-1">
                   <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Model Accuracy</span>
-                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.modelAccuracy || '---' }}%</span>
+                  <span class="text-xs font-bold text-gray-900 dark:text-white">{{ selectedNode.modelAccuracy ? selectedNode.modelAccuracy.toFixed(2) : '---' }}%</span>
                 </div>
               </div>
 
@@ -302,7 +320,7 @@
                 Local Training Metrics
               </h3>
               
-              <!-- 4个独立的图表 -->
+              <!-- 4 independent charts -->
               <div class="grid grid-cols-2 gap-4 h-5/6">
                 <!-- Training Accuracy Chart -->
                 <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
@@ -359,7 +377,7 @@
             </div>
           </div>
 
-          <!-- Network Visualization (for federated and MPC) - 完全按照EdgeAI设计 -->
+          <!-- Network Visualization (for federated and MPC) - Designed following EdgeAI pattern -->
           <div v-else class="bg-white dark:bg-gray-900 m-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-[700px]">
             <div class="h-full relative">
               <NetworkVisualization
@@ -510,7 +528,7 @@
       </div>
     </div>
 
-    <!-- Bottom Dashboard - 只在分布式训练时显示 -->
+    <!-- Bottom Dashboard - Only shown for distributed training -->
     <div v-if="projectType !== 'local'" class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
       <!-- Metrics Summary -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
@@ -637,7 +655,7 @@
             </div>
           </div>
 
-          <!-- 根据项目类型显示不同的表格 -->
+          <!-- Display different tables based on project type -->
           <div v-if="projectType === 'mpc'" class="overflow-x-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
             <table class="w-full text-sm">
               <thead class="bg-gray-50 dark:bg-gray-700">
@@ -683,7 +701,7 @@
             </table>
           </div>
 
-          <!-- 联邦学习节点表格 -->
+          <!-- Federated learning node table -->
           <div v-else class="overflow-x-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
             <table class="w-full text-sm">
               <thead class="bg-gray-50 dark:bg-gray-700">
@@ -736,6 +754,155 @@
           </div>
         </div>
       </div>
+
+      <!-- Complete Configuration Information Panel -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Complete Configuration
+              </h3>
+              <button 
+                @click="showConfigPanel = !showConfigPanel"
+                class="text-sm text-blue-600 hover:text-blue-700"
+              >
+                {{ showConfigPanel ? 'Collapse' : 'Expand' }}
+              </button>
+            </div>
+            
+            <div v-if="showConfigPanel" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <!-- Training Configuration -->
+              <div class="space-y-3">
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600 pb-2">
+                  Training Configuration
+                </h4>
+                <div class="space-y-2 text-sm">
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Training Algorithm:</span>
+                    <span class="font-medium text-blue-600 dark:text-blue-400">{{ trainingConfig.trainingAlg || 'N/A' }}</span>
+                  </div>
+                  <div v-if="trainingConfig.fedAlg" class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Federated Algorithm:</span>
+                    <span class="font-medium text-purple-600 dark:text-purple-400">{{ trainingConfig.fedAlg }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Secure Aggregation:</span>
+                    <span class="font-medium">{{ projectType === 'mpc' ? 'Yes' : 'No' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Total Rounds:</span>
+                    <span class="font-medium">{{ trainingState.totalRounds }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Batch Size:</span>
+                    <span class="font-medium">{{ trainingConfig.batchSize }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Learning Rate:</span>
+                    <span class="font-medium">{{ trainingConfig.lr }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Node Configuration -->
+              <div class="space-y-3">
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600 pb-2">
+                  Node Configuration
+                </h4>
+                <div class="space-y-2 text-sm">
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Project Type:</span>
+                    <span class="font-medium">{{ trainingConfig.mode }}</span>
+                  </div>
+                  <div v-if="projectType === 'local'" class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Compute Nodes:</span>
+                    <span class="font-medium">1</span>
+                  </div>
+                  <div v-if="projectType === 'federated'">
+                    <div class="flex justify-between mb-2">
+                      <span class="text-gray-500 dark:text-gray-400">Total Clients:</span>
+                      <span class="font-medium">5</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-500 dark:text-gray-400">Sample Clients:</span>
+                      <span class="font-medium">3</span>
+                    </div>
+                  </div>
+                  <div v-if="projectType === 'mpc'">
+                    <div class="flex justify-between mb-2">
+                      <span class="text-gray-500 dark:text-gray-400">Parties:</span>
+                      <span class="font-medium">3</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-500 dark:text-gray-400">Threshold:</span>
+                      <span class="font-medium">2</span>
+                    </div>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Visible Nodes:</span>
+                    <span class="font-medium">{{ visibleNodes.length }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Model and Dataset -->
+              <div class="space-y-3">
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600 pb-2">
+                  Model and Dataset
+                </h4>
+                <div class="space-y-2 text-sm">
+                  <div>
+                    <span class="text-gray-500 dark:text-gray-400 block mb-1">Model:</span>
+                    <span class="font-medium block truncate">{{ trainingConfig.aiModel }}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500 dark:text-gray-400 block mb-1">Dataset:</span>
+                    <span class="font-medium block truncate">{{ trainingConfig.dataset }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Sampling Strategy:</span>
+                    <span class="font-medium">{{ projectType === 'mpc' ? 'Secure' : 'Full' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Performance Metrics -->
+              <div class="space-y-3">
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600 pb-2">
+                  Performance Metrics
+                </h4>
+                <div class="space-y-2 text-sm">
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Status:</span>
+                    <span class="font-medium text-green-600 dark:text-green-400">{{ projectStatus }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Progress:</span>
+                    <span class="font-medium">{{ trainingState.currentRound }}/{{ trainingState.totalRounds }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Loss:</span>
+                    <span class="font-medium text-red-600">{{ projectType === 'local' ? '0.234' : projectType === 'federated' ? '0.189' : '0.146' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Accuracy:</span>
+                    <span class="font-medium text-blue-600">{{ projectType === 'local' ? '85.2%' : projectType === 'federated' ? '89.5%' : '91.8%' }}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500 dark:text-gray-400 block mb-1">Task ID:</span>
+                    <span class="font-medium text-xs block truncate">{{ projectType }}_task_00{{ projectId }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -747,6 +914,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useP2PAIStore } from '@/stores/p2pai'
 import { useApiOptimization } from '@/composables/useApiOptimization'
 import edgeaiService from '@/services/edgeaiService'
+import p2paiService from '@/services/p2paiService'
 import performanceMonitor from '@/utils/performanceMonitor'
 import {
   ArrowLeftIcon,
@@ -785,6 +953,7 @@ const selectedNode = ref(null)
 const showNodeDetails = ref(false)
 const isClosing = ref(false)
 const isTraining = ref(false)
+const showConfigPanel = ref(true)
 
 // Training state with initial progress
 const trainingState = ref({
@@ -805,30 +974,89 @@ const localTrainingData = ref({
   memory: []
 })
 
+// Network data for visualization
+const networkData = ref({
+  nodes: [],
+  links: [],
+  summary: {
+    totalNodes: 0,
+    trainingNodes: 0,
+    totalModels: 0,
+    activeModels: 0
+  }
+})
+
+// Project display information (use ref instead of computed for dynamic updates)
+const projectDisplayName = ref('P2P AI Project')
+const projectSubtitle = ref('Real-time Training Dashboard')
+
+// 🔧 P2P AI Hardcoded Project Data - FRONTEND DEMO/FALLBACK DATA
+// 📁 File Location: /frontend/src/views/p2pai/ProjectVisualization.vue
+//
+// ⚠️ WARNING: This is hardcoded demo data for visualization purposes only
+//
+// Purpose:
+// 1. Provides demo data when backend API is unavailable
+// 2. Allows frontend testing without backend dependency
+// 3. Shows example data structure for project visualization
+//
+// TODO: In production, all data should come from p2paiService API
+// These hardcoded projects (ID 1, 2, 3) should only be used for:
+// - Development/testing environments
+// - Demo presentations
+// - Fallback when API fails
+const P2PAI_HARDCODED_PROJECTS = {
+  1: {
+    id: 1,
+    name: '[Frontend Demo] Local Training - Image Classification',
+    description: '⚠️ Frontend demo data - Local training project using single machine for image classification model training',
+    type: 'local',
+    status: 'training',
+    progress: 65,
+    epochs: 100,
+    created_time: new Date('2024-01-15'),
+    model_name_or_path: 'resnet50',
+    dataset_name: 'CIFAR-10'
+  },
+  2: {
+    id: 2,
+    name: '[Frontend Demo] Federated Learning - Medical Diagnosis',
+    description: '⚠️ Frontend demo data - Federated learning project with multiple hospitals collaboratively training disease diagnosis model',
+    type: 'federated',
+    status: 'training',
+    progress: 75,
+    epochs: 50,
+    created_time: new Date('2024-01-20'),
+    model_name_or_path: 'efficientnet-b0',
+    dataset_name: 'Medical-Images'
+  },
+  3: {
+    id: 3,
+    name: '[Frontend Demo] MPC - Financial Data Analysis',
+    description: '⚠️ Frontend demo data - Multi-party computation project with multiple financial institutions jointly analyzing data',
+    type: 'mpc',
+    status: 'completed',
+    progress: 100,
+    epochs: 30,
+    created_time: new Date('2024-01-25'),
+    model_name_or_path: 'mlp-classifier',
+    dataset_name: 'Financial-Records'
+  }
+}
+
 // Computed properties
 const projectType = computed(() => {
+  // First check if it's a P2P AI hardcoded project
+  const projectIdNum = parseInt(projectId.value)
+  if (P2PAI_HARDCODED_PROJECTS[projectIdNum]) {
+    return P2PAI_HARDCODED_PROJECTS[projectIdNum].type
+  }
+  
+  // Otherwise infer from ID string
   if (projectId.value.includes('local')) return 'local'
   if (projectId.value.includes('federated')) return 'federated'
   if (projectId.value.includes('mpc')) return 'mpc'
   return 'local'
-})
-
-const projectDisplayName = computed(() => {
-  const names = {
-    local: 'Local Training Project',
-    federated: 'Federated Learning Project',
-    mpc: 'MPC Privacy Training'
-  }
-  return names[projectType.value] || 'P2P AI Project'
-})
-
-const projectSubtitle = computed(() => {
-  const subtitles = {
-    local: 'Complete data visibility and control',
-    federated: 'Collaborative learning with privacy protection',
-    mpc: 'Maximum privacy with cryptographic protection'
-  }
-  return subtitles[projectType.value] || 'Real-time Training Dashboard'
 })
 
 const projectIcon = computed(() => {
@@ -850,21 +1078,40 @@ const projectIconClass = computed(() => {
 })
 
 const trainingConfig = computed(() => {
+  // Try to get actual model info from hardcoded projects
+  const projectIdNum = parseInt(projectId.value)
+  const project = P2PAI_HARDCODED_PROJECTS[projectIdNum]
+  
   const configs = {
     local: {
       mode: 'Local Training',
-      aiModel: 'ResNet-50',
+      aiModel: project ? project.model_name_or_path : 'ResNet-50',
       privacy: 'Full Visibility',
+      trainingAlg: project ? project.training_alg : 'Adam',
+      fedAlg: null,
+      dataset: project ? project.dataset_name : 'CIFAR-10',
+      batchSize: project ? project.batch_size : 32,
+      lr: project ? project.lr : 0.001,
     },
     federated: {
       mode: 'Federated Learning',
-      aiModel: 'Neural Network',
+      aiModel: project ? project.model_name_or_path : 'Neural Network',
       privacy: 'Partial Privacy',
+      trainingAlg: project ? project.training_alg : 'Adam',
+      fedAlg: project ? project.fed_alg : 'FedAvg',
+      dataset: project ? project.dataset_name : 'Medical-Images',
+      batchSize: project ? project.batch_size : 16,
+      lr: project ? project.lr : 0.0005,
     },
     mpc: {
       mode: 'MPC Training',
-      aiModel: 'Encrypted Model',
+      aiModel: project ? project.model_name_or_path : 'Encrypted Model',
       privacy: 'Cryptographic',
+      trainingAlg: project ? project.training_alg : 'SecureAgg',
+      fedAlg: project ? project.fed_alg : 'SecureFedAvg',
+      dataset: project ? project.dataset_name : 'Financial-Records',
+      batchSize: project ? project.batch_size : 64,
+      lr: project ? project.lr : 0.0001,
     }
   }
   return configs[projectType.value] || configs.local
@@ -1091,7 +1338,7 @@ const visibleNodes = computed(() => {
         progress: isTraining.value ? overallProgress.value : 0
       }
     ]
-    // 注意：MPC模式下其他参与方是隐藏的，由隐藏占位符显示
+    // Note: In MPC mode, other parties are hidden and shown as hidden placeholders
   }
 })
 
@@ -1133,14 +1380,14 @@ const visibleConnections = computed(() => {
   return []
 })
 
-// 新增的底部面板所需的计算属性
+// Computed properties for bottom dashboard
 const totalNodes = computed(() => {
   if (projectType.value === 'mpc') {
-    return 5 // MPC：1个可见节点 + 4个隐藏参与方
+    return 5 // MPC: 1 visible node + 4 hidden parties
   } else if (projectType.value === 'federated') {
-    return visibleNodes.value.length // 联邦学习显示所有可见节点
+    return visibleNodes.value.length // Federated learning shows all visible nodes
   }
-  return 1 // 本地训练
+  return 1 // Local training
 })
 
 const controlNodesCount = computed(() => {
@@ -1169,23 +1416,140 @@ const privacyLevel = computed(() => {
   return levels[projectType.value] || 'Standard'
 })
 
-// Load project visualization data from EdgeAI API
+// 🔧 Helper function to generate mock node data
+const generateMockNodesForProject = (project) => {
+  const nodes = []
+  
+  if (project.type === 'local') {
+    // Local training has only one node
+    nodes.push({
+      id: 'local-001',
+      name: 'Local Node',
+      label: 'Local Node',
+      type: 'training',
+      status: project.status === 'training' ? 'training' : 'idle',
+      progress: project.progress,
+      cpu: 'Intel i7',
+      gpu: 'NVIDIA RTX 3080',
+      memory: '32GB',
+      ip: '127.0.0.1',
+      x: 400,
+      y: 300,
+      resources: {
+        cpu: 75,
+        memory: 68,
+        gpu: 85
+      },
+      trainingProgress: project.progress
+    })
+  } else if (project.type === 'federated') {
+    // Federated learning has multiple nodes
+    const nodeCount = 5
+    for (let i = 0; i < nodeCount; i++) {
+      nodes.push({
+        id: `node-${String(i + 1).padStart(3, '0')}`,
+        name: i === 0 ? 'Control Node' : `Training Node ${i}`,
+        label: i === 0 ? 'Control Node' : `Node ${i}`,
+        type: i === 0 ? 'control' : 'training',
+        status: project.status === 'training' ? 'training' : 'idle',
+        progress: project.progress,
+        cpu: `CPU ${i + 1}`,
+        gpu: i === 0 ? 'None' : `GPU ${i}`,
+        memory: `${16 + i * 8}GB`,
+        ip: `192.168.1.${100 + i}`,
+        x: 200 + (i % 3) * 250,
+        y: 200 + Math.floor(i / 3) * 200,
+        resources: {
+          cpu: 60 + Math.random() * 30,
+          memory: 50 + Math.random() * 40,
+          gpu: i === 0 ? null : 70 + Math.random() * 25
+        },
+        trainingProgress: project.progress
+      })
+    }
+  } else if (project.type === 'mpc') {
+    // MPC has multiple parties
+    const nodeCount = 3
+    for (let i = 0; i < nodeCount; i++) {
+      nodes.push({
+        id: `mpc-node-${i + 1}`,
+        name: `MPC Party ${i + 1}`,
+        label: `Party ${i + 1}`,
+        type: 'mpc',
+        status: project.status === 'completed' ? 'idle' : 'computing',
+        progress: project.progress,
+        cpu: 'Encrypted',
+        gpu: 'N/A',
+        memory: 'Protected',
+        ip: 'Hidden',
+        x: 300 + i * 200,
+        y: 300,
+        resources: null, // MPC does not display resource details
+        trainingProgress: project.progress
+      })
+    }
+  }
+  
+  return nodes
+}
+
+// Load project visualization data from EdgeAI API or P2P AI hardcoded data
 const loadProjectVisualizationData = async () => {
-  const pageMonitor = performanceMonitor.monitorPageLoad('EdgeAIProjectVisualization')
+  const pageMonitor = performanceMonitor.monitorPageLoad('P2PAIProjectVisualization')
   loading.value = true
   error.value = null
 
   try {
     const projectIdValue = projectId.value
+    
+    // Check if it's a P2P AI hardcoded project (ID 1, 2, 3)
+    const projectIdNum = parseInt(projectIdValue)
+    if (P2PAI_HARDCODED_PROJECTS[projectIdNum]) {
+      console.warn('⚠️ Using P2P AI hardcoded project data')
+      const project = P2PAI_HARDCODED_PROJECTS[projectIdNum]
+      
+      // Set project basic info
+      projectDisplayName.value = project.name
+      projectSubtitle.value = project.description
+      
+      // Generate mock node data based on project type
+      const nodes = generateMockNodesForProject(project)
+      networkData.value = {
+        nodes: nodes,
+        links: [],
+        summary: {
+          totalNodes: nodes.length,
+          trainingNodes: nodes.filter(n => n.status === 'training').length,
+          totalModels: 1,
+          activeModels: project.status === 'training' ? 1 : 0
+        }
+      }
+      
+      // Set training state
+      trainingState.value = {
+        status: project.status,
+        currentRound: Math.floor((project.progress / 100) * project.epochs),
+        totalRounds: project.epochs,
+        startTime: project.created_time,
+        endTime: project.status === 'completed' ? new Date() : null
+      }
+      isTraining.value = project.status === 'training'
+      
+      console.log('✅ P2P AI project data loaded:', project)
+      pageMonitor.end({ success: true, projectType: project.type })
+      loading.value = false
+      return
+    }
 
-    // Load complete project visualization data from EdgeAI database
+    // Otherwise, try to load data from P2P AI API (fallback to EdgeAI API if needed)
+    console.log('Trying to load project data from P2P AI API...')
     const visualizationData = await cachedApiCall(
-      `edgeai-visualization-${projectIdValue}`,
-      () => edgeaiService.projects.getProjectVisualization(projectIdValue),
+      `p2pai-visualization-${projectIdValue}`,
+      () => p2paiService.projects?.getProjectVisualization?.(projectIdValue) || edgeaiService.projects.getProjectVisualization(projectIdValue),
       30 * 1000 // Cache for 30 seconds for real-time updates
     )
 
-    console.log('EdgeAI Visualization Data:', visualizationData)
+    console.log('Visualization Data:', visualizationData)
 
     // Update project info with database data
     if (visualizationData.project) {
@@ -1392,7 +1756,7 @@ const resetView = () => {
   }
 }
 
-// 新增方法 - 底部面板所需
+// Additional methods - Required for bottom panel
 const togglePrivacyMode = () => {
   console.log('Toggle privacy mode for', projectType.value)
 }
