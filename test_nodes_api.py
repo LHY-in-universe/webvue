@@ -2,6 +2,7 @@
 """
 EdgeAI Nodes API 测试脚本
 测试 backend/edgeai/api/nodes.py 中的所有API端点
+Updated with proper authentication flow
 """
 
 import requests
@@ -11,7 +12,13 @@ import asyncio
 import websockets
 from typing import Dict, Any, List
 import sys
+import os
 from datetime import datetime
+
+# 添加项目路径
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+from test_auth_helper import TestAuthHelper
 
 class NodesAPITester:
     def __init__(self, base_url: str = "http://localhost:8000"):
@@ -19,6 +26,11 @@ class NodesAPITester:
         self.api_base = f"{base_url}/api/edgeai/nodes"
         self.test_results = []
         self.created_node_ids = []
+        self.auth_helper = TestAuthHelper()
+    
+    def get_headers(self):
+        """获取带认证的请求头"""
+        return self.auth_helper.get_headers()
         
     def log_test(self, test_name: str, success: bool, message: str = "", response_data: Any = None):
         """记录测试结果"""
@@ -40,11 +52,11 @@ class NodesAPITester:
     def make_request(self, method: str, endpoint: str, data: Dict = None, params: Dict = None) -> tuple:
         """发送HTTP请求并返回响应"""
         url = f"{self.api_base}{endpoint}"
-        headers = {"Content-Type": "application/json"}
+        headers = self.get_headers()
         
         try:
             if method.upper() == "GET":
-                response = requests.get(url, params=params, timeout=10)
+                response = requests.get(url, params=params, headers=headers, timeout=10)
             elif method.upper() == "POST":
                 response = requests.post(url, json=data, headers=headers, timeout=10)
             elif method.upper() == "DELETE":
@@ -310,17 +322,24 @@ class NodesAPITester:
         print("🚀 开始EdgeAI Nodes API测试...")
         print("=" * 60)
         
-        # 检查服务器是否运行
-        try:
-            response = requests.get(f"{self.base_url}/docs", timeout=5)
-            if response.status_code != 200:
-                print("❌ 服务器未运行或无法访问")
-                return False
-        except:
-            print("❌ 无法连接到服务器，请确保后端服务正在运行")
+        # 设置认证
+        print("🔐 Setting up authentication...")
+        if not self.auth_helper.setup_auth():
+            print("❌ Failed to setup authentication. Cannot run tests.")
             return False
         
-        print("✅ 服务器连接正常")
+        try:
+            # 检查服务器是否运行
+            try:
+                response = requests.get(f"{self.base_url}/docs", timeout=5)
+                if response.status_code != 200:
+                    print("❌ 服务器未运行或无法访问")
+                    return False
+            except:
+                print("❌ 无法连接到服务器，请确保后端服务正在运行")
+                return False
+            
+            print("✅ 服务器连接正常")
         
         # 运行所有测试
         tests = [
@@ -364,10 +383,15 @@ class NodesAPITester:
         print(f"失败测试: {total_tests - passed_tests}")
         print(f"成功率: {(passed_tests/total_tests)*100:.1f}%")
         
-        # 保存详细测试结果
-        self.save_test_results()
-        
-        return passed_tests == total_tests
+            # 保存详细测试结果
+            self.save_test_results()
+            
+            return passed_tests == total_tests
+            
+        finally:
+            # 清理认证
+            print("\n🔐 Cleaning up authentication...")
+            self.auth_helper.cleanup_auth()
     
     def save_test_results(self):
         """保存测试结果到文件"""

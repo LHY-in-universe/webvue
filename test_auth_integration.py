@@ -10,6 +10,9 @@ import os
 # 添加项目路径
 sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
 
+# 导入认证辅助工具
+from test_auth_helper import TestAuthHelper
+
 def test_auth_flow():
     """测试完整的认证流程"""
     base_url = "http://localhost:8000"

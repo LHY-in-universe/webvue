@@ -10,6 +10,7 @@ class User(Base):
     name = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password = Column(String(255), nullable=False)  # Should be hashed
+    active_token = Column(String(255), nullable=True, index=True)  # 用户当前活跃的token
     created_time = Column(DateTime(timezone=True), server_default=func.now())
     updated_time = Column(DateTime(timezone=True), onupdate=func.now())
 
