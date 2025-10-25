@@ -27,13 +27,15 @@ class BatchDeleteRequest(BaseModel):
 async def get_nodes(
     status: Optional[NodeStatus] = None,
     node_type: Optional[NodeType] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取节点列表
     支持按状态、类型和项目过滤
+    只返回当前用户的节点
     """
-    query = db.query(Node)
+    query = db.query(Node).filter(Node.user_id == current_user_id)
 
     if status:
         query = query.filter(Node.state == status.value)
@@ -90,16 +92,24 @@ async def get_nodes(
     return result
 
 @router.get("/{node_id}", response_model=NodeResponse)
-async def get_node(node_id: str, db: Session = Depends(get_db)):
+async def get_node(
+    node_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取特定节点详情
+    只能访问当前用户的节点
     """
     try:
         node_id_int = int(node_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
@@ -144,16 +154,25 @@ async def get_node(node_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/{node_id}/operation", response_model=BaseResponse)
-async def perform_node_operation(node_id: str, request: NodeOperationRequest, db: Session = Depends(get_db)):
+async def perform_node_operation(
+    node_id: str, 
+    request: NodeOperationRequest, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     执行节点操作
+    只能操作当前用户的节点
     """
     try:
         node_id_int = int(node_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
@@ -188,16 +207,24 @@ async def perform_node_operation(node_id: str, request: NodeOperationRequest, db
         )
 
 @router.post("/{node_id}/start-training", response_model=BaseResponse)
-async def start_node_training(node_id: str, db: Session = Depends(get_db)):
+async def start_node_training(
+    node_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     启动节点训练
+    只能启动当前用户的节点
     """
     try:
         node_id_int = int(node_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
@@ -225,16 +252,24 @@ async def start_node_training(node_id: str, db: Session = Depends(get_db)):
         )
 
 @router.post("/{node_id}/stop-training", response_model=BaseResponse)
-async def stop_node_training(node_id: str, db: Session = Depends(get_db)):
+async def stop_node_training(
+    node_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     停止节点训练
+    只能停止当前用户的节点
     """
     try:
         node_id_int = int(node_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
@@ -261,16 +296,24 @@ async def stop_node_training(node_id: str, db: Session = Depends(get_db)):
         )
 
 @router.post("/{node_id}/restart", response_model=BaseResponse)
-async def restart_node(node_id: str, db: Session = Depends(get_db)):
+async def restart_node(
+    node_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     重启节点
+    只能重启当前用户的节点
     """
     try:
         node_id_int = int(node_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
@@ -294,12 +337,16 @@ async def restart_node(node_id: str, db: Session = Depends(get_db)):
         )
 
 @router.get("/stats/overview")
-async def get_node_stats(db: Session = Depends(get_db)):
+async def get_node_stats(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取节点统计信息
+    只统计当前用户的节点
     """
-    # 获取所有节点
-    all_nodes = db.query(Node).all()
+    # 获取当前用户的所有节点
+    all_nodes = db.query(Node).filter(Node.user_id == current_user_id).all()
     total_nodes = len(all_nodes)
     
     # 统计各状态节点数量
@@ -330,16 +377,24 @@ async def get_node_stats(db: Session = Depends(get_db)):
     }
 
 @router.get("/{node_id}/metrics")
-async def get_node_metrics(node_id: str, db: Session = Depends(get_db)):
+async def get_node_metrics(
+    node_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取节点性能指标
+    只能访问当前用户的节点
     """
     try:
         node_id_int = int(node_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     
@@ -455,9 +510,15 @@ async def node_websocket(websocket: WebSocket, node_id: str):
             pass  # 连接可能已经关闭
 
 @router.post("/{node_id}/assign-cluster")
-async def assign_node_to_cluster(node_id: str, cluster_id: str, db: Session = Depends(get_db)):
+async def assign_node_to_cluster(
+    node_id: str, 
+    cluster_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     将节点分配到集群
+    只能操作当前用户的节点
     """
     try:
         node_id_int = int(node_id)
@@ -465,7 +526,10 @@ async def assign_node_to_cluster(node_id: str, cluster_id: str, db: Session = De
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid node ID or cluster ID format")
     
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
@@ -507,16 +571,24 @@ async def assign_node_to_cluster(node_id: str, cluster_id: str, db: Session = De
         )
 
 @router.post("/{node_id}/exit-cluster")
-async def exit_node_from_cluster(node_id: str, db: Session = Depends(get_db)):
+async def exit_node_from_cluster(
+    node_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     将节点退出集群
+    只能操作当前用户的节点
     """
     try:
         node_id_int = int(node_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid node ID format")
     
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
@@ -548,9 +620,14 @@ async def exit_node_from_cluster(node_id: str, db: Session = Depends(get_db)):
         )
 
 @router.delete("/batch", response_model=BaseResponse)
-async def batch_delete_nodes(request: Request, db: Session = Depends(get_db)):
+async def batch_delete_nodes(
+    request: Request, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     批量删除节点
+    只能删除当前用户的节点
     """
     try:
         body = await request.json()
@@ -616,9 +693,14 @@ async def batch_delete_nodes(request: Request, db: Session = Depends(get_db)):
         )
 
 @router.delete("/{node_id}", response_model=BaseResponse)
-async def delete_node(node_id: str, db: Session = Depends(get_db)):
+async def delete_node(
+    node_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     删除节点
+    只能删除当前用户的节点
     """
     try:
         node_id_int = int(node_id)
@@ -626,7 +708,10 @@ async def delete_node(node_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid node ID format")
 
     # 从数据库删除节点
-    node = db.query(Node).filter(Node.id == node_id_int).first()
+    node = db.query(Node).filter(
+        Node.id == node_id_int,
+        Node.user_id == current_user_id
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
@@ -639,9 +724,14 @@ async def delete_node(node_id: str, db: Session = Depends(get_db)):
     )
 
 @router.get("/visualization/{project_id}/")
-async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)):
+async def get_visualization_nodes(
+    project_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取特定项目的可视化节点数据（从数据库获取真实数据）
+    只能访问当前用户的项目
     """
     try:
         project_id_int = int(project_id)
@@ -650,7 +740,10 @@ async def get_visualization_nodes(project_id: str, db: Session = Depends(get_db)
 
     try:
         # 获取项目信息
-        project = db.query(Project).filter(Project.id == project_id_int).first()
+        project = db.query(Project).filter(
+            Project.id == project_id_int,
+            Project.user_id == current_user_id
+        ).first()
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 

@@ -94,7 +94,7 @@ def test_cluster_api():
     # Test 5: Get user clusters
     print("\n5. Testing get user clusters...")
     try:
-        response = requests.get(f"{BASE_URL}/user/1/clusters")
+        response = requests.get(f"{BASE_URL}/user/1/clusters", headers=headers)
         if response.status_code == 200:
             user_clusters = response.json()
             print(f"✅ Retrieved {len(user_clusters)} clusters for user 1")
@@ -106,7 +106,7 @@ def test_cluster_api():
     # Test 6: Get project clusters
     print("\n6. Testing get project clusters...")
     try:
-        response = requests.get(f"{BASE_URL}/project/1/clusters")
+        response = requests.get(f"{BASE_URL}/project/1/clusters", headers=headers)
         if response.status_code == 200:
             project_clusters = response.json()
             print(f"✅ Retrieved {len(project_clusters)} clusters for project 1")

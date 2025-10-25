@@ -421,9 +421,16 @@ async def stop_global_sync_task():
         logger.info("Global sync task stopped")
 
 @router.post("/start/{project_id}", response_model=TrainingResponse)
-async def start_training(project_id: str, node_ids: List[str] = None, priority: int = 5, db: Session = Depends(get_db)):
+async def start_training(
+    project_id: str, 
+    node_ids: List[str] = None, 
+    priority: int = 5, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     启动训练任务 - 使用任务队列和并发控制
+    只能启动当前用户的项目
     """
     try:
         # 确保任务调度器正在运行
@@ -462,7 +469,7 @@ async def start_training(project_id: str, node_ids: List[str] = None, priority: 
         raise HTTPException(status_code=500, detail=f"Failed to queue training task: {str(e)}")
 
 @router.post("/start", response_model=BaseResponse)
-async def start_training_legacy(project_id: str, node_ids: List[str] = None, db: Session = Depends(get_db)):
+async def start_training_legacy(project_id: str, node_ids: List[str] = None, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     开始训练
     """
@@ -510,7 +517,7 @@ async def start_training_legacy(project_id: str, node_ids: List[str] = None, db:
         )
 
 @router.post("/stop", response_model=BaseResponse)
-async def stop_training(project_id: str):
+async def stop_training(project_id: str, current_user_id: int = Depends(get_current_user_id)):
     """
     停止训练
     """
@@ -534,7 +541,7 @@ async def stop_training(project_id: str):
         )
 
 @router.get("/sessions")
-async def get_training_sessions():
+async def get_training_sessions(current_user_id: int = Depends(get_current_user_id)):
     """
     获取所有训练会话
     """
@@ -544,7 +551,7 @@ async def get_training_sessions():
     }
 
 @router.get("/sessions/{project_id}")
-async def get_project_training_sessions(project_id: str):
+async def get_project_training_sessions(project_id: str, current_user_id: int = Depends(get_current_user_id)):
     """
     获取特定项目的训练会话
     """
@@ -559,7 +566,7 @@ async def get_project_training_sessions(project_id: str):
     }
 
 @router.get("/metrics/{project_id}")
-async def get_training_metrics(project_id: str):
+async def get_training_metrics(project_id: str, current_user_id: int = Depends(get_current_user_id)):
     """
     获取训练指标
     """
@@ -639,7 +646,7 @@ async def training_websocket(websocket: WebSocket, project_id: str):
         await websocket.close()
 
 @router.post("/batch-start")
-async def start_batch_training(project_ids: List[str], node_ids: List[str] = None):
+async def start_batch_training(project_ids: List[str], node_ids: List[str] = None, current_user_id: int = Depends(get_current_user_id)):
     """
     批量开始训练
     """
@@ -682,7 +689,7 @@ async def start_batch_training(project_ids: List[str], node_ids: List[str] = Non
     }
 
 @router.post("/batch-stop")
-async def stop_batch_training(project_ids: List[str]):
+async def stop_batch_training(project_ids: List[str], current_user_id: int = Depends(get_current_user_id)):
     """
     批量停止训练
     """
@@ -716,7 +723,7 @@ async def stop_batch_training(project_ids: List[str]):
     }
 
 @router.get("/config/{project_id}/")
-async def get_training_config(project_id: str, db: Session = Depends(get_db)):
+async def get_training_config(project_id: str, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     获取特定项目的训练配置
     """
@@ -785,7 +792,7 @@ async def get_training_config(project_id: str, db: Session = Depends(get_db)):
     }
 
 @router.post("/start-with-api", response_model=TrainingResponse)
-async def start_training_with_api(project_id: str, db: Session = Depends(get_db)):
+async def start_training_with_api(project_id: str, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     Start training using the test API format
     """
@@ -879,7 +886,7 @@ async def start_training_with_api(project_id: str, db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.get("/status/{task_id}")
-async def get_training_status(task_id: str):
+async def get_training_status(task_id: str, current_user_id: int = Depends(get_current_user_id)):
     """
     Get training status from test API
     """
@@ -902,7 +909,7 @@ async def get_training_status(task_id: str):
         raise HTTPException(status_code=500, detail=f"API connection error: {str(e)}")
 
 @router.delete("/stop/{task_id}")
-async def stop_training_task(task_id: str, db: Session = Depends(get_db)):
+async def stop_training_task(task_id: str, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     Stop training task using test API
     """
@@ -958,7 +965,7 @@ async def sync_nodes_manually(
         return BaseResponse(success=False, error=f"Error syncing nodes: {str(e)}")
 
 @router.get("/polling-status")
-async def get_polling_status():
+async def get_polling_status(current_user_id: int = Depends(get_current_user_id)):
     """
     Get status of all active polling tasks
     """
@@ -977,7 +984,7 @@ async def get_polling_status():
     }
 
 @router.post("/start-sync")
-async def start_sync_task():
+async def start_sync_task(current_user_id: int = Depends(get_current_user_id)):
     """
     手动启动全局同步任务
     """
@@ -988,7 +995,7 @@ async def start_sync_task():
         return BaseResponse(success=False, error=f"Failed to start sync task: {str(e)}")
 
 @router.post("/stop-sync")
-async def stop_sync_task():
+async def stop_sync_task(current_user_id: int = Depends(get_current_user_id)):
     """
     停止全局同步任务
     """
@@ -999,7 +1006,7 @@ async def stop_sync_task():
         return BaseResponse(success=False, error=f"Failed to stop sync task: {str(e)}")
 
 @router.get("/sync-status")
-async def get_sync_status():
+async def get_sync_status(current_user_id: int = Depends(get_current_user_id)):
     """
     获取同步任务状态
     """
@@ -1011,7 +1018,7 @@ async def get_sync_status():
     }
 
 @router.get("/health-check")
-async def health_check():
+async def health_check(current_user_id: int = Depends(get_current_user_id)):
     """
     Check system health including TestAPI connectivity
     """
@@ -1055,7 +1062,7 @@ async def health_check():
         }
 
 @router.get("/monitor/{task_id}")
-async def get_training_monitor(task_id: str):
+async def get_training_monitor(task_id: str, current_user_id: int = Depends(get_current_user_id)):
     """
     Get training progress from test API
     """
@@ -1083,7 +1090,7 @@ async def get_training_monitor(task_id: str):
 # ===============================
 
 @router.get("/queue/status")
-async def get_queue_status(db: Session = Depends(get_db)):
+async def get_queue_status(db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     获取任务队列状态
     """
@@ -1103,7 +1110,7 @@ async def get_queue_status(db: Session = Depends(get_db)):
 
 
 @router.post("/queue/cancel/{queue_task_id}")
-async def cancel_queued_task(queue_task_id: int, db: Session = Depends(get_db)):
+async def cancel_queued_task(queue_task_id: int, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     取消排队中的任务
     """
@@ -1124,7 +1131,7 @@ async def cancel_queued_task(queue_task_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/queue/project/{project_id}")
-async def get_project_queue_status(project_id: int, db: Session = Depends(get_db)):
+async def get_project_queue_status(project_id: int, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     获取特定项目的队列状态
     """
@@ -1163,7 +1170,7 @@ async def get_project_queue_status(project_id: int, db: Session = Depends(get_db
 
 
 @router.post("/scheduler/start")
-async def start_scheduler():
+async def start_scheduler(current_user_id: int = Depends(get_current_user_id)):
     """
     启动任务调度器
     """
@@ -1186,7 +1193,7 @@ async def start_scheduler():
 
 
 @router.post("/scheduler/stop")
-async def stop_scheduler():
+async def stop_scheduler(current_user_id: int = Depends(get_current_user_id)):
     """
     停止任务调度器
     """
@@ -1209,7 +1216,7 @@ async def stop_scheduler():
 
 
 @router.get("/scheduler/config")
-async def get_scheduler_config():
+async def get_scheduler_config(current_user_id: int = Depends(get_current_user_id)):
     """
     获取调度器配置
     """
@@ -1234,7 +1241,7 @@ async def get_scheduler_config():
 
 
 @router.post("/queue/priority")
-async def update_task_priority(queue_task_id: int, new_priority: int, db: Session = Depends(get_db)):
+async def update_task_priority(queue_task_id: int, new_priority: int, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     更新排队任务的优先级
     """

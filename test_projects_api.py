@@ -152,7 +152,7 @@ class APITester:
             return False
             
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/{self.created_project_id}/")
+            response = self.session.get(f"{PROJECTS_BASE}/{self.created_project_id}/", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/{id}/", 
@@ -196,7 +196,7 @@ class APITester:
                 "dataset_sample": 200
             }
             
-            response = self.session.put(f"{PROJECTS_BASE}/{self.created_project_id}", json=update_data)
+            response = self.session.put(f"{PROJECTS_BASE}/{self.created_project_id}", json=update_data, headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "PUT /projects/{id}", 
@@ -223,7 +223,7 @@ class APITester:
         
         for operation, test_name in operations:
             try:
-                response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/{operation}")
+                response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/{operation}", headers=self.get_headers())
                 success = response.status_code == 200
                 self.log_test(
                     test_name, 
@@ -241,7 +241,7 @@ class APITester:
             return False
             
         try:
-            response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/duplicate")
+            response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/duplicate", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "POST /projects/{id}/duplicate", 
@@ -261,7 +261,7 @@ class APITester:
             return False
             
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/{self.created_project_id}/visualization")
+            response = self.session.get(f"{PROJECTS_BASE}/{self.created_project_id}/visualization", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/{id}/visualization", 
@@ -312,7 +312,7 @@ class APITester:
                 "format": "json"
             }
             
-            response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/export", json=export_data)
+            response = self.session.post(f"{PROJECTS_BASE}/{self.created_project_id}/export", json=export_data, headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "POST /projects/{id}/export", 
@@ -328,7 +328,7 @@ class APITester:
     def test_system_stats(self):
         """Test GET /edgeai/projects/stats/overview - Get system stats"""
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/stats/overview")
+            response = self.session.get(f"{PROJECTS_BASE}/stats/overview", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/stats/overview", 
@@ -344,7 +344,7 @@ class APITester:
     def test_project_templates(self):
         """Test GET /edgeai/projects/templates - Get project templates"""
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/templates")
+            response = self.session.get(f"{PROJECTS_BASE}/templates", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/templates", 
@@ -360,7 +360,7 @@ class APITester:
     def test_import_history(self):
         """Test GET /edgeai/projects/import-history - Get import history"""
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/import-history")
+            response = self.session.get(f"{PROJECTS_BASE}/import-history", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "GET /projects/import-history", 
@@ -380,7 +380,7 @@ class APITester:
                 "url": "https://example.com/project-config.json"
             }
             
-            response = self.session.post(f"{PROJECTS_BASE}/load-from-url", json=url_data)
+            response = self.session.post(f"{PROJECTS_BASE}/load-from-url", json=url_data, headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "POST /projects/load-from-url", 
@@ -400,7 +400,7 @@ class APITester:
             return False
             
         try:
-            response = self.session.delete(f"{PROJECTS_BASE}/{self.created_project_id}")
+            response = self.session.delete(f"{PROJECTS_BASE}/{self.created_project_id}", headers=self.get_headers())
             success = response.status_code == 200
             self.log_test(
                 "DELETE /projects/{id}", 
@@ -417,7 +417,7 @@ class APITester:
         """Test error cases"""
         # Test invalid project ID
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/invalid_id/")
+            response = self.session.get(f"{PROJECTS_BASE}/invalid_id/", headers=self.get_headers())
             success = response.status_code == 400
             self.log_test(
                 "GET /projects/invalid_id/ (error case)", 
@@ -430,7 +430,7 @@ class APITester:
         
         # Test non-existent project ID
         try:
-            response = self.session.get(f"{PROJECTS_BASE}/99999/")
+            response = self.session.get(f"{PROJECTS_BASE}/99999/", headers=self.get_headers())
             success = response.status_code == 404
             self.log_test(
                 "GET /projects/99999/ (not found)", 

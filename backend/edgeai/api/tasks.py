@@ -3,6 +3,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from ..schemas.edgeai import TaskRequest, TaskResponse
 from common.schemas.common import BaseResponse
+from common.api.auth import get_current_user_id
 from database.edgeai import get_db, User, Project, Model, Node
 from datetime import datetime, timedelta
 import uuid
@@ -246,7 +247,8 @@ mock_tasks = generate_dynamic_tasks()
 async def get_tasks(
     project_id: Optional[str] = None,
     status: Optional[str] = None,
-    task_type: Optional[str] = None
+    task_type: Optional[str] = None,
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取任务列表

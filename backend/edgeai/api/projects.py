@@ -23,13 +23,15 @@ async def get_projects(
     status: Optional[ProjectStatus] = None,
     project_type: Optional[ProjectType] = None,
     search: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取项目列表
     支持按状态、类型和搜索关键词过滤
+    只返回当前用户的项目
     """
-    query = db.query(Project)
+    query = db.query(Project).filter(Project.user_id == current_user_id)
 
     if status:
         query = query.filter(Project.status == status.value)
@@ -92,16 +94,24 @@ async def get_projects(
     return result
 
 @router.get("/{project_id}/", response_model=ProjectResponse)
-async def get_project(project_id: str, db: Session = Depends(get_db)):
+async def get_project(
+    project_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取特定项目详情
+    只能访问当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    project = db.query(Project).filter(Project.id == project_id_int).first()
+    project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -233,16 +243,25 @@ async def create_project(
     )
 
 @router.put("/{project_id}", response_model=ProjectResponse)
-async def update_project(project_id: str, request: ProjectCreateRequest, db: Session = Depends(get_db)):
+async def update_project(
+    project_id: str, 
+    request: ProjectCreateRequest, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     更新项目信息
+    只能更新当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    project = db.query(Project).filter(Project.id == project_id_int).first()
+    project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -312,16 +331,24 @@ async def update_project(project_id: str, request: ProjectCreateRequest, db: Ses
     )
 
 @router.delete("/{project_id}", response_model=BaseResponse)
-async def delete_project(project_id: str, db: Session = Depends(get_db)):
+async def delete_project(
+    project_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     删除项目
+    只能删除当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    project = db.query(Project).filter(Project.id == project_id_int).first()
+    project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -375,16 +402,25 @@ async def import_project(
         )
 
 @router.post("/{project_id}/export", response_model=BaseResponse)
-async def export_project(project_id: str, request: ProjectExportRequest, db: Session = Depends(get_db)):
+async def export_project(
+    project_id: str, 
+    request: ProjectExportRequest, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     导出项目
+    只能导出当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    project = db.query(Project).filter(Project.id == project_id_int).first()
+    project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -422,16 +458,24 @@ async def export_project(project_id: str, request: ProjectExportRequest, db: Ses
     )
 
 @router.get("/{project_id}/visualization")
-async def get_project_visualization(project_id: str, db: Session = Depends(get_db)):
+async def get_project_visualization(
+    project_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取项目的完整可视化数据，包括项目详情、关联的模型和节点
+    只能访问当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    project = db.query(Project).filter(Project.id == project_id_int).first()
+    project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -515,12 +559,17 @@ async def get_project_visualization(project_id: str, db: Session = Depends(get_d
     return visualization_data
 
 @router.get("/stats/overview", response_model=SystemStats)
-async def get_system_stats(db: Session = Depends(get_db)):
+async def get_system_stats(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取系统统计信息
+    只统计当前用户的项目
     """
-    total_projects = db.query(Project).count()
+    total_projects = db.query(Project).filter(Project.user_id == current_user_id).count()
     active_projects = db.query(Project).filter(
+        Project.user_id == current_user_id,
         Project.status.in_(["active", "training"])
     ).count()
 
@@ -542,16 +591,24 @@ async def get_system_stats(db: Session = Depends(get_db)):
     )
 
 @router.post("/{project_id}/duplicate", response_model=BaseResponse)
-async def duplicate_project(project_id: str, db: Session = Depends(get_db)):
+async def duplicate_project(
+    project_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     复制项目
+    只能复制当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    original_project = db.query(Project).filter(Project.id == project_id_int).first()
+    original_project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
     if not original_project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -599,16 +656,24 @@ async def duplicate_project(project_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/{project_id}/start", response_model=BaseResponse)
-async def start_project(project_id: str, db: Session = Depends(get_db)):
+async def start_project(
+    project_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     启动项目
+    只能启动当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    project = db.query(Project).filter(Project.id == project_id_int).first()
+    project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -622,16 +687,24 @@ async def start_project(project_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/{project_id}/pause", response_model=BaseResponse)
-async def pause_project(project_id: str, db: Session = Depends(get_db)):
+async def pause_project(
+    project_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     暂停项目
+    只能暂停当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    project = db.query(Project).filter(Project.id == project_id_int).first()
+    project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -645,16 +718,24 @@ async def pause_project(project_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/{project_id}/stop", response_model=BaseResponse)
-async def stop_project(project_id: str, db: Session = Depends(get_db)):
+async def stop_project(
+    project_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     停止项目
+    只能停止当前用户的项目
     """
     try:
         project_id_int = int(project_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project ID format")
 
-    project = db.query(Project).filter(Project.id == project_id_int).first()
+    project = db.query(Project).filter(
+        Project.id == project_id_int,
+        Project.user_id == current_user_id
+    ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -668,9 +749,10 @@ async def stop_project(project_id: str, db: Session = Depends(get_db)):
     )
 
 @router.get("/templates")
-async def get_project_templates():
+async def get_project_templates(current_user_id: int = Depends(get_current_user_id)):
     """
     获取项目模板
+    需要认证才能访问
     """
     templates = [
         {
@@ -741,9 +823,13 @@ async def get_project_templates():
     }
 
 @router.get("/import-history")
-async def get_import_history(limit: int = Query(default=20, le=100)):
+async def get_import_history(
+    limit: int = Query(default=20, le=100),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取导入历史记录
+    需要认证才能访问
     """
     import_history = [
         {
@@ -812,9 +898,13 @@ async def get_import_history(limit: int = Query(default=20, le=100)):
 
 
 @router.post("/load-from-url")
-async def load_project_from_url(request: dict):
+async def load_project_from_url(
+    request: dict,
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     从URL加载项目配置
+    需要认证才能访问
     """
     url = request.get("url")
 
