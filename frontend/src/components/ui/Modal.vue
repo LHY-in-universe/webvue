@@ -4,8 +4,7 @@
     <Transition name="modal-overlay">
       <div 
         v-if="isOpen"
-        class="modal-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4"
-        style="padding-top: 2rem; padding-bottom: 2rem;"
+        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
         :class="overlayClasses"
         @click="handleOverlayClick"
       >
@@ -21,6 +20,7 @@
             role="dialog"
             :aria-labelledby="titleId"
             aria-modal="true"
+            style="margin: auto 0;"
           >
             <!-- Header -->
             <div 
