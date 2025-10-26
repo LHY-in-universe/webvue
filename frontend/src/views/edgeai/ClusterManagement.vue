@@ -300,6 +300,7 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
+const { error: showError } = useNotifications()
 const { cachedApiCall, clearCache } = useApiOptimization()
 
 // Reactive data
@@ -485,7 +486,7 @@ const openClusterDetails = (cluster) => {
   // Validate cluster ID before navigation
   if (!cluster.id || cluster.id === 'undefined' || cluster.id === undefined) {
     console.error('❌ Invalid cluster ID:', cluster.id)
-    alert('Invalid cluster ID. Please refresh the page and try again.')
+    showError('Invalid cluster ID. Please refresh the page and try again.')
     return
   }
   

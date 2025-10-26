@@ -965,9 +965,10 @@ const triggerCelebrationAnimation = () => {
   trainingState.value.status = 'completed'
   trainingState.value.endTime = Date.now()
   
-  // 显示完成通知（在实际应用中可以是模态框或toast）
+  // 显示完成通知
+  const { success } = useNotifications()
   setTimeout(() => {
-    alert('🎉 联邦学习训练已全部完成！所有节点已完成训练任务。')
+    success('🎉 联邦学习训练已全部完成！所有节点已完成训练任务。')
   }, 1000)
 }
 
@@ -1563,7 +1564,8 @@ const submitAddNode = async () => {
       await loadNodesData()
       
       // 显示成功消息
-      alert('节点添加成功！')
+      const { success } = useNotifications()
+      success('节点添加成功！')
     }
   } catch (error) {
     console.error('Failed to add node:', error)

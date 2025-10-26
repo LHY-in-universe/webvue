@@ -618,6 +618,7 @@ import Modal from '@/components/ui/Modal.vue'
 
 const router = useRouter()
 const themeStore = useThemeStore()
+const { error: showError } = useNotifications()
 const { cachedApiCall } = useApiOptimization()
 
 // API loading state
@@ -856,7 +857,7 @@ const deleteDataset = async (dataset) => {
       }
     } catch (err) {
       console.error('❌ Failed to delete dataset:', err)
-      alert('Failed to delete dataset: ' + err.message)
+      showError('Failed to delete dataset: ' + err.message)
     }
   }
 }
@@ -869,7 +870,7 @@ const downloadDataset = async (dataset) => {
     console.log('✅ Dataset download initiated')
   } catch (err) {
     console.error('❌ Failed to download dataset:', err)
-    alert('Failed to download dataset: ' + err.message)
+    showError('Failed to download dataset: ' + err.message)
   }
 }
 
@@ -926,7 +927,7 @@ const handleFileUpload = async (event) => {
     } catch (err) {
       console.error('❌ Failed to upload dataset:', err)
       uploadProgress.value = 0
-      alert('Failed to upload dataset: ' + err.message)
+      showError('Failed to upload dataset: ' + err.message)
     }
   }
 }
@@ -968,7 +969,7 @@ const createDataset = async () => {
     }
   } catch (err) {
     console.error('❌ Failed to create dataset:', err)
-    alert('Failed to create dataset: ' + err.message)
+    showError('Failed to create dataset: ' + err.message)
   }
 }
 

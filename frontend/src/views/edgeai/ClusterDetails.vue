@@ -578,6 +578,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApiOptimization } from '@/composables/useApiOptimization'
+import { useNotifications } from '@/composables/useNotifications'
 import edgeaiService from '@/services/edgeaiService'
 import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
@@ -599,6 +600,7 @@ const MemoryIcon = CpuChipIcon
 const route = useRoute()
 const router = useRouter()
 const { cachedApiCall, clearCache } = useApiOptimization()
+const { success, error: showError, confirm } = useNotifications()
 
 // Get cluster ID from route params
 const clusterId = computed(() => route.params.id)
@@ -800,14 +802,14 @@ const refreshNodes = async () => {
 
 const submitNewNode = async () => {
   if (!newNodeData.value.ip.trim()) {
-    alert('IPv4 address is required')
+    showError('IPv4 address is required')
     return
   }
 
   // Validate IPv4 format with proper range checking
   const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
   if (!ipRegex.test(newNodeData.value.ip)) {
-    alert('Please enter a valid IPv4 address (e.g., 192.168.1.100)')
+    showError('Please enter a valid IPv4 address (e.g., 192.168.1.100)')
     return
   }
 
@@ -819,7 +821,7 @@ const submitNewNode = async () => {
   })
 
   if (invalidOctet !== undefined) {
-    alert('Each part of the IP address must be between 0 and 255')
+    showError('Each part of the IP address must be between 0 and 255')
     return
   }
 
@@ -841,9 +843,9 @@ const submitNewNode = async () => {
       clearCache(`edgeai-cluster-nodes-${clusterId.value}`)
       await loadClusterNodes()
 
-      alert('Node added successfully!')
+      success('Node added successfully!')
     } else {
-      alert('Failed to add node')
+      showError('Failed to add node')
     }
   } catch (err) {
     console.error('Failed to add node:', err)
@@ -862,7 +864,7 @@ const submitNewNode = async () => {
       errorMessage = err.message
     }
 
-    alert(`Failed to add node: ${errorMessage}`)
+    showError(`Failed to add node: ${errorMessage}`)
   } finally {
     addingNode.value = false
   }
@@ -874,17 +876,25 @@ const viewNodeDetails = (node) => {
 }
 
 const removeNode = async (node) => {
-  if (!confirm(`Are you sure you want to remove node "${node.name}" from this cluster?`)) {
+  const confirmed = await confirm({
+    title: 'Remove Node',
+    message: `Are you sure you want to remove node "${node.name}" from this cluster?`,
+    confirmText: 'Remove',
+    cancelText: 'Cancel',
+    type: 'warning'
+  })
+  
+  if (!confirmed) {
     return
   }
 
   try {
     await edgeaiService.nodes.deleteNode(node.id)
     await loadClusterNodes()
-    alert('Node removed successfully!')
+    success('Node removed successfully!')
   } catch (err) {
     console.error('Failed to remove node:', err)
-    alert(`Failed to remove node: ${err.message || 'Unknown error'}`)
+    showError(`Failed to remove node: ${err.message || 'Unknown error'}`)
   }
 }
 
@@ -933,7 +943,7 @@ const deleteCluster = async () => {
     error.value = err.message || 'Failed to delete cluster'
     
     // Show user-friendly error message
-    alert(`Failed to delete cluster: ${err.message || 'Unknown error'}`)
+    showError(`Failed to delete cluster: ${err.message || 'Unknown error'}`)
   } finally {
     deleting.value = false
   }

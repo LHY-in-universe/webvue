@@ -296,6 +296,7 @@ import {
 
 const router = useRouter()
 const { cachedApiCall, clearCache } = useApiOptimization()
+const { error: showError } = useNotifications()
 
 // Reactive data
 const searchQuery = ref('')
@@ -482,7 +483,7 @@ const deleteModel = async (model) => {
     }
   } catch (error) {
     console.error('Failed to delete model:', error)
-    alert(`Failed to delete ${model.name}: ${error.message}`)
+    showError(`Failed to delete ${model.name}: ${error.message}`)
     monitor.end({ success: false, error: error.message })
   }
 }
