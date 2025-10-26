@@ -4,7 +4,8 @@
     <Transition name="modal-overlay">
       <div 
         v-if="isOpen"
-        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="modal-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4"
+        style="padding-top: 2rem; padding-bottom: 2rem;"
         :class="overlayClasses"
         @click="handleOverlayClick"
       >
@@ -257,22 +258,9 @@ const handleEscape = (event) => {
 // Lock body scroll when modal is open
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {
-    // Save scroll position
-    const scrollY = window.scrollY
-    document.body.style.position = 'fixed'
-    document.body.style.top = `-${scrollY}px`
-    document.body.style.width = '100%'
     document.body.style.overflow = 'hidden'
   } else {
-    // Restore scroll position
-    const scrollY = document.body.style.top
-    document.body.style.position = ''
-    document.body.style.top = ''
-    document.body.style.width = ''
     document.body.style.overflow = ''
-    if (scrollY) {
-      window.scrollTo(0, parseInt(scrollY || '0') * -1)
-    }
   }
 })
 
