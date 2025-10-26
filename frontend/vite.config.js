@@ -80,10 +80,10 @@ export default defineConfig({
   // CSS preprocessing optimizations
   css: {
     devSourcemap: false,
-    preprocessorOptions: {
-      scss: {
-        additionalData: `@import "@/assets/variables.scss";`
-      }
-    }
+    // preprocessorOptions: {
+    //   scss: {
+    //     additionalData: `@import "@/assets/variables.scss";`
+    //   }
+    // }
   }
 })
