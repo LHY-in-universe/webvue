@@ -149,6 +149,14 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
     """
     创建新项目
     """
+    # 验证cluster存在
+    cluster = db.query(Cluster).filter(Cluster.id == request.cluster_id).first()
+    if not cluster:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Cluster with ID {request.cluster_id} not found"
+        )
+
     # Create new project in database (使用合并后的字段)
     new_project = Project(
         user_id=1,  # TODO: Get from authenticated user
@@ -185,6 +193,11 @@ async def create_project(request: ProjectCreateRequest, db: Session = Depends(ge
     )
 
     db.add(new_project)
+    db.flush()  # 获取new_project.id但不提交事务
+
+    # 更新cluster的project_id，建立Project -> Cluster关联
+    cluster.project_id = new_project.id
+
     db.commit()
     db.refresh(new_project)
 

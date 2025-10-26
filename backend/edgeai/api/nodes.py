@@ -82,7 +82,12 @@ async def get_nodes(
             current_epoch=None,
             total_epochs=None,
             last_seen=last_seen,
-            connections=[]
+            connections=[],
+            node_type=node.type,  # 添加节点类型信息
+            cluster_id=node.cluster_id,  # 添加集群ID信息
+            project="No Project",
+            uptime="0h 0m",
+            active_tasks=0
         )
         result.append(node_response)
 
@@ -139,7 +144,12 @@ async def get_node(node_id: str, db: Session = Depends(get_db)):
         current_epoch=None,
         total_epochs=None,
         last_seen=last_seen,
-        connections=[]
+        connections=[],
+        node_type=node.type,  # 添加节点类型信息
+        cluster_id=node.cluster_id,  # 添加集群ID信息
+        project="No Project",
+        uptime="0h 0m",
+        active_tasks=0
     )
 
 @router.post("/{node_id}/operation", response_model=BaseResponse)
@@ -776,13 +786,21 @@ async def create_node(
                 detail=f"Node with IP address {node_data.ip} already exists"
             )
         
+        # 验证节点类型
+        valid_types = ["center", "mpc", "training"]
+        if node_data.node_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid node type. Must be one of: {', '.join(valid_types)}"
+            )
+        
         new_node = Node(
             user_id=1,  # 默认用户ID，实际应用中应该从认证中获取
             cluster_id=cluster_id,  # 关联到cluster
             path_ipv4=node_data.ip,
-            name=node_data.name or f"Node {node_data.ip}",
+            name=node_data.name or f"{node_data.node_type.title()} Node {node_data.ip}",
             state="idle",  # 默认为空闲状态
-            type="worker",  # 默认为工作节点
+            type=node_data.node_type,  # 使用指定的节点类型
             progress=0.0,
             cpu="",
             gpu="",
@@ -807,7 +825,12 @@ async def create_node(
             current_epoch=None,
             total_epochs=None,
             last_seen=datetime.now().isoformat(),
-            connections=[]
+            connections=[],
+            node_type=new_node.type,
+            cluster_id=new_node.cluster_id,  # 添加集群ID信息
+            project="No Project",
+            uptime="0h 0m",
+            active_tasks=0
         )
         
     except HTTPException:
@@ -818,3 +841,5 @@ async def create_node(
             status_code=500,
             detail=f"Failed to create node: {str(e)}"
         )
+
+

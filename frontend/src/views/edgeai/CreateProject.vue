@@ -268,54 +268,87 @@
             </div>
           </div>
 
-          <!-- Node Configuration -->
+          <!-- Cluster Selection -->
           <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-medium text-gray-900 dark:text-white">Node Configuration</h3>
-              <Button
-                @click="addNode"
-                variant="outline"
-                size="sm"
-                class="flex items-center space-x-2"
-              >
-                <PlusIcon class="w-4 h-4" />
-                <span>Add Node</span>
-              </Button>
-            </div>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Cluster Configuration</h3>
 
             <div class="space-y-4">
-              <div
-                v-for="(node, index) in projectData.nodes"
-                :key="index"
-                class="flex items-end space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
-              >
-                <div class="flex-1">
-                  <Input
-                    v-model="node.ip"
-                    :label="`Node ${index + 1} IP Address *`"
-                    placeholder="192.168.1.100"
-                    required
-                    :error="errors[`node_${index}`]"
-                  />
-                </div>
-                <div class="flex-1">
-                  <Input
-                    v-model="node.name"
-                    :label="`Node ${index + 1} Name`"
-                    placeholder="Node Name (Optional)"
-                  />
-                </div>
-                <Button
-                  @click="removeNode(index)"
-                  variant="ghost"
-                  size="sm"
-                  class="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
-                  :disabled="projectData.nodes.length === 1"
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Cluster *
+                </label>
+                <select
+                  v-model="projectData.cluster_id"
+                  @change="loadClusterNodes"
+                  required
+                  :class="[
+                    'w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500',
+                    errors.cluster_id
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  ]"
                 >
-                  <TrashIcon class="w-4 h-4" />
-                </Button>
+                  <option value="">Select a cluster</option>
+                  <option v-for="cluster in clusters" :key="cluster.id" :value="cluster.id">
+                    {{ cluster.name }} (ID: {{ cluster.id }})
+                  </option>
+                </select>
+                <p v-if="errors.cluster_id" class="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {{ errors.cluster_id }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  The selected cluster's nodes will be used for this project
+                </p>
               </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400">Connected to database node table</p>
+
+              <!-- Display cluster nodes -->
+              <div v-if="projectData.cluster_id && clusterNodes.length > 0" class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Cluster Nodes ({{ clusterNodes.length }})
+                </label>
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-4">
+                  <div class="space-y-2">
+                    <div
+                      v-for="(node, index) in clusterNodes"
+                      :key="node.id"
+                      class="flex items-center justify-between py-2 px-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600"
+                    >
+                      <div class="flex items-center space-x-3">
+                        <div
+                          :class="[
+                            'w-2 h-2 rounded-full',
+                            node.status === 'online' ? 'bg-green-500' :
+                            node.status === 'training' ? 'bg-blue-500' :
+                            node.status === 'idle' ? 'bg-gray-500' : 'bg-red-500'
+                          ]"
+                        ></div>
+                        <div>
+                          <p class="text-sm font-medium text-gray-900 dark:text-white">
+                            {{ node.name || `Node ${index + 1}` }}
+                          </p>
+                          <p class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ node.location || node.ip }} • {{ node.node_type || 'worker' }}
+                          </p>
+                        </div>
+                      </div>
+                      <span class="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        {{ node.status || 'unknown' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="projectData.cluster_id && loadingClusterNodes" class="text-center py-4">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading cluster nodes...</p>
+              </div>
+
+              <div v-else-if="projectData.cluster_id && !loadingClusterNodes && clusterNodes.length === 0" class="text-center py-4">
+                <p class="text-sm text-yellow-600 dark:text-yellow-400">
+                  ⚠️ This cluster has no nodes. Please add nodes to the cluster first.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -346,7 +379,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ComputerDesktopIcon, ArrowLeftIcon, SunIcon, MoonIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import { ComputerDesktopIcon, ArrowLeftIcon, SunIcon, MoonIcon } from '@heroicons/vue/24/outline'
 import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
 import { useEdgeAIStore } from '@/stores/edgeai.js'
@@ -354,6 +387,7 @@ import { useUIStore } from '@/stores/ui.js'
 import { useThemeStore } from '@/stores/theme.js'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { parseNumericInput, formatToDecimal } from '@/utils/numberUtils'
+import { edgeaiService } from '@/services/index.js'
 
 // Stores
 const edgeaiStore = useEdgeAIStore()
@@ -372,6 +406,10 @@ const {
 
 // Reactive state
 const creating = ref(false)
+const clusters = ref([])
+const loadingClusters = ref(false)
+const clusterNodes = ref([])
+const loadingClusterNodes = ref(false)
 
 const projectData = ref({
   // Basic Information
@@ -404,13 +442,8 @@ const projectData = ref({
   sample_clients: 2,
   max_steps: 100,
 
-  // Node Configuration
-  nodes: [
-    {
-      ip: '',
-      name: ''
-    }
-  ]
+  // Cluster Configuration
+  cluster_id: ''
 })
 
 const toggleTheme = (event) => {
@@ -421,17 +454,28 @@ const goBack = () => {
   router.push('/edgeai/dashboard')
 }
 
-// Node management methods
-const addNode = () => {
-  projectData.value.nodes.push({
-    ip: '',
-    name: ''
-  })
-}
+// Load cluster nodes when cluster is selected
+const loadClusterNodes = async () => {
+  if (!projectData.value.cluster_id) {
+    clusterNodes.value = []
+    return
+  }
 
-const removeNode = (index) => {
-  if (projectData.value.nodes.length > 1) {
-    projectData.value.nodes.splice(index, 1)
+  loadingClusterNodes.value = true
+  try {
+    const nodes = await edgeaiService.nodes.getClusterNodes(projectData.value.cluster_id)
+    clusterNodes.value = nodes || []
+    console.log('Loaded cluster nodes:', clusterNodes.value)
+  } catch (error) {
+    console.error('Failed to load cluster nodes:', error)
+    clusterNodes.value = []
+    uiStore.addNotification({
+      type: 'error',
+      title: 'Failed to load cluster nodes',
+      message: error.message || 'Could not load nodes for the selected cluster'
+    })
+  } finally {
+    loadingClusterNodes.value = false
   }
 }
 
@@ -493,17 +537,15 @@ const createProject = async () => {
       return
     }
 
-    // Validate nodes
-    let hasValidNodes = false
-    projectData.value.nodes.forEach((node, index) => {
-      if (!node.ip.trim()) {
-        errors.value[`node_${index}`] = 'Node IP address is required'
-      } else {
-        hasValidNodes = true
-      }
-    })
-    
-    if (!hasValidNodes) {
+    // Validate cluster selection
+    if (!projectData.value.cluster_id) {
+      errors.value.cluster_id = 'Please select a cluster'
+      return
+    }
+
+    // Validate cluster has nodes
+    if (clusterNodes.value.length === 0) {
+      errors.value.cluster_id = 'Selected cluster has no nodes. Please add nodes to the cluster first.'
       return
     }
 
@@ -512,6 +554,7 @@ const createProject = async () => {
       name: projectData.value.name.trim(),
       description: projectData.value.description.trim(),
       model: projectData.value.model,
+      cluster_id: parseInt(projectData.value.cluster_id),  // 发送cluster_id，后端通过cluster获取节点
 
       // 统一的训练参数
       training_alg: projectData.value.training_alg,
@@ -534,12 +577,7 @@ const createProject = async () => {
       threshold: projectData.value.threshold,
       num_clients: projectData.value.num_clients,
       sample_clients: projectData.value.sample_clients,
-      max_steps: projectData.value.max_steps,
-
-      nodes: projectData.value.nodes.filter(node => node.ip.trim()).map(node => ({
-        ip: node.ip.trim(),
-        name: node.name.trim() || `Node ${node.ip}`
-      }))
+      max_steps: projectData.value.max_steps
     }
 
     console.log('Creating project with payload:', JSON.stringify(payload, null, 2))
@@ -580,8 +618,22 @@ const createProject = async () => {
   }
 }
 
+// Load clusters data
+const loadClusters = async () => {
+  try {
+    loadingClusters.value = true
+    const clusterData = await edgeaiService.clusters.getClusters()
+    clusters.value = clusterData || []
+  } catch (error) {
+    console.error('Failed to load clusters:', error)
+    clusters.value = []
+  } finally {
+    loadingClusters.value = false
+  }
+}
+
 // Initialize data on component mount
 onMounted(() => {
-  // Any initialization logic if needed
+  loadClusters()
 })
 </script>
