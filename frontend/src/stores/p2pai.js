@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useApiOptimization } from '@/composables/useApiOptimization'
 import p2paiService from '@/services/p2paiService'
 import performanceMonitor from '@/utils/performanceMonitor'
+import { storeLogger } from '@/utils/logger'
 
 export const useP2PAIStore = defineStore('p2pai', () => {
   // State
@@ -204,12 +205,12 @@ export const useP2PAIStore = defineStore('p2pai', () => {
   const connectWebSocket = () => {
     // Disable WebSocket in development mode for demo purposes
     if (import.meta.env.MODE === 'development') {
-      console.log('P2PAI WebSocket disabled in development mode')
+      storeLogger.log('P2PAI WebSocket disabled in development mode')
       // Simulate connection for demo
       setTimeout(() => {
         isConnected.value = true
         connectionError.value = null
-        console.log('P2PAI WebSocket simulated connection (demo mode)')
+        storeLogger.log('P2PAI WebSocket simulated connection (demo mode)')
       }, 1000)
       return
     }
@@ -225,7 +226,7 @@ export const useP2PAIStore = defineStore('p2pai', () => {
         isConnected.value = true
         connectionError.value = null
         connectionRetries.value = 0
-        console.log('P2PAI WebSocket connected')
+        storeLogger.log('P2PAI WebSocket connected')
       }
 
       ws.value.onmessage = (event) => {
@@ -266,7 +267,7 @@ export const useP2PAIStore = defineStore('p2pai', () => {
         }
         break
       default:
-        console.log('Unknown P2PAI WebSocket message type:', data.type, data)
+        storeLogger.log('Unknown P2PAI WebSocket message type:', data.type, data)
     }
   }
   

@@ -1,5 +1,6 @@
 import { ref, onErrorCaptured } from 'vue'
 import { useUIStore } from '@/stores/ui'
+import { logger } from '@/utils/logger'
 
 export function useErrorBoundary() {
   const uiStore = useUIStore()
@@ -18,9 +19,9 @@ export function useErrorBoundary() {
     }
 
     // Log error to console for debugging
-    console.error('Error captured by boundary:', err)
-    console.error('Component info:', info)
-    console.error('Error info:', errorInfo.value)
+    logger.error('Error captured by boundary:', err)
+    logger.error('Component info:', info)
+    logger.error('Error info:', errorInfo.value)
 
     // Send error notification to user
     uiStore.addNotification({
@@ -42,7 +43,7 @@ export function useErrorBoundary() {
   const reportError = async (error, info) => {
     try {
       // This would typically send to your error reporting service
-      console.log('Reporting error to service:', { error: error.message, info })
+      logger.log('Reporting error to service:', { error: error.message, info })
       
       // Example API call to error reporting endpoint
       // await fetch('/api/errors', {
@@ -55,7 +56,7 @@ export function useErrorBoundary() {
       //   })
       // })
     } catch (reportingError) {
-      console.error('Failed to report error:', reportingError)
+      logger.error('Failed to report error:', reportingError)
     }
   }
 
@@ -94,7 +95,7 @@ export function setupGlobalErrorHandler() {
   const uiStore = useUIStore()
 
   window.addEventListener('error', (event) => {
-    console.error('Global error:', event.error)
+    logger.error('Global error:', event.error)
     
     uiStore.addNotification({
       type: 'error',
@@ -105,7 +106,7 @@ export function setupGlobalErrorHandler() {
   })
 
   window.addEventListener('unhandledrejection', (event) => {
-    console.error('Unhandled promise rejection:', event.reason)
+    logger.error('Unhandled promise rejection:', event.reason)
     
     uiStore.addNotification({
       type: 'error',

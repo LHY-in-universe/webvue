@@ -850,6 +850,7 @@ const loading = ref(false)
 const error = ref(null)
 const renderError = ref(null)
 const refreshInterval = ref(null)
+const activeTimeouts = new Set() // 追踪所有活跃的 timeout
 
 // Global error handler for component rendering errors
 const handleRenderError = (err, context) => {
@@ -913,9 +914,11 @@ const triggerNodeFadeOut = (nodeId) => {
   })
   
   // 3秒后完全移除节点动画状态
-  setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     nodeAnimationStates.value.delete(nodeId)
+    activeTimeouts.delete(timeoutId)
   }, 3000)
+  activeTimeouts.add(timeoutId)
 }
 
 // 替换训练完成的节点
@@ -967,9 +970,11 @@ const triggerCelebrationAnimation = () => {
   
   // 显示完成通知
   const { success } = useNotifications()
-  setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     success('🎉 联邦学习训练已全部完成！所有节点已完成训练任务。')
+    activeTimeouts.delete(timeoutId)
   }, 1000)
+  activeTimeouts.add(timeoutId)
 }
 
 // Load visualization data from API
@@ -1216,13 +1221,15 @@ const triggerTransmission = (connectionId, direction, duration = 2000) => {
   })
   
   // 设置传输结束定时器
-  setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     const state = transmissionStates.value.get(connectionId)
     if (state) {
       state.transmitting = false
       transmissionStates.value.set(connectionId, state)
     }
+    activeTimeouts.delete(timeoutId)
   }, duration)
+  activeTimeouts.add(timeoutId)
 }
 
 // 随机方向选择
@@ -1350,12 +1357,14 @@ const resetView = () => {
 const testDataTransmission = () => {
   // 手动触发所有连接的数据传输测试
   federatedConnections.value.forEach((connection, index) => {
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       const directions = ['upstream', 'downstream', 'bidirectional']
       const randomDirection = directions[index % directions.length]
       triggerTransmission(connection.id, randomDirection, 3000)
       console.log(`Testing data flow: ${connection.from} -> ${connection.to} (${randomDirection})`)
-    }, index * 500) // 每个连接延迟500ms，避免同时触发
+      activeTimeouts.delete(timeoutId)
+    }, index * 500)
+    activeTimeouts.add(timeoutId) // 每个连接延迟500ms，避免同时触发
   })
 }
 
@@ -1428,12 +1437,14 @@ const simulateTraining = () => {
     
     // 处理完成的节点，尝试替换为新的训练节点
     completedInThisRound.forEach(completedNodeId => {
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         const replaced = replaceCompletedNode()
         if (!replaced) {
           console.log('No idle nodes available for replacement')
         }
+        activeTimeouts.delete(timeoutId)
       }, 1500) // 1.5秒后尝试替换，让用户看到淡出效果
+      activeTimeouts.add(timeoutId)
     })
     
     // Simulate data transmission
@@ -1451,7 +1462,11 @@ const simulateTraining = () => {
     // 检查是否所有训练都已完成
     if (!checkAllTrainingCompleted()) {
       // Continue simulation only if not all training is completed
-      setTimeout(simulateTraining, 2000) // Update every 2 seconds
+      const timeoutId = setTimeout(() => {
+        simulateTraining()
+        activeTimeouts.delete(timeoutId)
+      }, 2000) // Update every 2 seconds
+      activeTimeouts.add(timeoutId)
     }
   }
 }
@@ -1489,10 +1504,12 @@ const handleNodeClick = (node) => {
 const closeNodeDetails = () => {
   isClosing.value = true
   // 等待淡出动画完成后再隐藏面板
-  setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     selectedNode.value = null
     isClosing.value = false
+    activeTimeouts.delete(timeoutId)
   }, 800) // 与动画时长保持一致
+  activeTimeouts.add(timeoutId)
 }
 
 // 模态框控制函数
@@ -1506,9 +1523,11 @@ const openNodeModal = (node, anchorPosition = null) => {
 
 const closeNodeModal = () => {
   isModalVisible.value = false
-  setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     modalSelectedNode.value = null
+    activeTimeouts.delete(timeoutId)
   }, 300)
+  activeTimeouts.add(timeoutId)
 }
 
 // 添加节点模态框控制方法
@@ -1767,6 +1786,10 @@ onUnmounted(() => {
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
   }
+  
+  // 清理所有待处理的 timeout
+  activeTimeouts.forEach(timeoutId => clearTimeout(timeoutId))
+  activeTimeouts.clear()
   
   // Clear API cache
   clearCache()

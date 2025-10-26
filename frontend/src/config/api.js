@@ -97,97 +97,97 @@ export const API_ENDPOINTS = {
   EDGE_AI: {
     // 项目管理
     PROJECTS: {
-      LIST: '/api/edgeai/projects/',
-      CREATE: '/api/edgeai/projects/',
-      DETAIL: '/api/edgeai/projects/{id}/',
-      IMPORT: '/api/edgeai/projects/import/',
-      EXPORT: '/api/edgeai/projects/{id}/export/',
-      START: '/api/edgeai/projects/{id}/start/',
-      PAUSE: '/api/edgeai/projects/{id}/pause/',
-      STOP: '/api/edgeai/projects/{id}/stop/',
-      TEMPLATES: '/api/edgeai/projects/templates/',
-      IMPORT_HISTORY: '/api/edgeai/projects/import-history/',
-      LOAD_FROM_URL: '/api/edgeai/projects/load-from-url/',
+      LIST: '/api/edgeai/projects',
+      CREATE: '/api/edgeai/projects',
+      DETAIL: '/api/edgeai/projects/{id}',
+      IMPORT: '/api/edgeai/projects/import',
+      EXPORT: '/api/edgeai/projects/{id}/export',
+      START: '/api/edgeai/projects/{id}/start',
+      PAUSE: '/api/edgeai/projects/{id}/pause',
+      STOP: '/api/edgeai/projects/{id}/stop',
+      TEMPLATES: '/api/edgeai/projects/templates',
+      IMPORT_HISTORY: '/api/edgeai/projects/import-history',
+      LOAD_FROM_URL: '/api/edgeai/projects/load-from-url',
       VISUALIZATION: '/api/edgeai/projects/{id}/visualization'
     },
 
     // 节点管理
     NODES: {
-      LIST: '/api/edgeai/nodes/',
+      LIST: '/api/edgeai/nodes',
       DETAIL: '/api/edgeai/nodes/{id}',
-      OPERATION: '/api/edgeai/nodes/{id}/operation/',
-      START_TRAINING: '/api/edgeai/nodes/{id}/start-training/',
-      STOP_TRAINING: '/api/edgeai/nodes/{id}/stop-training/',
-      VISUALIZATION: '/api/edgeai/nodes/visualization/{projectId}/',
+      OPERATION: '/api/edgeai/nodes/{id}/operation',
+      START_TRAINING: '/api/edgeai/nodes/{id}/start-training',
+      STOP_TRAINING: '/api/edgeai/nodes/{id}/stop-training',
+      VISUALIZATION: '/api/edgeai/nodes/visualization/{projectId}',
       BATCH_DELETE: '/api/edgeai/nodes/batch',
       WS: '/api/edgeai/nodes/ws/{id}'
     },
 
     // 训练管理
     TRAINING: {
-      START: '/api/edgeai/training/start/',
-      STOP: '/api/edgeai/training/stop/',
-      BATCH_START: '/api/edgeai/training/batch-start/',
-      BATCH_STOP: '/api/edgeai/training/batch-stop/',
-      CONFIG: '/api/edgeai/training/config/{projectId}/',
+      START: '/api/edgeai/training/start',
+      STOP: '/api/edgeai/training/stop',
+      BATCH_START: '/api/edgeai/training/batch-start',
+      BATCH_STOP: '/api/edgeai/training/batch-stop',
+      CONFIG: '/api/edgeai/training/config/{projectId}',
       WS: '/api/edgeai/training/ws/{projectId}'
     },
 
     // 性能监控
     PERFORMANCE: {
-      METRICS: '/api/edgeai/performance/metrics/',
-      SUMMARY: '/api/edgeai/performance/summary/',
-      ALERTS: '/api/edgeai/performance/alerts/',
-      TRENDS: '/api/edgeai/performance/trends/',
-      HEALTH: '/api/edgeai/performance/health/'
+      METRICS: '/api/edgeai/performance/metrics',
+      SUMMARY: '/api/edgeai/performance/summary',
+      ALERTS: '/api/edgeai/performance/alerts',
+      TRENDS: '/api/edgeai/performance/trends',
+      HEALTH: '/api/edgeai/performance/health'
     },
 
     // 日志管理
     LOGS: {
-      LIST: '/api/edgeai/logs/',
-      SEARCH: '/api/edgeai/logs/search/',
-      EXPORT: '/api/edgeai/logs/export/',
-      CLEANUP: '/api/edgeai/logs/cleanup/',
-      REALTIME: '/api/edgeai/logs/realtime/'
+      LIST: '/api/edgeai/logs',
+      SEARCH: '/api/edgeai/logs/search',
+      EXPORT: '/api/edgeai/logs/export',
+      CLEANUP: '/api/edgeai/logs/cleanup',
+      REALTIME: '/api/edgeai/logs/realtime'
     },
 
     // 任务管理
     TASKS: {
-      LIST: '/api/edgeai/tasks/',
-      CREATE: '/api/edgeai/tasks/',
-      START: '/api/edgeai/tasks/{id}/start/',
-      STOP: '/api/edgeai/tasks/{id}/stop/',
-      BATCH_CREATE: '/api/edgeai/tasks/batch-create/',
-      QUEUE: '/api/edgeai/tasks/queue/'
+      LIST: '/api/edgeai/tasks',
+      CREATE: '/api/edgeai/tasks',
+      START: '/api/edgeai/tasks/{id}/start',
+      STOP: '/api/edgeai/tasks/{id}/stop',
+      BATCH_CREATE: '/api/edgeai/tasks/batch-create',
+      QUEUE: '/api/edgeai/tasks/queue'
     },
 
     // 模型管理
     MODELS: {
-      LIST: '/api/edgeai/models/',
-      DETAIL: '/api/edgeai/models/{id}/',
-      DEPLOY: '/api/edgeai/models/{id}/deploy/',
-      DELETE: '/api/edgeai/models/{id}/',
-      DOWNLOAD: '/api/edgeai/models/{id}/download/',
-      EXPORT: '/api/edgeai/models/{id}/export/',
-      STATS: '/api/edgeai/models/stats/overview/',
-      PERFORMANCE: '/api/edgeai/models/{id}/performance/'
+      LIST: '/api/edgeai/models',
+      DETAIL: '/api/edgeai/models/{id}',
+      DEPLOY: '/api/edgeai/models/{id}/deploy',
+      DELETE: '/api/edgeai/models/{id}',
+      DOWNLOAD: '/api/edgeai/models/{id}/download',
+      EXPORT: '/api/edgeai/models/{id}/export',
+      STATS: '/api/edgeai/models/stats/overview',
+      PERFORMANCE: '/api/edgeai/models/{id}/performance'
     },
 
-    // 集群管理
+    // 集群管理 (注意: START/STOP/RESTART需要后端实现)
     CLUSTERS: {
-      LIST: '/api/edgeai/clusters/',
-      CREATE: '/api/edgeai/clusters/',
-      DETAIL: '/api/edgeai/clusters/{id}/',
-      DELETE: '/api/edgeai/clusters/{id}/',
-      START: '/api/edgeai/clusters/{id}/start/',
-      STOP: '/api/edgeai/clusters/{id}/stop/',
-      RESTART: '/api/edgeai/clusters/{id}/restart/',
-      STATS: '/api/edgeai/clusters/stats/overview/',
-      PERFORMANCE: '/api/edgeai/clusters/{id}/performance/',
-      ADD_NODE: '/api/edgeai/clusters/{id}/nodes/',
-      REMOVE_NODE: '/api/edgeai/clusters/{id}/nodes/{nodeId}/',
-      NODES: '/api/edgeai/clusters/{id}/nodes/',
-      EXPORT: '/api/edgeai/clusters/{id}/export/',
+      LIST: '/api/edgeai/clusters',
+      CREATE: '/api/edgeai/clusters',
+      DETAIL: '/api/edgeai/clusters/{id}',
+      DELETE: '/api/edgeai/clusters/{id}',
+      START: '/api/edgeai/clusters/{id}/start',        // TODO: 后端需实现
+      STOP: '/api/edgeai/clusters/{id}/stop',          // TODO: 后端需实现
+      RESTART: '/api/edgeai/clusters/{id}/restart',    // TODO: 后端需实现
+      STATS: '/api/edgeai/clusters/stats/overview',
+      PERFORMANCE: '/api/edgeai/clusters/{id}/performance',
+      ADD_NODE: '/api/edgeai/clusters/{id}/nodes',
+      REMOVE_NODE: '/api/edgeai/clusters/{id}/nodes/{nodeId}',
+      NODES: '/api/edgeai/clusters/{id}/nodes',
+      EXPORT: '/api/edgeai/clusters/{id}/export',
       WS: '/api/edgeai/clusters/ws/{id}'
     }
   }
