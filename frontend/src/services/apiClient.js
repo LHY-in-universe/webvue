@@ -46,7 +46,6 @@ apiClient.interceptors.request.use(
     if (import.meta.env.VITE_DEBUG_API) {
       apiLogger.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`)
       apiLogger.log('Config:', config)
-      apiLogger.logEnd()
     }
     
     return config
@@ -72,7 +71,6 @@ apiClient.interceptors.response.use(
       apiLogger.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url}`)
       apiLogger.log('Status:', response.status)
       apiLogger.log('Data:', response.data)
-      apiLogger.logEnd()
     }
     
     // 统一处理响应数据格式
@@ -88,7 +86,6 @@ apiClient.interceptors.response.use(
     if (import.meta.env.VITE_DEBUG_API) {
       apiLogger.log(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url}`)
       console.error('Error:', error)
-      apiLogger.logEnd()
     }
     
     // 统一错误处理

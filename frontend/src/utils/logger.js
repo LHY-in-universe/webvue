@@ -169,7 +169,27 @@ export const createLogger = (category) => {
 /**
  * API调用日志
  */
-export const apiLogger = createLogger('API')
+export const apiLogger = {
+  ...createLogger('API'),
+  
+  /**
+   * 开始日志组 - 用于API请求
+   */
+  logStart: (message) => {
+    if (currentLevel <= LogLevel.INFO) {
+      console.group(`[${new Date().toLocaleTimeString()}] [API] ${message}`)
+    }
+  },
+  
+  /**
+   * 结束日志组
+   */
+  logEnd: () => {
+    if (currentLevel <= LogLevel.INFO) {
+      console.groupEnd()
+    }
+  }
+}
 
 /**
  * Store日志
