@@ -267,6 +267,7 @@
         @close="showUploadModal = false"
         @uploaded="handleModelUploaded"
       />
+      </template>
     </div>
   </div>
 </template>
