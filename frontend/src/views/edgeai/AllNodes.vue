@@ -1158,8 +1158,17 @@ const batchRestartNodes = async () => {
 
 // Delete node methods
 const confirmDeleteNode = (node) => {
+  console.log('🗑️ confirmDeleteNode called with node:', node)
+  if (!node) {
+    console.error('❌ No node provided to confirmDeleteNode')
+    return
+  }
+
   nodeToDelete.value = node
   showDeleteModal.value = true
+
+  console.log('✅ Modal should open now. showDeleteModal:', showDeleteModal.value)
+  console.log('✅ nodeToDelete:', nodeToDelete.value)
 }
 
 const deleteNode = async () => {
@@ -1197,7 +1206,10 @@ const deleteNode = async () => {
       message: `Error deleting node: ${error.message || 'Unknown error occurred'}`
     })
   } finally {
-    setNodeOperationLoading(nodeToDelete.value.id, 'deleting', false)
+    // 确保 nodeToDelete.value 存在才清理加载状态
+    if (nodeToDelete.value && nodeToDelete.value.id) {
+      setNodeOperationLoading(nodeToDelete.value.id, 'deleting', false)
+    }
   }
 }
 

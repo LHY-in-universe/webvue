@@ -158,7 +158,7 @@
                 <pre class="bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>import edgeai
 
 # Load the model
-model = edgeai.load_model('{{ model.name.toLowerCase().replace(/[^a-z0-9]/g, '-') }}')
+model = edgeai.load_model('{{ model.name ? model.name.toLowerCase().replace(/[^a-z0-9]/g, '-') : 'model' }}')
 
 # Make predictions
 result = model.predict(input_data)
@@ -167,7 +167,7 @@ print(result)</code></pre>
               
               <div>
                 <h4 class="font-medium text-gray-900 dark:text-white mb-2">REST API</h4>
-                <pre class="bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>curl -X POST "https://api.edgeai.com/v1/models/{{ model.name.toLowerCase().replace(/[^a-z0-9]/g, '-') }}/predict" \
+                <pre class="bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>curl -X POST "https://api.edgeai.com/v1/models/{{ model.name ? model.name.toLowerCase().replace(/[^a-z0-9]/g, '-') : 'model' }}/predict" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"input": "your_input_data"}'</code></pre>

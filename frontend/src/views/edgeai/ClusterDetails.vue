@@ -571,6 +571,67 @@
         </div>
       </div>
     </Modal>
+
+    <!-- Delete Confirmation Modal -->
+    <Modal
+      :isOpen="showDeleteModal"
+      @close="cancelDelete"
+      title="Delete Node"
+      size="md"
+      :hideFooter="true"
+    >
+      <div v-if="nodeToDelete" class="space-y-4">
+        <div class="flex items-center space-x-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+          <div class="flex-shrink-0">
+            <div class="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+              <TrashIcon class="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-medium text-red-900 dark:text-red-100">Confirm Node Deletion</h3>
+            <p class="text-sm text-red-700 dark:text-red-300 mt-1">
+              Are you sure you want to delete <strong>{{ nodeToDelete.name }}</strong>?
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Node Details:</h4>
+          <div class="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+            <div><strong>Name:</strong> {{ nodeToDelete.name }}</div>
+            <div><strong>Type:</strong> {{ nodeToDelete.type }}</div>
+            <div><strong>Status:</strong> {{ nodeToDelete.status }}</div>
+            <div><strong>IP Address:</strong> {{ nodeToDelete.location }}</div>
+          </div>
+        </div>
+
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+          <p class="text-sm text-yellow-800 dark:text-yellow-200">
+            ⚠️ This action cannot be undone. The node will be permanently removed from the cluster.
+          </p>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-4">
+          <Button
+            @click="cancelDelete"
+            variant="outline"
+            size="sm"
+          >
+            Cancel
+          </Button>
+          <Button
+            @click="confirmDelete"
+            variant="primary"
+            size="sm"
+            class="bg-red-600 hover:bg-red-700 focus:ring-red-500"
+            :loading="deleting"
+            :disabled="deleting"
+          >
+            {{ deleting ? 'Deleting...' : 'Delete Node' }}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -875,27 +936,48 @@ const viewNodeDetails = (node) => {
   showNodeDetailsModal.value = true
 }
 
-const removeNode = async (node) => {
-  const confirmed = await confirm({
-    title: 'Remove Node',
-    message: `Are you sure you want to remove node "${node.name}" from this cluster?`,
-    confirmText: 'Remove',
-    cancelText: 'Cancel',
-    type: 'warning'
-  })
-  
-  if (!confirmed) {
-    return
-  }
+// 删除确认对话框状态
+const showDeleteModal = ref(false)
+const nodeToDelete = ref(null)
 
+const removeNode = (node) => {
+  console.log('🗑️ Preparing to delete node:', node)
+  nodeToDelete.value = node
+  showDeleteModal.value = true
+}
+
+const confirmDelete = async () => {
+  if (!nodeToDelete.value) return
+
+  deleting.value = true
   try {
-    await edgeaiService.nodes.deleteNode(node.id)
+    console.log('🗑️ Deleting node:', nodeToDelete.value.id)
+    await edgeaiService.nodes.deleteNode(nodeToDelete.value.id)
     await loadClusterNodes()
     success('Node removed successfully!')
+    showDeleteModal.value = false
+    nodeToDelete.value = null
   } catch (err) {
     console.error('Failed to remove node:', err)
-    showError(`Failed to remove node: ${err.message || 'Unknown error'}`)
+
+    // 检查是否是404错误（节点已不存在）
+    if (err.code === 'NOT_FOUND' || err.status === 404) {
+      showError('This node no longer exists. Refreshing the list...')
+      // 节点已经不存在，刷新列表并关闭对话框
+      await loadClusterNodes()
+      showDeleteModal.value = false
+      nodeToDelete.value = null
+    } else {
+      showError(`Failed to remove node: ${err.error || err.message || 'Unknown error'}`)
+    }
+  } finally {
+    deleting.value = false
   }
+}
+
+const cancelDelete = () => {
+  showDeleteModal.value = false
+  nodeToDelete.value = null
 }
 
 // Helper functions for node management

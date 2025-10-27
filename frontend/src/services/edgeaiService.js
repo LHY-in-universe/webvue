@@ -14,10 +14,13 @@ const validateApiResponse = (response, expectedFields = []) => {
     throw new Error('Invalid API response format')
   }
 
-  // 检查必需字段
-  for (const field of expectedFields) {
-    if (!(field in response)) {
-      console.warn(`Missing expected field: ${field} in API response`)
+  // 仅在开发环境输出警告
+  if (process.env.NODE_ENV === 'development') {
+    // 检查必需字段
+    for (const field of expectedFields) {
+      if (!(field in response)) {
+        console.warn(`Missing expected field: ${field} in API response`)
+      }
     }
   }
 
@@ -1014,6 +1017,17 @@ export const modelService = {
   async exportModel(modelId, exportConfig) {
     const url = API_ENDPOINTS.EDGE_AI.MODELS.EXPORT.replace('{id}', modelId)
     const response = await apiClient.post(url, exportConfig)
+    return response.data
+  },
+
+  /**
+   * 获取模型详情
+   * @param {string} modelId - 模型ID
+   * @returns {Promise<Object>} 模型详情
+   */
+  async getModel(modelId) {
+    const url = API_ENDPOINTS.EDGE_AI.MODELS.DETAIL.replace('{id}', modelId)
+    const response = await apiClient.get(url)
     return response.data
   },
 

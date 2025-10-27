@@ -4,7 +4,8 @@
     <Transition name="modal-overlay">
       <div 
         v-if="isOpen"
-        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center"
+        style="padding: 2rem;"
         :class="overlayClasses"
         @click="handleOverlayClick"
       >
