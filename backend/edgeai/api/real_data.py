@@ -10,6 +10,13 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 import json
+import sys
+from pathlib import Path
+
+# Add project root to path for config import
+ROOT_DIR = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+from config.remote_api import REMOTE_API_CONFIG, get_remote_api_url
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -17,26 +24,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Ray监控API配置
-RAY_MONITOR_BASE_URL = "http://12.148.158.61:6677"
-RAY_MONITOR_ENDPOINTS = {
-    "cluster_nodes": "/monitor/ray/cluster/node",
-    "cluster_status": "/monitor/ray/cluster/status",
-    "node_metrics": "/monitor/ray/cluster/node/{node_id}/metrics"
-}
-
 class RayMonitorService:
     """Ray监控服务类，负责调用外部API和数据处理"""
-    
+
     def __init__(self):
-        self.base_url = RAY_MONITOR_BASE_URL
-        self.timeout = httpx.Timeout(30.0)  # 30秒超时
+        # 使用统一配置
+        self.base_url = REMOTE_API_CONFIG["BASE_URL"]
+        self.timeout = httpx.Timeout(REMOTE_API_CONFIG["TIMEOUT"])
     
     async def fetch_cluster_nodes(self) -> Dict[str, Any]:
         """获取Ray集群节点信息"""
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                url = f"{self.base_url}{RAY_MONITOR_ENDPOINTS['cluster_nodes']}"
+                url = get_remote_api_url("MONITOR_CLUSTER_NODES")
                 logger.info(f"正在调用Ray监控API: {url}")
                 
                 response = await client.get(url)
@@ -63,7 +63,7 @@ class RayMonitorService:
         """获取特定节点的指标数据"""
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                url = f"{self.base_url}{RAY_MONITOR_ENDPOINTS['node_metrics'].format(node_id=node_id)}"
+                url = get_remote_api_url("MONITOR_NODE_METRICS", node_id=node_id)
                 logger.info(f"正在获取节点 {node_id} 的指标数据")
                 
                 response = await client.get(url)

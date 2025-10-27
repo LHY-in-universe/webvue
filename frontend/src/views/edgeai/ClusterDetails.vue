@@ -91,12 +91,49 @@
             </div>
           </div>
 
-          <!-- Delete Cluster Button -->
-          <div class="flex justify-end mt-6">
-            <Button 
+          <!-- Cluster Control Buttons -->
+          <div class="flex justify-between items-center mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <!-- Left side: Cluster Operations -->
+            <div class="flex items-center space-x-3">
+              <Button
+                @click="handleStartCluster"
+                :loading="startingCluster"
+                variant="primary"
+                size="sm"
+              >
+                <PlayCircleIcon class="w-4 h-4 mr-2" />
+                Start Cluster
+              </Button>
+
+              <Button
+                @click="handleStopCluster"
+                :loading="stoppingCluster"
+                variant="outline"
+                size="sm"
+                class="border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-900/20"
+              >
+                <StopCircleIcon class="w-4 h-4 mr-2" />
+                Stop Cluster
+              </Button>
+
+              <Button
+                @click="handleRestartCluster"
+                :loading="restartingCluster"
+                variant="outline"
+                size="sm"
+                class="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+              >
+                <ArrowPathIcon class="w-4 h-4 mr-2" />
+                Restart Cluster
+              </Button>
+            </div>
+
+            <!-- Right side: Delete Cluster -->
+            <Button
               @click="deleteCluster"
               :loading="deleting"
               variant="outline"
+              size="sm"
               class="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
             >
               <TrashIcon class="w-4 h-4 mr-2" />
@@ -632,6 +669,108 @@
         </div>
       </div>
     </Modal>
+
+    <!-- Stop Cluster Confirmation Modal -->
+    <Modal
+      :isOpen="showStopConfirmModal"
+      @close="cancelStopCluster"
+      title="Stop Cluster"
+      size="md"
+      :hideFooter="true"
+    >
+      <div class="space-y-4">
+        <div class="flex items-center space-x-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+          <div class="flex-shrink-0">
+            <div class="w-10 h-10 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center">
+              <StopCircleIcon class="w-6 h-6 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-medium text-orange-900 dark:text-orange-100">Confirm Cluster Stop</h3>
+            <p class="text-sm text-orange-700 dark:text-orange-300 mt-1">
+              Are you sure you want to stop <strong>{{ cluster?.name }}</strong>?
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+          <p class="text-sm text-yellow-800 dark:text-yellow-200">
+            ⚠️ This will stop all running tasks on this cluster.
+          </p>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-4">
+          <Button
+            @click="cancelStopCluster"
+            variant="outline"
+            size="sm"
+          >
+            Cancel
+          </Button>
+          <Button
+            @click="confirmStopCluster"
+            variant="primary"
+            size="sm"
+            class="bg-orange-600 hover:bg-orange-700 focus:ring-orange-500"
+            :loading="stoppingCluster"
+            :disabled="stoppingCluster"
+          >
+            {{ stoppingCluster ? 'Stopping...' : 'Stop Cluster' }}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Restart Cluster Confirmation Modal -->
+    <Modal
+      :isOpen="showRestartConfirmModal"
+      @close="cancelRestartCluster"
+      title="Restart Cluster"
+      size="md"
+      :hideFooter="true"
+    >
+      <div class="space-y-4">
+        <div class="flex items-center space-x-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div class="flex-shrink-0">
+            <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+              <ArrowPathIcon class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-medium text-blue-900 dark:text-blue-100">Confirm Cluster Restart</h3>
+            <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
+              Are you sure you want to restart <strong>{{ cluster?.name }}</strong>?
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+          <p class="text-sm text-yellow-800 dark:text-yellow-200">
+            ⚠️ This will stop and then start the cluster. All running tasks will be interrupted.
+          </p>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-4">
+          <Button
+            @click="cancelRestartCluster"
+            variant="outline"
+            size="sm"
+          >
+            Cancel
+          </Button>
+          <Button
+            @click="confirmRestartCluster"
+            variant="primary"
+            size="sm"
+            class="bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
+            :loading="restartingCluster"
+            :disabled="restartingCluster"
+          >
+            {{ restartingCluster ? 'Restarting...' : 'Restart Cluster' }}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -652,7 +791,9 @@ import {
   CpuChipIcon,
   ArrowPathIcon,
   PlusIcon,
-  TrashIcon
+  TrashIcon,
+  PlayCircleIcon,
+  StopCircleIcon
 } from '@heroicons/vue/24/outline'
 
 // Memory icon (using CpuChipIcon as fallback)
@@ -674,6 +815,13 @@ const error = ref(null)
 const cluster = ref(null)
 const clusterNodes = ref([])
 const refreshInterval = ref(null)
+
+// Cluster operation states
+const startingCluster = ref(false)
+const stoppingCluster = ref(false)
+const restartingCluster = ref(false)
+const showStopConfirmModal = ref(false)
+const showRestartConfirmModal = ref(false)
 
 // Node management
 const showAddNodeModal = ref(false)
@@ -1006,29 +1154,114 @@ const deleteCluster = async () => {
 
   deleting.value = true
   error.value = null
-  
+
   try {
     console.log('🗑️ Deleting cluster:', clusterId.value)
     const result = await edgeaiService.clusters.deleteCluster(clusterId.value)
-    
+
     // Show success message
     console.log('✅ Cluster deleted successfully:', result)
-    
+
     // Clear cache to ensure fresh data on next load
     clearCache(`edgeai-cluster-${clusterId.value}`)
     clearCache('edgeai-clusters')
-    
+
     // Redirect to cluster management page
     router.push('/edgeai/cluster-management')
   } catch (err) {
     console.error('❌ Failed to delete cluster:', err)
     error.value = err.message || 'Failed to delete cluster'
-    
+
     // Show user-friendly error message
     showError(`Failed to delete cluster: ${err.message || 'Unknown error'}`)
   } finally {
     deleting.value = false
   }
+}
+
+// Cluster control functions
+const handleStartCluster = async () => {
+  startingCluster.value = true
+
+  try {
+    console.log('🚀 Starting cluster:', clusterId.value)
+    const result = await edgeaiService.clusters.startCluster(clusterId.value)
+
+    console.log('✅ Cluster started successfully:', result)
+    success(`Cluster "${cluster.value?.name}" started successfully!`)
+
+    // Clear cache and refresh cluster data
+    clearCache(`edgeai-cluster-${clusterId.value}`)
+    clearCache(`edgeai-cluster-nodes-${clusterId.value}`)
+    await loadClusterDetails()
+  } catch (err) {
+    console.error('❌ Failed to start cluster:', err)
+    showError(`Failed to start cluster: ${err.response?.data?.detail || err.message || 'Unknown error'}`)
+  } finally {
+    startingCluster.value = false
+  }
+}
+
+const handleStopCluster = () => {
+  showStopConfirmModal.value = true
+}
+
+const confirmStopCluster = async () => {
+  stoppingCluster.value = true
+  showStopConfirmModal.value = false
+
+  try {
+    console.log('⏸️ Stopping cluster:', clusterId.value)
+    const result = await edgeaiService.clusters.stopCluster(clusterId.value)
+
+    console.log('✅ Cluster stopped successfully:', result)
+    success(`Cluster "${cluster.value?.name}" stopped successfully!`)
+
+    // Clear cache and refresh cluster data
+    clearCache(`edgeai-cluster-${clusterId.value}`)
+    clearCache(`edgeai-cluster-nodes-${clusterId.value}`)
+    await loadClusterDetails()
+  } catch (err) {
+    console.error('❌ Failed to stop cluster:', err)
+    showError(`Failed to stop cluster: ${err.response?.data?.detail || err.message || 'Unknown error'}`)
+  } finally {
+    stoppingCluster.value = false
+  }
+}
+
+const cancelStopCluster = () => {
+  showStopConfirmModal.value = false
+}
+
+const handleRestartCluster = () => {
+  showRestartConfirmModal.value = true
+}
+
+const confirmRestartCluster = async () => {
+  restartingCluster.value = true
+  showRestartConfirmModal.value = false
+
+  try {
+    console.log('🔄 Restarting cluster:', clusterId.value)
+    const result = await edgeaiService.clusters.restartCluster(clusterId.value)
+
+    console.log('✅ Cluster restarted successfully:', result)
+    success(`Cluster "${cluster.value?.name}" restarted successfully!`)
+
+    // Clear cache and refresh cluster data
+    clearCache(`edgeai-cluster-${clusterId.value}`)
+    clearCache(`edgeai-cluster-nodes-${clusterId.value}`)
+    await loadClusterDetails()
+  } catch (err) {
+    console.error('❌ Failed to restart cluster:', err)
+    showError(`Failed to restart cluster: ${err.response?.data?.detail || err.message || 'Unknown error'}`)
+  } finally {
+    restartingCluster.value = false
+  }
+}
+
+const cancelRestartCluster = () => {
+  showRestartConfirmModal.value = false
 }
 
 

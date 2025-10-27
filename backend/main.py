@@ -23,6 +23,9 @@ from edgeai.api import router as edgeai_router
 from database.edgeai.database import create_tables, get_database_info
 from database.edgeai.init_db import init_database
 
+# Import background tasks
+from edgeai.background_tasks import start_background_tasks, stop_background_tasks
+
 # Create FastAPI app
 app = FastAPI(
     title="OpenTMP LLM Engine API",
@@ -67,14 +70,14 @@ async def health_check():
 
 @app.on_event("startup")
 async def startup_event():
-    """应用启动时初始化数据库"""
+    """应用启动时初始化数据库和后台任务"""
     try:
         print("🚀 Starting OpenTMP LLM Engine API...")
-        
+
         # 获取数据库信息
         db_info = get_database_info()
         print(f"📊 Database URL: {db_info['database_url']}")
-        
+
         # 检查数据库文件是否存在
         db_path = db_info['database_url'].replace('sqlite:///', '')
         if os.path.exists(db_path):
@@ -84,13 +87,31 @@ async def startup_event():
             # 初始化数据库（创建表和示例数据）
             init_database()
             print("✅ Database initialized successfully")
-            
+
+        # 启动后台任务（每60秒同步一次远程状态）
+        print("🔄 Starting background tasks...")
+        await start_background_tasks(sync_interval=60)
+        print("✅ Background tasks started")
+
         print("🎉 Application startup completed!")
-        
+
     except Exception as e:
-        print(f"❌ Failed to initialize database: {e}")
+        print(f"❌ Failed to initialize: {e}")
         # 不抛出异常，让应用继续启动
-        print("⚠️  Application will continue without database initialization")
+        print("⚠️  Application will continue with limited functionality")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭时停止后台任务"""
+    try:
+        print("🛑 Stopping background tasks...")
+        await stop_background_tasks()
+        print("✅ Background tasks stopped")
+        print("👋 Application shutdown completed")
+
+    except Exception as e:
+        print(f"❌ Error during shutdown: {e}")
 
 if __name__ == "__main__":
     uvicorn.run(
