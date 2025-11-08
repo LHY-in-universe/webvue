@@ -16,11 +16,123 @@ import asyncio
 import json
 import random
 from datetime import datetime, timedelta
+import httpx
+import logging
+import sys
+from pathlib import Path
+
+# Add project root to path for config import
+ROOT_DIR = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+from config.remote_api import REMOTE_API_CONFIG, get_remote_api_url
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 class BatchDeleteRequest(BaseModel):
     node_ids: List[str]
+
+
+# ============ 远程API调用辅助函数 ============
+
+async def call_remote_api(
+    endpoint_key: str,
+    method: str = "POST",
+    json_data: Optional[dict] = None,
+    **path_params
+) -> Optional[dict]:
+    """
+    调用远程API的通用函数
+
+    Args:
+        endpoint_key: REMOTE_API_CONFIG中的端点键名
+        method: HTTP方法
+        json_data: 请求体JSON数据
+        **path_params: 路径参数
+
+    Returns:
+        远程API的响应数据，如果失败返回None
+    """
+    try:
+        url = get_remote_api_url(endpoint_key, **path_params)
+        timeout = REMOTE_API_CONFIG["TIMEOUT"]
+
+        logger.info(f"Calling remote API: {method} {url}")
+        if json_data:
+            logger.debug(f"Request body: {json_data}")
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            if method.upper() == "GET":
+                response = await client.get(url)
+            elif method.upper() == "POST":
+                response = await client.post(url, json=json_data)
+            elif method.upper() == "DELETE":
+                response = await client.delete(url, json=json_data)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+
+            response.raise_for_status()
+            result = response.json()
+
+            logger.info(f"Remote API response: {response.status_code}")
+            logger.debug(f"Response data: {result}")
+
+            return result
+
+    except Exception as e:
+        logger.error(f"Failed to call remote API: {e}")
+        # 不抛出异常，返回None表示远程API调用失败
+        return None
+
+
+async def sync_nodes_to_remote(node_ips: List[str], cluster_id: int, operation: str) -> bool:
+    """
+    同步节点变更到远程API
+
+    Args:
+        node_ips: 节点IP列表
+        cluster_id: 集群ID
+        operation: 操作类型 ('add' 或 'remove')
+
+    Returns:
+        是否成功
+    """
+    if not node_ips:
+        return True
+
+    try:
+        if operation == "add":
+            endpoint_key = "CLUSTER_ADD_NODES"
+            request_body = {"nodes": node_ips}
+        elif operation == "remove":
+            endpoint_key = "CLUSTER_REMOVE_NODES"
+            request_body = {"nodes": node_ips}
+        else:
+            logger.error(f"Invalid operation: {operation}")
+            return False
+
+        logger.info(f"Syncing {len(node_ips)} nodes to remote API ({operation})")
+
+        result = await call_remote_api(
+            endpoint_key=endpoint_key,
+            method="POST",
+            json_data=request_body
+        )
+
+        if result and result.get("success"):
+            logger.info(f"Successfully synced {len(node_ips)} nodes to remote ({operation})")
+            return True
+        else:
+            error_msg = result.get("message", "Unknown error") if result else "No response"
+            logger.warning(f"Failed to sync nodes to remote: {error_msg}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error syncing nodes to remote: {e}")
+        return False
 
 
 @router.get("/", response_model=List[NodeResponse])
@@ -85,7 +197,12 @@ async def get_nodes(
             current_epoch=None,
             total_epochs=None,
             last_seen=last_seen,
-            connections=[]
+            connections=[],
+            node_type=node.type,  # 添加节点类型信息
+            cluster_id=node.cluster_id,  # 添加集群ID信息
+            project="No Project",
+            uptime="0h 0m",
+            active_tasks=0
         )
         result.append(node_response)
 
@@ -150,7 +267,12 @@ async def get_node(
         current_epoch=None,
         total_epochs=None,
         last_seen=last_seen,
-        connections=[]
+        connections=[],
+        node_type=node.type,  # 添加节点类型信息
+        cluster_id=node.cluster_id,  # 添加集群ID信息
+        project="No Project",
+        uptime="0h 0m",
+        active_tasks=0
     )
 
 @router.post("/{node_id}/operation", response_model=BaseResponse)
@@ -517,8 +639,7 @@ async def assign_node_to_cluster(
     current_user_id: int = Depends(get_current_user_id)
 ):
     """
-    将节点分配到集群
-    只能操作当前用户的节点
+    将节点分配到集群并同步到远程API
     """
     try:
         node_id_int = int(node_id)
@@ -530,6 +651,7 @@ async def assign_node_to_cluster(
         Node.id == node_id_int,
         Node.user_id == current_user_id
     ).first()
+
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
@@ -540,7 +662,7 @@ async def assign_node_to_cluster(
     # 每一个节点只能加入一个集群
     if node.cluster_id is not None:
         raise HTTPException(status_code=400, detail="Node already assigned to a cluster")
-    
+
     # 检查cluster是否存在
     cluster = db.query(Cluster).filter(Cluster.id == cluster_id_int).first()
     if not cluster:
@@ -556,9 +678,14 @@ async def assign_node_to_cluster(
         # 将节点分配到cluster
         node.cluster_id = cluster.id
         node.last_updated_time = datetime.now()
-        
+
         db.commit()
-        
+
+        # 同步到远程API（如果节点有IP地址）
+        if node.path_ipv4:
+            logger.info(f"Syncing added node {node.path_ipv4} to remote API (cluster {cluster_id})")
+            await sync_nodes_to_remote([node.path_ipv4], cluster_id_int, operation="add")
+
         return BaseResponse(
             success=True,
             message=f"Node {node_id} assigned to cluster {cluster_id}"
@@ -577,8 +704,7 @@ async def exit_node_from_cluster(
     current_user_id: int = Depends(get_current_user_id)
 ):
     """
-    将节点退出集群
-    只能操作当前用户的节点
+    将节点退出集群并同步到远程API
     """
     try:
         node_id_int = int(node_id)
@@ -589,6 +715,7 @@ async def exit_node_from_cluster(
         Node.id == node_id_int,
         Node.user_id == current_user_id
     ).first()
+
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
@@ -599,15 +726,23 @@ async def exit_node_from_cluster(
     # 节点必须加入一个集群才可以退出
     if node.cluster_id is None:
         raise HTTPException(status_code=400, detail="Node is not assigned to any cluster")
-    
-    # 检查cluster是否存在
+
+    # 保存节点信息用于远程同步
+    node_ip = node.path_ipv4
+    cluster_id = node.cluster_id
+
     try:
         # 将节点退出集群
         node.cluster_id = None
         node.last_updated_time = datetime.now()
-        
+
         db.commit()
-        
+
+        # 同步到远程API
+        if cluster_id and node_ip:
+            logger.info(f"Syncing removed node {node_ip} from remote API (cluster {cluster_id})")
+            await sync_nodes_to_remote([node_ip], cluster_id, operation="remove")
+
         return BaseResponse(
             success=True,
             message=f"Node {node_id} exited from cluster successfully"
@@ -616,7 +751,7 @@ async def exit_node_from_cluster(
         db.rollback()
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to assign node to cluster: {str(e)}"
+            detail=f"Failed to exit node from cluster: {str(e)}"
         )
 
 @router.delete("/batch", response_model=BaseResponse)
@@ -626,21 +761,23 @@ async def batch_delete_nodes(
     current_user_id: int = Depends(get_current_user_id)
 ):
     """
-    批量删除节点
-    只能删除当前用户的节点
+    批量删除节点并同步到远程API
     """
     try:
         body = await request.json()
         node_ids = body if isinstance(body, list) else body.get('node_ids', [])
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
-    
+
     if not node_ids:
         raise HTTPException(status_code=400, detail="No node IDs provided")
-    
+
     deleted_count = 0
     failed_count = 0
     errors = []
+
+    # 用于收集需要同步到远程的节点（按集群分组）
+    cluster_nodes_to_sync = {}  # {cluster_id: [node_ips]}
 
     try:
         for node_id in node_ids:
@@ -648,17 +785,23 @@ async def batch_delete_nodes(
                 # 确保node_id是字符串且可以转换为整数
                 if not isinstance(node_id, str):
                     node_id = str(node_id)
-                
+
                 # 验证node_id格式
                 if not node_id.isdigit():
                     failed_count += 1
                     errors.append(f"Invalid node ID format: {node_id} (must be numeric)")
                     continue
-                
+
                 node_id_int = int(node_id)
                 node = db.query(Node).filter(Node.id == node_id_int).first()
-                
+
                 if node:
+                    # 保存节点信息用于远程同步
+                    if node.cluster_id and node.path_ipv4:
+                        if node.cluster_id not in cluster_nodes_to_sync:
+                            cluster_nodes_to_sync[node.cluster_id] = []
+                        cluster_nodes_to_sync[node.cluster_id].append(node.path_ipv4)
+
                     db.delete(node)
                     deleted_count += 1
                 else:
@@ -673,6 +816,11 @@ async def batch_delete_nodes(
 
         db.commit()
 
+        # 同步删除的节点到远程API（按集群分组）
+        for cluster_id, node_ips in cluster_nodes_to_sync.items():
+            logger.info(f"Syncing {len(node_ips)} deleted nodes from cluster {cluster_id} to remote API")
+            await sync_nodes_to_remote(node_ips, cluster_id, operation="remove")
+
         if failed_count > 0:
             return BaseResponse(
                 success=False,
@@ -684,7 +832,7 @@ async def batch_delete_nodes(
                 success=True,
                 message=f"Successfully deleted {deleted_count} node(s)"
             )
-            
+
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -699,8 +847,7 @@ async def delete_node(
     current_user_id: int = Depends(get_current_user_id)
 ):
     """
-    删除节点
-    只能删除当前用户的节点
+    删除节点并同步到远程API
     """
     try:
         node_id_int = int(node_id)
@@ -712,11 +859,22 @@ async def delete_node(
         Node.id == node_id_int,
         Node.user_id == current_user_id
     ).first()
+
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
+    # 保存节点信息用于远程同步
+    node_ip = node.path_ipv4
+    cluster_id = node.cluster_id
+
+    # 从数据库删除节点
     db.delete(node)
     db.commit()
+
+    # 如果节点属于某个集群，同步到远程API
+    if cluster_id and node_ip:
+        logger.info(f"Syncing deleted node {node_ip} to remote API")
+        await sync_nodes_to_remote([node_ip], cluster_id, operation="remove")
 
     return BaseResponse(
         success=True,
@@ -870,24 +1028,32 @@ async def create_node(
                 status_code=400,
                 detail=f"Node with IP address {node_data.ip} already exists"
             )
-        
+
+        # 验证节点类型
+        valid_types = ["center", "mpc", "training"]
+        if node_data.node_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid node type. Must be one of: {', '.join(valid_types)}"
+            )
+
         new_node = Node(
             user_id=current_user_id,  # 使用认证用户的ID
             cluster_id=cluster_id,  # 关联到cluster
             path_ipv4=node_data.ip,
-            name=node_data.name or f"Node {node_data.ip}",
+            name=node_data.name or f"{node_data.node_type.title()} Node {node_data.ip}",
             state="idle",  # 默认为空闲状态
-            type="worker",  # 默认为工作节点
+            type=node_data.node_type,  # 使用指定的节点类型
             progress=0.0,
             cpu="",
             gpu="",
             memory=""
         )
-        
+
         db.add(new_node)
         db.commit()
         db.refresh(new_node)
-        
+
         # 返回节点响应
         return NodeResponse(
             id=str(new_node.id),
@@ -902,9 +1068,14 @@ async def create_node(
             current_epoch=None,
             total_epochs=None,
             last_seen=datetime.now().isoformat(),
-            connections=[]
+            connections=[],
+            node_type=new_node.type,
+            cluster_id=new_node.cluster_id,  # 添加集群ID信息
+            project="No Project",
+            uptime="0h 0m",
+            active_tasks=0
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -913,3 +1084,90 @@ async def create_node(
             status_code=500,
             detail=f"Failed to create node: {str(e)}"
         )
+
+
+@router.post("/validate", response_model=BaseResponse)
+async def validate_nodes(request: Request, db: Session = Depends(get_db)):
+    """
+    验证节点IP是否可用（通过远程API）
+
+    请求体格式:
+    {
+        "node_ips": ["192.168.1.100", "192.168.1.101"]
+    }
+
+    返回格式:
+    {
+        "success": true,
+        "message": "2 nodes validated",
+        "data": {
+            "valid_nodes": ["192.168.1.100"],
+            "invalid_nodes": ["192.168.1.101"],
+            "details": {
+                "192.168.1.100": {"status": "available", "message": "Node is reachable"},
+                "192.168.1.101": {"status": "unavailable", "message": "Node is not reachable"}
+            }
+        }
+    }
+    """
+    try:
+        body = await request.json()
+        node_ips = body.get('node_ips', [])
+
+        if not node_ips:
+            raise HTTPException(status_code=400, detail="No node IPs provided")
+
+        if not isinstance(node_ips, list):
+            raise HTTPException(status_code=400, detail="node_ips must be a list")
+
+        logger.info(f"Validating {len(node_ips)} nodes: {node_ips}")
+
+        # 调用远程API验证节点
+        request_body = {"nodes": node_ips}
+
+        result = await call_remote_api(
+            endpoint_key="CLUSTER_VALIDATE_NODES",
+            method="POST",
+            json_data=request_body
+        )
+
+        if not result:
+            # 如果远程API调用失败，返回默认响应
+            logger.warning("Remote API validation failed, returning default response")
+            return BaseResponse(
+                success=False,
+                message="Failed to validate nodes via remote API",
+                data={
+                    "valid_nodes": [],
+                    "invalid_nodes": node_ips,
+                    "details": {ip: {"status": "unknown", "message": "Remote API unavailable"} for ip in node_ips}
+                }
+            )
+
+        # 解析远程API响应
+        valid_nodes = result.get("valid_nodes", [])
+        invalid_nodes = result.get("invalid_nodes", [])
+        details = result.get("details", {})
+
+        logger.info(f"Validation result: {len(valid_nodes)} valid, {len(invalid_nodes)} invalid")
+
+        return BaseResponse(
+            success=True,
+            message=f"Validated {len(node_ips)} nodes: {len(valid_nodes)} valid, {len(invalid_nodes)} invalid",
+            data={
+                "valid_nodes": valid_nodes,
+                "invalid_nodes": invalid_nodes,
+                "details": details
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating nodes: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to validate nodes: {str(e)}"
+        )
+
+

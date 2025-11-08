@@ -390,6 +390,27 @@ export const modelService = {
   async getModelStats() {
     const response = await apiClient.get(API_ENDPOINTS.P2P_AI.MODELS.STATS)
     return response.data
+  },
+
+  /**
+   * 停止/取消部署模型
+   * @param {string} modelId - 模型ID
+   * @returns {Promise<Object>} 操作结果
+   */
+  async stopModel(modelId) {
+    const url = API_ENDPOINTS.P2P_AI.MODELS.STOP.replace('{id}', modelId)
+    const response = await apiClient.post(url)
+    return response.data
+  },
+
+  /**
+   * 创建新模型
+   * @param {Object} modelData - 模型数据
+   * @returns {Promise<Object>} 创建结果
+   */
+  async createModel(modelData) {
+    const response = await apiClient.post(API_ENDPOINTS.P2P_AI.MODELS.CREATE, modelData)
+    return response.data
   }
 }
 

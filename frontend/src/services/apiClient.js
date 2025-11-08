@@ -8,6 +8,7 @@ import { API_CONFIG, HTTP_STATUS, API_RESPONSE_FORMAT } from '@/config/api.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotifications } from '@/composables/useNotifications.js'
 import performanceMonitor from '@/utils/performanceMonitor.js'
+import { apiLogger } from '@/utils/logger'
 
 /**
  * 创建Axios实例
@@ -43,9 +44,8 @@ apiClient.interceptors.request.use(
     
     // 开发环境下打印请求信息
     if (import.meta.env.VITE_DEBUG_API) {
-      console.group(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`)
-      console.log('Config:', config)
-      console.groupEnd()
+      apiLogger.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`)
+      apiLogger.log('Config:', config)
     }
     
     return config
@@ -68,10 +68,9 @@ apiClient.interceptors.response.use(
 
     // 开发环境下打印响应信息
     if (import.meta.env.VITE_DEBUG_API) {
-      console.group(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url}`)
-      console.log('Status:', response.status)
-      console.log('Data:', response.data)
-      console.groupEnd()
+      apiLogger.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url}`)
+      apiLogger.log('Status:', response.status)
+      apiLogger.log('Data:', response.data)
     }
     
     // 统一处理响应数据格式
@@ -85,9 +84,8 @@ apiClient.interceptors.response.use(
 
     // 开发环境下打印错误信息
     if (import.meta.env.VITE_DEBUG_API) {
-      console.group(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url}`)
+      apiLogger.log(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url}`)
       console.error('Error:', error)
-      console.groupEnd()
     }
     
     // 统一错误处理
@@ -183,18 +181,10 @@ function handleApiError(error) {
   }
   
   // 使用全局通知实例显示错误提示
-  try {
-    // 尝试导入全局通知实例
-    import('@/composables/useNotifications.js').then(module => {
-      const { $notify } = module
-      if ($notify && $notify.error) {
-        $notify.error(errorMessage)
-      }
-    }).catch(() => {
-      // 如果导入失败，使用console输出
-      console.error('API Error:', errorMessage)
-    })
-  } catch (e) {
+  if (window.$notify && window.$notify.error) {
+    // 使用全局通知实例
+    window.$notify.error(errorMessage)
+  } else {
     // 降级处理：使用console输出
     console.error('API Error:', errorMessage)
   }

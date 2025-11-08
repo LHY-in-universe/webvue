@@ -284,6 +284,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApiOptimization } from '@/composables/useApiOptimization'
+import { useNotifications } from '@/composables/useNotifications'
 import edgeaiService from '@/services/edgeaiService'
 import performanceMonitor from '@/utils/performanceMonitor'
 import Button from '@/components/ui/Button.vue'
@@ -300,6 +301,7 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
+const { error: showError } = useNotifications()
 const { cachedApiCall, clearCache } = useApiOptimization()
 
 // Reactive data
@@ -322,13 +324,18 @@ const clusters = ref([])
 
 // Computed properties
 const filteredClusters = computed(() => {
+  // 防御性检查：确保 clusters.value 是数组
+  if (!clusters.value || !Array.isArray(clusters.value)) {
+    return []
+  }
+
   let filtered = clusters.value
 
   // Filter by search query
   if (searchQuery.value) {
-    filtered = filtered.filter(cluster => 
-      cluster.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      cluster.description.toLowerCase().includes(searchQuery.value.toLowerCase())
+    filtered = filtered.filter(cluster =>
+      cluster.name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      cluster.description?.toLowerCase().includes(searchQuery.value.toLowerCase())
     )
   }
 
@@ -423,10 +430,10 @@ const loadClustersData = async () => {
       clusters.value = []
     }
 
-    // Update statistics based on clusters data
-    totalClusters.value = clusters.value.length
-    activeClusters.value = clusters.value.filter(c => c.status === 'Active').length
-    totalNodes.value = clusters.value.reduce((sum, c) => sum + c.nodeCount, 0)
+    // Update statistics based on clusters data (with defensive checks)
+    totalClusters.value = clusters.value?.length || 0
+    activeClusters.value = clusters.value?.filter(c => c.status === 'Active').length || 0
+    totalNodes.value = clusters.value?.reduce((sum, c) => sum + (c.nodeCount || 0), 0) || 0
     resourcesUsed.value = 0 // Default to 0 since we don't have resource usage data
 
     console.log('📈 Statistics updated:', {
@@ -485,7 +492,7 @@ const openClusterDetails = (cluster) => {
   // Validate cluster ID before navigation
   if (!cluster.id || cluster.id === 'undefined' || cluster.id === undefined) {
     console.error('❌ Invalid cluster ID:', cluster.id)
-    alert('Invalid cluster ID. Please refresh the page and try again.')
+    showError('Invalid cluster ID. Please refresh the page and try again.')
     return
   }
   

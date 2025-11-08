@@ -36,7 +36,7 @@ onUnmounted(() => {
 <template>
   <div id="app" class="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-700">
     <RouterView />
-    
+
     <!-- Global Toast Notifications -->
     <Toast />
   </div>

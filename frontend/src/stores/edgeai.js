@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import edgeaiService from '@/services/edgeaiService'
 import { preprocessFormData, formatToDecimal, formatPercentage } from '@/utils/numberUtils'
+import { storeLogger } from '@/utils/logger'
 
 export const useEdgeAIStore = defineStore('edgeai', () => {
   // State
@@ -315,17 +316,17 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   const connectWebSocket = () => {
     // Check if we already have a healthy connection
     if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-      console.log('EdgeAI WebSocket already connected, skipping...')
+      storeLogger.log('EdgeAI WebSocket already connected, skipping...')
       return
     }
 
     // Don't try to connect if we've exceeded retry limits
     if (connectionRetries.value >= maxRetries) {
-      console.log('Max WebSocket retries reached, not attempting connection')
+      storeLogger.log('Max WebSocket retries reached, not attempting connection')
       return
     }
 
-    console.log('EdgeAI WebSocket connecting...')
+    storeLogger.log('EdgeAI WebSocket connecting...')
 
     // Close existing connection if any
     if (ws.value) {
@@ -336,7 +337,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
     try {
       // Use configurable WebSocket URL from API config
       const wsUrl = `${import.meta.env.VITE_WS_BASE_URL || 'ws://127.0.0.1:8000'}/api/edgeai/nodes/ws/control-1`
-      console.log('Connecting to WebSocket:', wsUrl)
+      storeLogger.log('Connecting to WebSocket:', wsUrl)
 
       ws.value = new WebSocket(wsUrl)
 
@@ -344,7 +345,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
         isConnected.value = true
         connectionError.value = null
         connectionRetries.value = 0
-        console.log('EdgeAI WebSocket connected successfully')
+        storeLogger.log('EdgeAI WebSocket connected successfully')
         lastUpdate.value = new Date()
       }
 
@@ -360,13 +361,13 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
 
       ws.value.onclose = (event) => {
         isConnected.value = false
-        console.log(`EdgeAI WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`)
+        storeLogger.log(`EdgeAI WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`)
 
         // Only retry for unexpected disconnections (not manual close)
         if (event.code !== 1000 && event.code !== 1001 && connectionRetries.value < maxRetries) {
           // Increase retry delay significantly to reduce connection storm
           const retryDelay = 5000 + (3000 * Math.pow(2, connectionRetries.value)) // Start at 5s, then exponential backoff
-          console.log(`Will retry WebSocket connection in ${retryDelay}ms (attempt ${connectionRetries.value + 1}/${maxRetries})`)
+          storeLogger.log(`Will retry WebSocket connection in ${retryDelay}ms (attempt ${connectionRetries.value + 1}/${maxRetries})`)
 
           setTimeout(() => {
             if (connectionRetries.value < maxRetries) { // Double-check before retry
@@ -376,7 +377,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
           }, retryDelay)
         } else if (connectionRetries.value >= maxRetries) {
           connectionError.value = 'WebSocket connection failed after multiple retries. Running in offline mode.'
-          console.warn('Max WebSocket retries reached. Switching to offline mode.')
+          storeLogger.warn('Max WebSocket retries reached. Switching to offline mode.')
         }
       }
 
@@ -393,7 +394,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
       // Increase connection timeout to be more forgiving
       setTimeout(() => {
         if (ws.value && ws.value.readyState === WebSocket.CONNECTING) {
-          console.warn('WebSocket connection timeout, closing...')
+          storeLogger.warn('WebSocket connection timeout, closing...')
           ws.value.close()
         }
       }, 15000) // 15 second timeout
@@ -417,13 +418,13 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
         // Handle task status updates
         if (data.payload && data.payload.id) {
           // Find and update task if it exists in any project
-          console.log('Task update received:', data.payload)
+          storeLogger.log('Task update received:', data.payload)
         }
         break
       case 'model_update':
         // Handle model deployment/status changes
         if (data.payload && data.payload.id) {
-          console.log('Model update received:', data.payload)
+          storeLogger.log('Model update received:', data.payload)
         }
         break
       case 'system_stats':
@@ -433,7 +434,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
       case 'system_log':
         // Handle new system log entries
         if (data.payload && data.payload.message) {
-          console.log('New system log:', data.payload)
+          storeLogger.log('New system log:', data.payload)
         }
         break
       case 'training_progress':
@@ -443,7 +444,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
         }
         break
       default:
-        console.log('Unknown WebSocket message type:', data.type, data)
+        storeLogger.log('Unknown WebSocket message type:', data.type, data)
     }
   }
   
@@ -479,7 +480,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
       })
 
       // Send complete project data to API
-      console.log('EdgeAI Store - Sending processedData to backend:', processedData)
+      storeLogger.log('EdgeAI Store - Sending processedData to backend:', processedData)
 
       // Call real API to create project
       const result = await edgeaiService.projects.createProject(processedData)
@@ -525,7 +526,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
 
   const updateProject = (updatedProject) => {
     if (!updatedProject || !updatedProject.id) {
-      console.warn('Invalid project data received for update:', updatedProject)
+      storeLogger.warn('Invalid project data received for update:', updatedProject)
       return
     }
     const index = projects.value.findIndex(p => p.id === updatedProject.id)
@@ -561,7 +562,7 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
   // Node management
   const updateNode = (updatedNode) => {
     if (!updatedNode || !updatedNode.id) {
-      console.warn('Invalid node data received for update:', updatedNode)
+      storeLogger.warn('Invalid node data received for update:', updatedNode)
       return
     }
     const index = nodes.value.findIndex(n => n.id === updatedNode.id)

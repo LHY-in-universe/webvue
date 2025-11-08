@@ -14,10 +14,13 @@ const validateApiResponse = (response, expectedFields = []) => {
     throw new Error('Invalid API response format')
   }
 
-  // 检查必需字段
-  for (const field of expectedFields) {
-    if (!(field in response)) {
-      console.warn(`Missing expected field: ${field} in API response`)
+  // 仅在开发环境输出警告
+  if (process.env.NODE_ENV === 'development') {
+    // 检查必需字段
+    for (const field of expectedFields) {
+      if (!(field in response)) {
+        console.warn(`Missing expected field: ${field} in API response`)
+      }
     }
   }
 
@@ -29,6 +32,10 @@ const validateProjectResponse = (project) => {
 }
 
 const validateNodeResponse = (node) => {
+  // Map backend 'state' field to frontend 'status' field for consistency
+  if (node.state && !node.status) {
+    node.status = node.state
+  }
   return validateApiResponse(node, ['id', 'name', 'type', 'status'])
 }
 
@@ -198,14 +205,25 @@ export const nodeService = {
     const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.NODES.LIST, { params })
     const data = response.data
 
-    // 验证响应格式
+    // 验证响应格式并映射状态字段
+    let nodes = []
     if (Array.isArray(data)) {
-      return data.map(validateNodeResponse)
+      nodes = data
     } else if (data && Array.isArray(data.data)) {
-      return data.data.map(validateNodeResponse)
+      nodes = data.data
+    } else {
+      return data
     }
 
-    return data
+    // 映射state字段到status，确保前后端字段一致
+    return nodes.map(node => {
+      const validatedNode = validateNodeResponse(node)
+      // 确保state映射到status
+      if (validatedNode.state && !validatedNode.status) {
+        validatedNode.status = validatedNode.state
+      }
+      return validatedNode
+    })
   },
 
   /**
@@ -286,6 +304,54 @@ export const nodeService = {
     const url = API_ENDPOINTS.EDGE_AI.NODES.OPERATION.replace('{id}', nodeId)
     const response = await apiClient.post(url, { operation: 'stop' })
     return response.data
+  },
+
+  /**
+   * 在指定集群中创建节点（使用现有API）
+   * @param {number} clusterId - 集群ID
+   * @param {Object} nodeData - 节点数据
+   * @returns {Promise<Object>} 创建结果
+   */
+  async createNodeInCluster(clusterId, nodeData) {
+    // 1. 先创建节点
+    const createResponse = await apiClient.post(API_ENDPOINTS.EDGE_AI.NODES.LIST, nodeData)
+    const node = createResponse.data
+
+    // 2. 将节点分配到集群 - 使用请求体传递cluster_id
+    const assignUrl = `${API_ENDPOINTS.EDGE_AI.NODES.LIST.replace(/\/$/, '')}/${node.id}/assign-cluster`
+    await apiClient.post(assignUrl, null, {
+      params: { cluster_id: clusterId }
+    })
+
+    return node
+  },
+
+  /**
+   * 获取集群下的所有节点（使用现有API）
+   * @param {number} clusterId - 集群ID
+   * @returns {Promise<Array>} 节点列表
+   */
+  async getClusterNodes(clusterId) {
+    // 获取所有节点，然后过滤出属于指定集群的节点
+    const response = await apiClient.get(API_ENDPOINTS.EDGE_AI.NODES.LIST)
+    let allNodes = response.data
+
+    // 确保是数组
+    if (!Array.isArray(allNodes)) {
+      allNodes = allNodes.data || []
+    }
+
+    // 过滤出属于指定集群的节点，并映射状态字段
+    // 使用宽松相等（==）以处理字符串和数字类型的cluster_id
+    return allNodes
+      .filter(node => node.cluster_id == clusterId)
+      .map(node => {
+        // 映射state字段到status
+        if (node.state && !node.status) {
+          node.status = node.state
+        }
+        return node
+      })
   },
 
   /**
@@ -951,6 +1017,17 @@ export const modelService = {
   async exportModel(modelId, exportConfig) {
     const url = API_ENDPOINTS.EDGE_AI.MODELS.EXPORT.replace('{id}', modelId)
     const response = await apiClient.post(url, exportConfig)
+    return response.data
+  },
+
+  /**
+   * 获取模型详情
+   * @param {string} modelId - 模型ID
+   * @returns {Promise<Object>} 模型详情
+   */
+  async getModel(modelId) {
+    const url = API_ENDPOINTS.EDGE_AI.MODELS.DETAIL.replace('{id}', modelId)
+    const response = await apiClient.get(url)
     return response.data
   },
 

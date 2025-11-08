@@ -78,45 +78,57 @@ async def get_model(model_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid model ID format")
 
-    model = db.query(Model).filter(Model.id == model_id_int).first()
-    if not model:
-        raise HTTPException(status_code=404, detail="Model not found")
+    try:
+        model = db.query(Model).filter(Model.id == model_id_int).first()
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
 
-    # Get related project information
-    project = db.query(Project).filter(Project.id == model.project_id).first()
-    project_name = project.name if project else "Unknown Project"
+        # Get related project information
+        project_name = "Unknown Project"
+        if model.project_id:
+            try:
+                project = db.query(Project).filter(Project.id == model.project_id).first()
+                if project:
+                    project_name = project.name
+            except Exception as e:
+                print(f"Warning: Could not fetch project: {e}")
 
-    model_dict = {
-        "id": str(model.id),
-        "name": model.name,
-        "description": model.description,
-        "type": "ml_model",
-        "version": model.version,
-        "status": model.status,
-        "accuracy": model.accuracy,
-        "size": f"{model.size} MB",
-        "framework": "TensorFlow",
-        "created_date": model.created_time.strftime("%Y-%m-%d") if model.created_time else "",
-        "last_updated": model.updated_time.isoformat() if model.updated_time else "",
-        "deployment_count": 1 if model.status == "deployed" else 0,
-        "projects": [project_name],
-        "metrics": {
-            "accuracy": model.accuracy,
-            "precision": model.accuracy * 0.98,
-            "recall": model.accuracy * 1.02,
-            "f1_score": model.accuracy * 0.99,
-            "inference_time": "12ms",
-            "memory_usage": f"{int(model.size * 5)}MB"
-        },
-        "performance": {
-            "avg_response_time": 12.5 + (model.id % 10),
-            "throughput": 800 + (model.id % 400),
-            "error_rate": round(0.1 + (model.id % 5) * 0.05, 2),
-            "uptime": 95.0 + (model.id % 5)
+        model_dict = {
+            "id": str(model.id),
+            "name": model.name,
+            "description": model.description,
+            "type": "ml_model",
+            "version": model.version,
+            "status": model.status,
+            "accuracy": float(model.accuracy) if model.accuracy else 0.0,
+            "size": f"{float(model.size)} MB" if model.size else "0 MB",
+            "framework": "TensorFlow",
+            "created_date": model.created_time.strftime("%Y-%m-%d") if model.created_time else "",
+            "last_updated": model.updated_time.isoformat() if model.updated_time else "",
+            "deployment_count": 1 if model.status == "deployed" else 0,
+            "projects": [project_name],
+            "metrics": {
+                "accuracy": float(model.accuracy) if model.accuracy else 0.0,
+                "precision": float(model.accuracy) * 0.98 if model.accuracy else 0.0,
+                "recall": float(model.accuracy) * 1.02 if model.accuracy else 0.0,
+                "f1_score": float(model.accuracy) * 0.99 if model.accuracy else 0.0,
+                "inference_time": "12ms",
+                "memory_usage": f"{int(float(model.size) * 5)}MB" if model.size else "0MB"
+            },
+            "performance": {
+                "avg_response_time": 12.5 + (model.id % 10),
+                "throughput": 800 + (model.id % 400),
+                "error_rate": round(0.1 + (model.id % 5) * 0.05, 2),
+                "uptime": 95.0 + (model.id % 5)
+            }
         }
-    }
 
-    return model_dict
+        return model_dict
+    except Exception as e:
+        print(f"Error in get_model: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.get("/stats/overview/")
 async def get_model_stats(db: Session = Depends(get_db)):
@@ -169,43 +181,49 @@ async def get_model_performance(model_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid model ID format")
 
-    model = db.query(Model).filter(Model.id == model_id_int).first()
-    if not model:
-        raise HTTPException(status_code=404, detail="Model not found")
+    try:
+        model = db.query(Model).filter(Model.id == model_id_int).first()
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
 
-    # Generate performance data based on model attributes
-    base_response_time = 10.0 + (model.id % 20)
-    base_throughput = 500 + (model.id % 1000)
+        # Generate performance data based on model attributes
+        base_response_time = 10.0 + (model.id % 20)
+        base_throughput = 500 + (model.id % 1000)
 
-    performance_data = {
-        "avg_response_time": base_response_time,
-        "throughput": base_throughput,
-        "error_rate": round(0.1 + (model.id % 10) * 0.02, 2),
-        "uptime": 95.0 + (model.id % 5),
-        "model_id": model_id,
-        "model_name": model.name,
-        "historical_data": {
-            "response_times": [base_response_time + i * 0.2 for i in range(-3, 4)],
-            "throughput": [base_throughput + i * 10 for i in range(-3, 4)],
-            "error_rates": [0.10 + i * 0.01 for i in range(-3, 4)],
-            "accuracy_trend": [model.accuracy + i * 0.1 for i in range(-3, 4)]
-        },
-        "resource_usage": {
-            "cpu_utilization": 60.0 + (model.id % 30),
-            "memory_utilization": 70.0 + (model.id % 25),
-            "gpu_utilization": 80.0 + (model.id % 20),
-            "disk_io": 40.0 + (model.id % 30),
-            "network_io": 20.0 + (model.id % 40)
-        },
-        "deployment_stats": {
-            "active_deployments": 1 if model.status == "deployed" else 0,
-            "successful_requests": 100000 + (model.id * 1000),
-            "failed_requests": 50 + (model.id * 2),
-            "avg_daily_requests": 5000 + (model.id * 100)
+        performance_data = {
+            "avg_response_time": base_response_time,
+            "throughput": base_throughput,
+            "error_rate": round(0.1 + (model.id % 10) * 0.02, 2),
+            "uptime": 95.0 + (model.id % 5),
+            "model_id": model_id,
+            "model_name": model.name,
+            "historical_data": {
+                "response_times": [base_response_time + i * 0.2 for i in range(-3, 4)],
+                "throughput": [base_throughput + i * 10 for i in range(-3, 4)],
+                "error_rates": [0.10 + i * 0.01 for i in range(-3, 4)],
+                "accuracy_trend": [float(model.accuracy) + i * 0.1 if model.accuracy else i * 0.1 for i in range(-3, 4)]
+            },
+            "resource_usage": {
+                "cpu_utilization": 60.0 + (model.id % 30),
+                "memory_utilization": 70.0 + (model.id % 25),
+                "gpu_utilization": 80.0 + (model.id % 20),
+                "disk_io": 40.0 + (model.id % 30),
+                "network_io": 20.0 + (model.id % 40)
+            },
+            "deployment_stats": {
+                "active_deployments": 1 if model.status == "deployed" else 0,
+                "successful_requests": 100000 + (model.id * 1000),
+                "failed_requests": 50 + (model.id * 2),
+                "avg_daily_requests": 5000 + (model.id * 100)
+            }
         }
-    }
 
-    return performance_data
+        return performance_data
+    except Exception as e:
+        print(f"Error in get_model_performance: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.post("/{model_id}/deploy", response_model=BaseResponse)
 async def deploy_model(model_id: str, deployment_config: dict = None, db: Session = Depends(get_db)):

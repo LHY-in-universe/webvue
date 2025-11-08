@@ -83,8 +83,10 @@ export const API_ENDPOINTS = {
     // 模型管理
     MODELS: {
       LIST: '/api/p2pai/models',
+      CREATE: '/api/p2pai/models',
       EXPORT: '/api/p2pai/models/{id}/export',
       DEPLOY: '/api/p2pai/models/{id}/deploy',
+      STOP: '/api/p2pai/models/{id}/stop',
       EVALUATE: '/api/p2pai/models/{id}/evaluate',
       VERSIONS: '/api/p2pai/models/{id}/versions',
       STATS: '/api/p2pai/models/stats/overview'
@@ -106,7 +108,7 @@ export const API_ENDPOINTS = {
       TEMPLATES: '/api/edgeai/projects/templates/',
       IMPORT_HISTORY: '/api/edgeai/projects/import-history/',
       LOAD_FROM_URL: '/api/edgeai/projects/load-from-url/',
-      VISUALIZATION: '/api/edgeai/projects/{id}/visualization'
+      VISUALIZATION: '/api/edgeai/projects/{id}/visualization/'
     },
 
     // 节点管理
@@ -177,9 +179,9 @@ export const API_ENDPOINTS = {
       CREATE: '/api/edgeai/clusters/',
       DETAIL: '/api/edgeai/clusters/{id}/',
       DELETE: '/api/edgeai/clusters/{id}/',
-      START: '/api/edgeai/clusters/{id}/start/',
-      STOP: '/api/edgeai/clusters/{id}/stop/',
-      RESTART: '/api/edgeai/clusters/{id}/restart/',
+      START: '/api/edgeai/clusters/{id}/start',
+      STOP: '/api/edgeai/clusters/{id}/stop',
+      RESTART: '/api/edgeai/clusters/{id}/restart',
       STATS: '/api/edgeai/clusters/stats/overview/',
       PERFORMANCE: '/api/edgeai/clusters/{id}/performance/',
       ADD_NODE: '/api/edgeai/clusters/{id}/nodes/',

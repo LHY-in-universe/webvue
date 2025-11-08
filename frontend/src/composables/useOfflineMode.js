@@ -1,5 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '@/stores/ui'
+import { logger } from '@/utils/logger'
 
 export function useOfflineMode() {
   const uiStore = useUIStore()
@@ -48,7 +49,7 @@ export function useOfflineMode() {
       // Also store in localStorage for persistence
       localStorage.setItem('edgeai_offline_data', JSON.stringify(offlineData.value))
     } catch (error) {
-      console.error('Failed to cache offline data:', error)
+      logger.error('Failed to cache offline data:', error)
     }
   }
 
@@ -65,7 +66,7 @@ export function useOfflineMode() {
       
       return cached.data
     } catch (error) {
-      console.error('Failed to retrieve cached data:', error)
+      logger.error('Failed to retrieve cached data:', error)
       return null
     }
   }
@@ -95,7 +96,7 @@ export function useOfflineMode() {
         duration: 3000
       })
     } catch (error) {
-      console.error('Failed to queue request:', error)
+      logger.error('Failed to queue request:', error)
     }
   }
 
@@ -123,7 +124,7 @@ export function useOfflineMode() {
           throw new Error(`HTTP ${response.status}`)
         }
       } catch (error) {
-        console.error('Failed to sync request:', error)
+        logger.error('Failed to sync request:', error)
         request.retries++
         
         if (request.retries >= request.maxRetries) {
@@ -196,7 +197,7 @@ export function useOfflineMode() {
         offlineQueue.value = JSON.parse(queueString)
       }
     } catch (error) {
-      console.error('Failed to load persisted offline data:', error)
+      logger.error('Failed to load persisted offline data:', error)
     }
   }
 

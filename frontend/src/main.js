@@ -12,6 +12,12 @@ app.config.errorHandler = (err, instance, info) => {
   console.error('Global error:', err)
   console.error('Component instance:', instance)
   console.error('Error info:', info)
+  
+  // 尝试使用通知系统显示错误（如果已初始化）
+  if (window.$notify) {
+    const errorMessage = err.message || 'An unexpected error occurred'
+    window.$notify.error(errorMessage)
+  }
 }
 
 // Global warning handler (development only)

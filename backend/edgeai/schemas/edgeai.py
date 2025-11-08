@@ -61,12 +61,13 @@ class ModelType(str, Enum):
 class NodeCreateRequest(BaseModel):
     ip: str
     name: Optional[str] = None
+    node_type: str = "center"  # center, mpc, training
 
 class ProjectCreateRequest(BaseModel):
     name: str
     description: str
     model: str  # 与数据库table IP连接的字段
-    nodes: List[NodeCreateRequest]  # 与数据库node table连接的字段，支持多个节点
+    cluster_id: int  # 项目关联的集群ID，通过集群获取节点
 
     # 统一的训练参数 (合并后的字段)
     training_alg: str = "sft"           # 合并 training_strategy
@@ -145,6 +146,11 @@ class NodeResponse(BaseModel):
     total_epochs: Optional[int] = None
     last_seen: str
     connections: List[str]
+    node_type: Optional[str] = None  # center, mpc, training
+    cluster_id: Optional[int] = None  # 所属集群ID
+    project: Optional[str] = None
+    uptime: Optional[str] = None
+    active_tasks: Optional[int] = None
 
 class SystemStats(BaseModel):
     total_projects: int

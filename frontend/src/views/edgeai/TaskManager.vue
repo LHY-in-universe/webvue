@@ -208,6 +208,7 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
+const { error: showError } = useNotifications()
 const { cachedApiCall, clearCache } = useApiOptimization()
 
 // Loading and error states
@@ -318,7 +319,7 @@ const retryTask = async (task) => {
     }
   } catch (error) {
     console.error('Failed to retry task:', error)
-    alert(`Failed to retry task "${task.name}": ${error.message}`)
+    showError(`Failed to retry task "${task.name}": ${error.message}`)
     monitor.end({ success: false, error: error.message })
   }
 }
@@ -343,7 +344,7 @@ const startTask = async (task) => {
     }
   } catch (error) {
     console.error('Failed to start task:', error)
-    alert(`Failed to start task "${task.name}": ${error.message}`)
+    showError(`Failed to start task "${task.name}": ${error.message}`)
     monitor.end({ success: false, error: error.message })
   }
 }
@@ -367,7 +368,7 @@ const stopTask = async (task) => {
     }
   } catch (error) {
     console.error('Failed to stop task:', error)
-    alert(`Failed to stop task "${task.name}": ${error.message}`)
+    showError(`Failed to stop task "${task.name}": ${error.message}`)
     monitor.end({ success: false, error: error.message })
   }
 }
@@ -396,7 +397,7 @@ const deleteTask = async (task) => {
     }
   } catch (error) {
     console.error('Failed to delete task:', error)
-    alert(`Failed to delete task "${task.name}": ${error.message}`)
+    showError(`Failed to delete task "${task.name}": ${error.message}`)
     monitor.end({ success: false, error: error.message })
   }
 }
