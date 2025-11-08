@@ -285,7 +285,7 @@ async def update_cluster(cluster_id: str, request: ClusterUpdateRequest, db: Ses
     )
 
 @router.delete("/{cluster_id}", response_model=BaseResponse)
-async def delete_cluster(cluster_id: str, db: Session = Depends(get_db)):
+async def delete_cluster(cluster_id: str, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     删除集群
     """
@@ -294,7 +294,7 @@ async def delete_cluster(cluster_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid cluster ID format")
 
-    cluster = db.query(Cluster).filter(Cluster.id == cluster_id_int).first()
+    cluster = db.query(Cluster).filter(Cluster.id == cluster_id_int, Cluster.user_id == current_user_id).first()
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
 
