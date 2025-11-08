@@ -34,14 +34,42 @@ class NodesAPITester:
         """获取带认证的请求头"""
         return self.auth_helper.get_headers()
     
+    def create_test_cluster(self):
+        """创建测试集群"""
+        try:
+            cluster_data = {
+                "name": "Test Cluster for Nodes"
+            }
+            
+            response = requests.post(f"{self.base_url}/api/edgeai/clusters/", 
+                                   json=cluster_data, 
+                                   headers=self.get_headers())
+            
+            if response.status_code == 200:
+                cluster = response.json()
+                self.created_cluster_id = int(cluster.get("id"))
+                print(f"✅ 创建测试集群成功: ID {self.created_cluster_id}")
+                return True
+            else:
+                print(f"❌ 创建集群失败: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ 创建集群异常: {str(e)}")
+            return False
+    
     def create_test_project(self):
         """创建测试项目"""
         try:
+            # 确保先有集群
+            if not self.created_cluster_id:
+                if not self.create_test_cluster():
+                    return False
+            
             project_data = {
                 "name": "Test Project for Nodes",
                 "description": "Test project for node testing",
                 "model": "test-model",
-                "nodes": [{"id": "test-node", "name": "test-node", "type": "edge", "ip": "192.168.1.100"}],
+                "cluster_id": self.created_cluster_id,  # 使用集群ID
                 "training_alg": "sft",
                 "fed_alg": "fedavg",
                 "secure_aggregation": "shamir_threshold",
@@ -74,30 +102,6 @@ class NodesAPITester:
         except Exception as e:
             print(f"❌ 创建项目异常: {str(e)}")
             return False
-    
-    def create_test_cluster(self):
-        """创建测试集群"""
-        try:
-            cluster_data = {
-                "name": "Test Cluster for Nodes",
-                "project_id": int(self.created_project_id) if self.created_project_id else 1
-            }
-            
-            response = requests.post(f"{self.base_url}/api/edgeai/clusters/", 
-                                   json=cluster_data, 
-                                   headers=self.get_headers())
-            
-            if response.status_code == 200:
-                cluster = response.json()
-                self.created_cluster_id = cluster.get("id")
-                print(f"✅ 创建测试集群成功: ID {self.created_cluster_id}")
-                return True
-            else:
-                print(f"❌ 创建集群失败: {response.status_code} - {response.text}")
-                return False
-        except Exception as e:
-            print(f"❌ 创建集群异常: {str(e)}")
-            return False
         
     def log_test(self, test_name: str, success: bool, message: str = "", response_data: Any = None):
         """记录测试结果"""
@@ -125,9 +129,10 @@ class NodesAPITester:
             if method.upper() == "GET":
                 response = requests.get(url, params=params, headers=headers, timeout=10)
             elif method.upper() == "POST":
-                response = requests.post(url, json=data, headers=headers, timeout=10)
+                # POST 请求也可以有查询参数
+                response = requests.post(url, json=data, params=params, headers=headers, timeout=10)
             elif method.upper() == "DELETE":
-                response = requests.delete(url, json=data, headers=headers, timeout=10)
+                response = requests.delete(url, json=data, params=params, headers=headers, timeout=10)
             else:
                 return False, {"error": f"Unsupported method: {method}"}
             
@@ -300,7 +305,8 @@ class NodesAPITester:
         # 创建测试节点
         node_data = {
             "name": f"Test Node {int(time.time())}",
-            "ip": f"192.168.1.{200 + int(time.time()) % 255}"
+            "ip": f"192.168.1.{200 + int(time.time()) % 255}",
+            "node_type": "training"  # 添加必需的node_type字段
         }
         
         success, data = self.make_request("POST", "/", node_data)
@@ -340,7 +346,7 @@ class NodesAPITester:
         self.make_request("POST", f"/{node_id}/exit-cluster")
         time.sleep(1)
         
-        success, data = self.make_request("POST", f"/{node_id}/assign-cluster?cluster_id={self.created_cluster_id}")
+        success, data = self.make_request("POST", f"/{node_id}/assign-cluster", params={"cluster_id": str(self.created_cluster_id)})
         self.log_test(f"POST /nodes/{node_id}/assign-cluster", success, "分配节点到集群", data)
         
         return success
@@ -399,7 +405,8 @@ class NodesAPITester:
         for i in range(3):
             node_data = {
                 "name": f"Batch Test Node {i}",
-                "ip": f"192.168.1.{250 + i + int(time.time()) % 100}"
+                "ip": f"192.168.1.{250 + i + int(time.time()) % 100}",
+                "node_type": "training"  # 添加必需的node_type字段
             }
             success, data = self.make_request("POST", "/", node_data)
             if success and data and "id" in data:
@@ -501,8 +508,8 @@ class NodesAPITester:
         
         # 先创建必要的测试资源
         print("\n🔧 创建测试资源...")
-        self.create_test_project()
-        self.create_test_cluster()
+        self.create_test_cluster()  # 先创建集群
+        self.create_test_project()  # 再创建项目
         
         # 运行所有测试
         tests = [

@@ -79,13 +79,38 @@ def test_auth_flow():
         print(f"❌ 登录请求异常: {e}")
         return False
     
-    # 3. 测试创建项目（需要认证）
-    print("\n3. 测试创建项目（需要认证）...")
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 3. 测试创建集群（需要认证，先创建集群）
+    print("\n3. 测试创建集群（需要认证）...")
+    cluster_data = {
+        "name": "测试集群"
+    }
+    
+    try:
+        response = requests.post(f"{base_url}/api/edgeai/clusters/", json=cluster_data, headers=headers)
+        if response.status_code == 200:
+            cluster_response = response.json()
+            print("✅ 集群创建成功")
+            cluster_id = int(cluster_response.get('id'))
+            print(f"   集群ID: {cluster_id}")
+            print(f"   集群名称: {cluster_response.get('name')}")
+            print(f"   用户ID: {cluster_response.get('user_id')}")
+        else:
+            print(f"❌ 集群创建失败: {response.status_code}")
+            print(f"   响应内容: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ 集群创建请求异常: {e}")
+        return False
+    
+    # 4. 测试创建项目（需要认证，使用集群ID）
+    print("\n4. 测试创建项目（需要认证）...")
     project_data = {
         "name": "测试项目",
         "description": "这是一个测试项目",
         "model": "test-model",
-        "nodes": [{"ip": "192.168.1.100", "name": "测试节点"}],  # 添加必需的nodes字段
+        "cluster_id": cluster_id,  # 使用刚创建的集群ID
         "training_alg": "sft",
         "fed_alg": "fedavg",
         "secure_aggregation": "shamir_threshold",
@@ -103,8 +128,6 @@ def test_auth_flow():
         "dataset_sample": 50
     }
     
-    headers = {"Authorization": f"Bearer {token}"}
-    
     try:
         response = requests.post(f"{base_url}/api/edgeai/projects/", json=project_data, headers=headers)
         if response.status_code == 200:
@@ -120,29 +143,6 @@ def test_auth_flow():
         print(f"❌ 项目创建请求异常: {e}")
         return False
     
-    # 4. 测试创建集群（需要认证）
-    print("\n4. 测试创建集群（需要认证）...")
-    cluster_data = {
-        "name": "测试集群",
-        "project_id": 1  # 假设项目ID为1
-    }
-    
-    try:
-        response = requests.post(f"{base_url}/api/edgeai/clusters/", json=cluster_data, headers=headers)
-        if response.status_code == 200:
-            cluster_response = response.json()
-            print("✅ 集群创建成功")
-            print(f"   集群ID: {cluster_response.get('id')}")
-            print(f"   集群名称: {cluster_response.get('name')}")
-            print(f"   用户ID: {cluster_response.get('user_id')}")
-        else:
-            print(f"❌ 集群创建失败: {response.status_code}")
-            print(f"   响应内容: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ 集群创建请求异常: {e}")
-        return False
-    
     # 5. 测试无认证访问（应该失败）
     print("\n5. 测试无认证访问（应该失败）...")
     try:
@@ -151,13 +151,14 @@ def test_auth_flow():
             "name": "无认证测试项目",
             "description": "测试无认证访问",
             "model": "test-model",
-            "nodes": [{"ip": "192.168.1.200", "name": "无认证节点"}]
+            "cluster_id": cluster_id  # 需要cluster_id字段
         }
         response = requests.post(f"{base_url}/api/edgeai/projects/", json=simple_project_data)
         if response.status_code == 401:
             print("✅ 无认证访问正确被拒绝")
         else:
             print(f"❌ 无认证访问应该被拒绝，但返回了: {response.status_code}")
+            print(f"   响应内容: {response.text}")
             return False
     except Exception as e:
         print(f"❌ 无认证访问测试异常: {e}")
@@ -194,12 +195,27 @@ def test_mock_user():
                 print(f"   Token: {token}")
                 print(f"   User ID: {user_id}")
                 
+                headers = {"Authorization": f"Bearer {token}"}
+                
+                # 先创建集群
+                cluster_data = {
+                    "name": "Mock用户集群"
+                }
+                cluster_response = requests.post(f"{base_url}/api/edgeai/clusters/", json=cluster_data, headers=headers)
+                if cluster_response.status_code != 200:
+                    print(f"❌ Mock用户集群创建失败: {cluster_response.status_code}")
+                    print(f"   响应内容: {cluster_response.text}")
+                    return False
+                
+                mock_cluster_id = int(cluster_response.json().get('id'))
+                print(f"✅ Mock用户集群创建成功，集群ID: {mock_cluster_id}")
+                
                 # 测试创建项目
                 project_data = {
                     "name": "Mock用户项目",
                     "description": "Mock用户创建的项目",
                     "model": "mock-model",
-                    "nodes": [{"ip": "192.168.1.101", "name": "Mock节点"}],  # 添加必需的nodes字段
+                    "cluster_id": mock_cluster_id,  # 使用刚创建的集群ID
                     "training_alg": "sft",
                     "fed_alg": "fedavg",
                     "secure_aggregation": "shamir_threshold",
@@ -217,7 +233,6 @@ def test_mock_user():
                     "dataset_sample": 25
                 }
                 
-                headers = {"Authorization": f"Bearer {token}"}
                 response = requests.post(f"{base_url}/api/edgeai/projects/", json=project_data, headers=headers)
                 if response.status_code == 200:
                     project_response = response.json()

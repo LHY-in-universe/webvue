@@ -26,11 +26,35 @@ class APITester:
         self.session = requests.Session()
         self.test_results = []
         self.created_project_id = None
+        self.created_cluster_id = None
         self.auth_helper = TestAuthHelper()
     
     def get_headers(self):
         """获取带认证的请求头"""
         return self.auth_helper.get_headers()
+    
+    def create_test_cluster(self):
+        """创建测试集群"""
+        try:
+            cluster_data = {
+                "name": "Test Cluster for Projects"
+            }
+            
+            response = self.session.post(f"{BASE_URL}/api/edgeai/clusters/", 
+                                       json=cluster_data, 
+                                       headers=self.get_headers())
+            
+            if response.status_code == 200:
+                cluster = response.json()
+                self.created_cluster_id = int(cluster.get("id"))
+                print(f"✅ 创建测试集群成功: ID {self.created_cluster_id}")
+                return True
+            else:
+                print(f"❌ 创建集群失败: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ 创建集群异常: {str(e)}")
+            return False
         
     def log_test(self, test_name: str, success: bool, message: str = "", response_data: Any = None):
         """Log test results"""
@@ -95,14 +119,17 @@ class APITester:
     def test_create_project(self):
         """Test POST /edgeai/projects/ - Create new project"""
         try:
+            # 确保先有集群
+            if not self.created_cluster_id:
+                if not self.create_test_cluster():
+                    self.log_test("POST /projects/", False, "无法创建测试集群")
+                    return False
+            
             project_data = {
                 "name": "Test Project API",
                 "description": "Test project created by API test",
                 "model": "test-model",
-                "nodes": [
-                    {"ip": "192.168.1.100", "name": "Test Node 1"},
-                    {"ip": "192.168.1.101", "name": "Test Node 2"}
-                ],
+                "cluster_id": self.created_cluster_id,  # 使用集群ID而不是nodes
                 "training_alg": "sft",
                 "fed_alg": "fedavg",
                 "secure_aggregation": "shamir_threshold",
@@ -170,15 +197,19 @@ class APITester:
         if not self.created_project_id:
             self.log_test("PUT /projects/{id}", False, "No project ID available")
             return False
+        
+        # 确保有集群ID
+        if not self.created_cluster_id:
+            if not self.create_test_cluster():
+                self.log_test("PUT /projects/{id}", False, "无法创建测试集群")
+                return False
             
         try:
             update_data = {
                 "name": "Updated Test Project",
                 "description": "Updated test project description",
                 "model": "updated-model",
-                "nodes": [
-                    {"ip": "192.168.1.200", "name": "Updated Node 1"}
-                ],
+                "cluster_id": self.created_cluster_id,  # 使用集群ID而不是nodes
                 "training_alg": "dpo",
                 "fed_alg": "fedygi",
                 "secure_aggregation": "shamir_threshold",
@@ -453,6 +484,9 @@ class APITester:
             return
         
         try:
+            # 先创建测试集群
+            self.create_test_cluster()
+            
             # Test basic endpoints first
             self.test_get_projects()
             self.test_get_projects_with_filters()
