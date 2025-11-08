@@ -634,6 +634,22 @@ export const useEdgeAIStore = defineStore('edgeai', () => {
     try {
       // Preprocess numeric data to ensure proper decimal precision
       const processedData = preprocessFormData(nodeData)
+      
+      // Map location to ip for backend compatibility
+      if (processedData.location && !processedData.ip) {
+        processedData.ip = processedData.location
+        delete processedData.location
+      }
+      
+      // Map node_type values to backend expected values
+      const nodeTypeMap = {
+        'edge': 'training',
+        'control': 'center',
+        'compute': 'training'
+      }
+      if (processedData.node_type && nodeTypeMap[processedData.node_type]) {
+        processedData.node_type = nodeTypeMap[processedData.node_type]
+      }
 
       const result = await edgeaiService.nodes.addNode(processedData)
       

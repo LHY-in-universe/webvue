@@ -7,6 +7,7 @@ from ..schemas.edgeai import (
     SystemStats
 )
 from common.schemas.common import BaseResponse
+from common.api.auth import get_current_user_id
 from database.edgeai import get_db, User, Project, Model, Node
 import uuid
 
@@ -329,7 +330,11 @@ async def export_model(model_id: str, export_config: dict = None, db: Session = 
     )
 
 @router.delete("/{model_id}", response_model=BaseResponse)
-async def delete_model(model_id: str, db: Session = Depends(get_db)):
+async def delete_model(
+    model_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     删除模型
     """
@@ -338,7 +343,7 @@ async def delete_model(model_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid model ID format")
 
-    model = db.query(Model).filter(Model.id == model_id_int).first()
+    model = db.query(Model).filter(Model.id == model_id_int, Model.user_id == current_user_id).first()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 

@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 """
 Test script for the Cluster API endpoints
+Updated with proper authentication flow
 """
 
 import requests
 import json
+import sys
+import os
 from typing import Dict, Any
+
+# 添加项目路径
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+from test_auth_helper import TestAuthHelper
 
 BASE_URL = "http://localhost:8000/api/edgeai/clusters"
 
@@ -13,6 +21,14 @@ def test_cluster_api():
     """Test the cluster API endpoints"""
     
     print("Testing Cluster API...")
+    
+    # 设置认证
+    auth_helper = TestAuthHelper()
+    if not auth_helper.setup_auth():
+        print("❌ Failed to setup authentication. Cannot run tests.")
+        return
+    
+    headers = auth_helper.get_headers()
     
     # Test data
     test_cluster = {
@@ -23,7 +39,7 @@ def test_cluster_api():
     # Test 1: Create a cluster
     print("\n1. Testing cluster creation...")
     try:
-        response = requests.post(f"{BASE_URL}/", json=test_cluster)
+        response = requests.post(f"{BASE_URL}/", json=test_cluster, headers=headers)
         if response.status_code == 200:
             cluster_data = response.json()
             cluster_id = cluster_data["id"]
@@ -38,7 +54,7 @@ def test_cluster_api():
     # Test 2: Get all clusters
     print("\n2. Testing get all clusters...")
     try:
-        response = requests.get(f"{BASE_URL}/")
+        response = requests.get(f"{BASE_URL}/", headers=headers)
         if response.status_code == 200:
             clusters = response.json()
             print(f"✅ Retrieved {len(clusters)} clusters")
@@ -50,7 +66,7 @@ def test_cluster_api():
     # Test 3: Get specific cluster
     print(f"\n3. Testing get specific cluster (ID: {cluster_id})...")
     try:
-        response = requests.get(f"{BASE_URL}/{cluster_id}/")
+        response = requests.get(f"{BASE_URL}/{cluster_id}/", headers=headers)
         if response.status_code == 200:
             cluster = response.json()
             print(f"✅ Retrieved cluster: {cluster['name']}")
@@ -66,7 +82,7 @@ def test_cluster_api():
         "project_id": 2
     }
     try:
-        response = requests.put(f"{BASE_URL}/{cluster_id}", json=update_data)
+        response = requests.put(f"{BASE_URL}/{cluster_id}", json=update_data, headers=headers)
         if response.status_code == 200:
             updated_cluster = response.json()
             print(f"✅ Cluster updated successfully: {updated_cluster['name']}")
@@ -78,7 +94,7 @@ def test_cluster_api():
     # Test 5: Get user clusters
     print("\n5. Testing get user clusters...")
     try:
-        response = requests.get(f"{BASE_URL}/user/1/clusters")
+        response = requests.get(f"{BASE_URL}/user/1/clusters", headers=headers)
         if response.status_code == 200:
             user_clusters = response.json()
             print(f"✅ Retrieved {len(user_clusters)} clusters for user 1")
@@ -90,7 +106,7 @@ def test_cluster_api():
     # Test 6: Get project clusters
     print("\n6. Testing get project clusters...")
     try:
-        response = requests.get(f"{BASE_URL}/project/1/clusters")
+        response = requests.get(f"{BASE_URL}/project/1/clusters", headers=headers)
         if response.status_code == 200:
             project_clusters = response.json()
             print(f"✅ Retrieved {len(project_clusters)} clusters for project 1")
@@ -102,7 +118,7 @@ def test_cluster_api():
     # Test 7: Delete cluster
     print(f"\n7. Testing delete cluster (ID: {cluster_id})...")
     try:
-        response = requests.delete(f"{BASE_URL}/{cluster_id}")
+        response = requests.delete(f"{BASE_URL}/{cluster_id}", headers=headers)
         if response.status_code == 200:
             result = response.json()
             print(f"✅ Cluster deleted successfully: {result['message']}")
@@ -112,6 +128,10 @@ def test_cluster_api():
         print(f"❌ Error deleting cluster: {e}")
     
     print("\n🎉 Cluster API testing completed!")
+    
+    # 清理认证
+    print("\n🔐 Cleaning up authentication...")
+    auth_helper.cleanup_auth()
 
 if __name__ == "__main__":
     test_cluster_api()

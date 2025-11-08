@@ -8,6 +8,7 @@ from ..schemas.edgeai import (
     ClusterUpdateRequest
 )
 from common.schemas.common import BaseResponse, PaginatedResponse
+from common.api.auth import get_current_user_id
 from database.edgeai import get_db, User, Project, Cluster
 from datetime import datetime
 import httpx
@@ -151,13 +152,15 @@ async def get_clusters(
     user_id: Optional[int] = None,
     project_id: Optional[int] = None,
     search: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
 ):
     """
     获取集群列表
     支持按用户ID、项目ID和搜索关键词过滤
+    只返回当前用户的集群
     """
-    query = db.query(Cluster)
+    query = db.query(Cluster).filter(Cluster.user_id == current_user_id)
 
     if user_id:
         query = query.filter(Cluster.user_id == user_id)
@@ -187,16 +190,24 @@ async def get_clusters(
     return result
 
 @router.get("/{cluster_id}/", response_model=ClusterResponse)
-async def get_cluster(cluster_id: str, db: Session = Depends(get_db)):
+async def get_cluster(
+    cluster_id: str, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     获取特定集群详情
+    只能访问当前用户的集群
     """
     try:
         cluster_id_int = int(cluster_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid cluster ID format")
 
-    cluster = db.query(Cluster).filter(Cluster.id == cluster_id_int).first()
+    cluster = db.query(Cluster).filter(
+        Cluster.id == cluster_id_int,
+        Cluster.user_id == current_user_id
+    ).first()
 
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
@@ -211,14 +222,18 @@ async def get_cluster(cluster_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/", response_model=ClusterResponse)
-async def create_cluster(request: ClusterCreateRequest, db: Session = Depends(get_db)):
+async def create_cluster(
+    request: ClusterCreateRequest, 
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
     """
     创建新集群
     """
     # Create new cluster in database
     new_cluster = Cluster(
         name=request.name,
-        user_id=1,  # TODO: Get from authenticated user
+        user_id=current_user_id,  # 使用认证用户的ID
         project_id=request.project_id
     )
 
@@ -270,7 +285,7 @@ async def update_cluster(cluster_id: str, request: ClusterUpdateRequest, db: Ses
     )
 
 @router.delete("/{cluster_id}", response_model=BaseResponse)
-async def delete_cluster(cluster_id: str, db: Session = Depends(get_db)):
+async def delete_cluster(cluster_id: str, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     """
     删除集群
     """
@@ -279,7 +294,7 @@ async def delete_cluster(cluster_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid cluster ID format")
 
-    cluster = db.query(Cluster).filter(Cluster.id == cluster_id_int).first()
+    cluster = db.query(Cluster).filter(Cluster.id == cluster_id_int, Cluster.user_id == current_user_id).first()
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
 
